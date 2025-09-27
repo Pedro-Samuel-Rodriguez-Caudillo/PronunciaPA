@@ -1,0 +1,23 @@
+﻿[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ipa-core"
+version = "0.0.1"
+description = "Microkernel IPA MVP (skeleton)"
+requires-python = ">=3.11"
+dependencies = ["typer[all]>=0.12"]
+
+[project.scripts]
+ipa = "ipa_core.api.cli:app"
+
+[project.entry-points."ipa_core.backends.asr"]
+null = "ipa_core.backends.null_backend:NullASRBackend"
+whisper-ipa = "ipa_core.backends.whisper_ipa:WhisperIPABackend"
+
+[project.entry-points."ipa_core.plugins.textref"]
+noop = "ipa_core.textref.noop:NoopTextRef"
+
+[project.entry-points."ipa_core.plugins.compare"]
+noop = "ipa_core.compare.noop:NoopComparator"
