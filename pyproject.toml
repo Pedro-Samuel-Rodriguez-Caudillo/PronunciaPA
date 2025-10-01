@@ -1,4 +1,4 @@
-﻿[build-system]
+[build-system]
 requires = ["setuptools>=64", "wheel"]
 build-backend = "setuptools.build_meta"
 
@@ -7,7 +7,9 @@ name = "ipa-core"
 version = "0.0.1"
 description = "Microkernel IPA MVP (skeleton)"
 requires-python = ">=3.11"
-dependencies = ["typer[all]>=0.12"]
+dependencies = [
+    "typer[all]>=0.12",
+]
 
 [project.scripts]
 ipa = "ipa_core.api.cli:app"

@@ -18,7 +18,7 @@ ipa_core/
   plugins.py  # Carga de entry points
 
 ### api/
-- cli.py: comandos ipa plugins y ipa run.
+- cli.py: comandos `ipa plugins` y `ipa run` basados en Typer.
 
 ### backends/
 - base.py: interfaz ASRBackend.transcribe_ipa(audio_path) -> str
@@ -55,6 +55,11 @@ flowchart TD
     J --> K["Reportes<br/>PER global · matriz de confusión · PER por clase"]
     K --> L["Salida<br/>JSON/CSV · gráficos · ejemplos de audio con marcas"]
 ```
+
+## Configuración del kernel
+
+Consulte [`docs/kernel.md`](docs/kernel.md) para la guía detallada sobre la
+configuración (`KernelConfig`), gestión de plugins y uso del CLI stub.
 
 ## Proximos pasos
 - Implementar backend ASR real (Whisper-IPA y/o Allosaurus).
