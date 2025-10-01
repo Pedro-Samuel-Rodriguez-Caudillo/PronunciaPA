@@ -38,7 +38,7 @@ ipa_core/
 - plugins.py: carga por entry points.
 
 ## Pipeline
-
+```mermaid
 flowchart TD
     A[Audio (.wav/.mp3)] --> B[Preprocesado<br/>resample 16 kHz · normalización · VAD · chunking]
     A2[Texto objetivo] --> C[Text→IPA (G2P)<br/>phonemizer/espeak-ng · diccionario]
@@ -54,7 +54,7 @@ flowchart TD
     I -. tiempos .-> J
     J --> K[Reportes<br/>PER global · matriz de confusión · PER por clase]
     K --> L[Salida<br/>JSON/CSV · gráficos · ejemplos de audio con marcas]
-
+```
 
 ## Proximos pasos
 - Implementar backend ASR real (Whisper-IPA y/o Allosaurus).
