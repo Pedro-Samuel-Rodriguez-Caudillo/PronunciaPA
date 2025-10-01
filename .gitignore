@@ -1,0 +1,160 @@
+# ===========================================
+# PYTHON - Entorno virtual y archivos temporales
+# ===========================================
+# Entorno virtual (CRÍTICO - ya tienes .venv/ en el proyecto)
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Archivos compilados de Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ===========================================
+# NODE.JS / FRONTEND - React dependencies
+# ===========================================
+# Dependencias de Node.js (CRÍTICO para React)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# Archivos de build del frontend
+frontend/build/
+frontend/dist/
+frontend/.next/
+frontend/out/
+
+# Cache de npm/yarn
+.npm
+.yarn-integrity
+.eslintcache
+.stylelintcache
+
+# ===========================================
+# ARCHIVOS DE CONFIGURACIÓN SENSIBLES
+# ===========================================
+# Variables de entorno
+.env
+.env.development.local
+.env.test.local
+.env.production.local
+.env.local
+
+# ===========================================
+# ARCHIVOS TEMPORALES Y CACHE
+# ===========================================
+# Cache general
+.cache/
+.parcel-cache/
+
+# Logs
+logs
+*.log
+
+# Archivos temporales
+tmp/
+temp/
+
+# ===========================================
+# EDITORES E IDEs
+# ===========================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ===========================================
+# SISTEMA OPERATIVO
+# ===========================================
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+
+# Linux
+*~
+
+# ===========================================
+# ARCHIVOS ESPECÍFICOS DEL PROYECTO IPA
+# ===========================================
+# Archivos de audio grandes (opcional - descomenta si no quieres versionar archivos de audio)
+# *.wav
+# *.mp3
+# *.m4a
+# *.flac
+# *.ogg
+
+# Modelos de ML grandes (si usas modelos pre-entrenados)
+# *.model
+# *.pkl
+# *.h5
+# *.pt
+# *.pth
+
+# ===========================================
+# HERRAMIENTAS DE DESARROLLO
+# ===========================================
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Coverage
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# ===========================================
+# DOCUMENTACIÓN GENERADA
+# ===========================================
+# Sphinx
+docs/_build/
+
+# ===========================================
+# DEPLOYMENT
+# ===========================================
+# Archivos de deployment
+.dockerignore
+docker-compose.override.yml
