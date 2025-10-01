@@ -40,20 +40,20 @@ ipa_core/
 ## Pipeline
 ```mermaid
 flowchart TD
-    A[Audio (.wav/.mp3)] --> B[Preprocesado<br/>resample 16 kHz · normalización · VAD · chunking]
-    A2[Texto objetivo] --> C[Text→IPA (G2P)<br/>phonemizer/espeak-ng · diccionario]
-    C --> D[Normalización IPA de referencia<br/>mapeos: diacríticos, longitud, alófonos]
-    B --> E[ASR→IPA (hipótesis)<br/>Whisper-IPA / Allosaurus/“androsa”]
-    E --> F[Normalización IPA de hipótesis<br/>mismo esquema que la referencia]
+    A["Audio (.wav/.mp3)"] --> B["Preprocesado<br/>resample 16 kHz · normalización · VAD · chunking"]
+    A2["Texto objetivo"] --> C["Text→IPA (G2P)<br/>phonemizer/espeak-ng · diccionario"]
+    C --> D["Normalización IPA de referencia<br/>mapeos: diacríticos, longitud, alófonos"]
+    B --> E["ASR→IPA (hipótesis)<br/>Whisper-IPA / Allosaurus/'androsa'"]
+    E --> F["Normalización IPA de hipótesis<br/>mismo esquema que la referencia"]
     D --> G{Alineación}
     F --> G
-    G -->|Opción 1| H[Levenshtein / Needleman-Wunsch<br/>secuencia fonémica vs. secuencia fonémica]
-    B --> I[Forced alignment opcional<br/>MFA u otro, para timestamps por fonema]
+    G -->|Opción 1| H["Levenshtein / Needleman-Wunsch<br/>secuencia fonémica vs. secuencia fonémica"]
+    B --> I["Forced alignment opcional<br/>MFA u otro, para timestamps por fonema"]
     E --> I
-    H --> J[Scoring]
+    H --> J["Scoring"]
     I -. tiempos .-> J
-    J --> K[Reportes<br/>PER global · matriz de confusión · PER por clase]
-    K --> L[Salida<br/>JSON/CSV · gráficos · ejemplos de audio con marcas]
+    J --> K["Reportes<br/>PER global · matriz de confusión · PER por clase"]
+    K --> L["Salida<br/>JSON/CSV · gráficos · ejemplos de audio con marcas"]
 ```
 
 ## Proximos pasos
