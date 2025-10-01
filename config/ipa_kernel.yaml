@@ -1,0 +1,6 @@
+# Configuración base del kernel IPA
+plugins:
+  asr_backend: null
+  textref: noop
+  comparator: noop
+  preprocessor:
