@@ -1,0 +1,23 @@
+{
+  "name": "pronunciapa-frontend",
+  "version": "1.0.0",
+  "description": "Frontend para PronunciaPA - Análisis de pronunciación IPA",
+  "main": "public/index.html",
+  "scripts": {
+    "start": "python -m http.server 3000 --directory public",
+    "build": "echo 'Build completed - static site ready'",
+    "serve": "python -m http.server 8000 --directory public"
+  },
+  "keywords": [
+    "ipa",
+    "pronunciation",
+    "analysis",
+    "linguistics",
+    "speech"
+  ],
+  "author": "PronunciaPA Team",
+  "license": "MIT",
+  "devDependencies": {
+    "tailwindcss": "^4.1.13"
+  }
+}
