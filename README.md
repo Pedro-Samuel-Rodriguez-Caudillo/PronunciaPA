@@ -78,8 +78,41 @@ Luego instala las dependencias Python (incluido `phonemizer`):
 pip install -e .
 ```
 
+Para automatizar la preparación del entorno (dependencias de Python y descarga del
+modelo Whisper-IPA) puedes ejecutar:
+
+```bash
+./scripts/install_models.sh
+```
+
+Este script verificará si `espeak-ng` está instalado y descargará el modelo
+`neurlang/ipa-whisper-base` al caché local de Hugging Face.
+
 > Nota: si `phonemizer` no está disponible el plugin incluye un fallback muy
 > básico para pruebas que solo cubre algunos ejemplos en español e inglés.
+
+## API HTTP y frontend
+
+El módulo `ipa_core.api.server` expone una API HTTP basada en FastAPI que se
+integra con el frontend estático incluido en `frontend/public/`. Para probar el
+flujo completo:
+
+1. Inicia el backend:
+
+   ```bash
+   uvicorn ipa_core.api.server:app --host 0.0.0.0 --port 8000
+   ```
+
+2. Sirve el frontend (por ejemplo usando el script disponible en `package.json`):
+
+   ```bash
+   cd frontend
+   npm run start
+   ```
+
+3. Abre `http://localhost:3000` en tu navegador y utiliza la sección "Conecta
+   con el núcleo IPA" para subir un audio y visualizar las métricas generadas
+   por el backend.
 
 ## Datos de ejemplo
 
