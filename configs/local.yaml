@@ -1,0 +1,4 @@
+plugins:
+  asr_backend: null
+  textref: noop
+  comparator: levenshtein

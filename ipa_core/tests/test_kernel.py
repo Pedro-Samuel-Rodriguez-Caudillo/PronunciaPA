@@ -11,6 +11,7 @@ if str(ROOT) not in sys.path:
 
 import pytest
 
+from ipa_core.compare.base import CompareResult, PhonemeStats
 from ipa_core.kernel import Kernel, KernelConfig
 from ipa_core.plugins import PLUGIN_GROUPS, list_plugins, load_plugin
 
@@ -76,67 +77,62 @@ def test_load_plugin_missing(monkeypatch):
         load_plugin("grp", "missing")
 
 
-def test_kernel_instantiation(monkeypatch, tmp_path: Path):
+def test_kernel_run_generates_report(monkeypatch, tmp_path: Path):
+    metadata_path = tmp_path / "metadata.csv"
+    metadata_path.write_text("audio_path,text,lang\na.wav,Hola,es\n", encoding="utf-8")
+
     class DummyASR:
         def __call__(self):
             return self
 
         def transcribe_ipa(self, path: str) -> str:  # pragma: no cover - stub
-            return f"ipa::{path}"
+            return "h o l a"
 
     class DummyText:
         def __call__(self):
             return self
 
         def text_to_ipa(self, text: str, lang: str | None = None) -> str:  # pragma: no cover - stub
-            return f"ipa::{text}::{lang}"
+            return "h o l a"
 
-    class DummyCmp:
+    class DummyComparator:
         def __call__(self):
             return self
 
-        def compare(self, ref: str, hyp: str):  # pragma: no cover - stub
-            return (ref, hyp)
+        def compare(self, ref: str, hyp: str) -> CompareResult:  # pragma: no cover - stub
+            stats = PhonemeStats(matches=4)
+            return CompareResult(
+                per=0.0,
+                ops=[("match", "h", "h")],
+                total_ref_tokens=4,
+                matches=4,
+                substitutions=0,
+                insertions=0,
+                deletions=0,
+                per_class={"h": stats},
+            )
 
     def fake_loader(group: str, name: str):
         mapping = {
             PLUGIN_GROUPS["asr"].entrypoint_group: DummyASR,
             PLUGIN_GROUPS["textref"].entrypoint_group: DummyText,
-            PLUGIN_GROUPS["comparator"].entrypoint_group: DummyCmp,
+            PLUGIN_GROUPS["comparator"].entrypoint_group: DummyComparator,
         }
         return mapping[group]
 
     monkeypatch.setattr("ipa_core.kernel.load_plugin", fake_loader)
 
-    cfg = KernelConfig(asr_backend="a", textref="b", comparator="c")
+    cfg = KernelConfig(asr_backend="null", textref="noop", comparator="levenshtein")
     kernel = Kernel(cfg)
-    result = kernel.run(tmp_path, dry_run=True)
+    report = kernel.run(metadata_path)
 
-    assert result["plugins"]["asr_backend"] == "a"
-    assert result["plugins"]["textref"] == "b"
-    assert result["plugins"]["comparator"] == "c"
-    assert result["dry_run"] is True
-
-
-def test_kernel_run_collects_files(monkeypatch, tmp_path: Path):
-    audio_file = tmp_path / "sample.wav"
-    audio_file.write_text("fake")
-
-    class DummyPlugin:
-        def __call__(self):
-            return self
-
-    monkeypatch.setattr(
-        "ipa_core.kernel.load_plugin",
-        lambda group, name: DummyPlugin,
-    )
-
-    cfg = KernelConfig(asr_backend="null", textref="noop", comparator="noop")
-    kernel = Kernel(cfg)
-    result = kernel.run(tmp_path, dry_run=False)
-
-    assert result["files"] == ["sample.wav"]
-    assert result["dry_run"] is False
+    assert report["summary"]["procesados"] == 1
+    assert report["per_global"] == 0.0
+    assert len(report["detalles"]) == 1
+    detalle = report["detalles"][0]
+    assert detalle["ref_ipa"] == "h o l a"
+    assert detalle["hyp_ipa"] == "h o l a"
+    assert report["per_por_clase"]["h"]["matches"] == 4
 
 
 def test_kernel_config_from_yaml(tmp_path: Path):
