@@ -1,0 +1,93 @@
+{
+  "config": {
+    "asr_backend": "null",
+    "textref": "noop",
+    "comparator": "levenshtein",
+    "preprocessor": null
+  },
+  "metadata": {
+    "path": "/workspace/PronunciaPA/data/sample/metadata.csv",
+    "total_items": 3
+  },
+  "summary": {
+    "procesados": 3,
+    "con_error": 0,
+    "total_ref_tokens": 3,
+    "total_errores": 3
+  },
+  "per_global": 1.0,
+  "per_por_clase": {
+    "sɪstema": {
+      "matches": 0,
+      "substitutions": 3,
+      "insertions": 0,
+      "deletions": 0,
+      "errors": 3
+    }
+  },
+  "detalles": [
+    {
+      "index": 1,
+      "audio_path": "sample_01.wav",
+      "text": "Tono de referencia en 440 Hz",
+      "lang": "es",
+      "ref_ipa": "sɪstema",
+      "hyp_ipa": "dɛmo",
+      "per": 1.0,
+      "matches": 0,
+      "substitutions": 1,
+      "insertions": 0,
+      "deletions": 0,
+      "total_ref_tokens": 1,
+      "ops": [
+        {
+          "op": "substitution",
+          "ref": "sɪstema",
+          "hyp": "dɛmo"
+        }
+      ]
+    },
+    {
+      "index": 2,
+      "audio_path": "sample_02.wav",
+      "text": "Tono de prueba en 554 Hz aproximados",
+      "lang": "es",
+      "ref_ipa": "sɪstema",
+      "hyp_ipa": "dɛmo",
+      "per": 1.0,
+      "matches": 0,
+      "substitutions": 1,
+      "insertions": 0,
+      "deletions": 0,
+      "total_ref_tokens": 1,
+      "ops": [
+        {
+          "op": "substitution",
+          "ref": "sɪstema",
+          "hyp": "dɛmo"
+        }
+      ]
+    },
+    {
+      "index": 3,
+      "audio_path": "sample_03.wav",
+      "text": "Tono de cierre en 659 Hz aproximados",
+      "lang": "es",
+      "ref_ipa": "sɪstema",
+      "hyp_ipa": "dɛmo",
+      "per": 1.0,
+      "matches": 0,
+      "substitutions": 1,
+      "insertions": 0,
+      "deletions": 0,
+      "total_ref_tokens": 1,
+      "ops": [
+        {
+          "op": "substitution",
+          "ref": "sɪstema",
+          "hyp": "dɛmo"
+        }
+      ]
+    }
+  ]
+}
