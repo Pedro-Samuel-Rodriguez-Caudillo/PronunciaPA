@@ -118,6 +118,9 @@ Desktop.ini
 # *.flac
 # *.ogg
 
+# Samples de prueba
+data/sample/*.wav
+
 # Modelos de ML grandes (si usas modelos pre-entrenados)
 # *.model
 # *.pkl
