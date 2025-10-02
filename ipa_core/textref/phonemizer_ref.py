@@ -4,7 +4,6 @@ from __future__ import annotations
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any, Mapping
-import unicodedata
 
 try:  # pragma: no cover - dependencia opcional durante la importación
     import yaml  # type: ignore
@@ -16,10 +15,12 @@ try:  # pragma: no cover - dependencia opcional durante la importación
 except ModuleNotFoundError:  # pragma: no cover - entorno sin dependencia
     phonemize = None
 
+from ipa_core.normalization import IPANormalizer
 from ipa_core.textref.base import TextRef
 
 _ROOT_DIR = Path(__file__).resolve().parent.parent.parent
 _CONFIG_PATH = _ROOT_DIR / "config" / "textref_phonemizer.yaml"
+_NORMALIZATION_CONFIG = _ROOT_DIR / "configs" / "normalization.yaml"
 
 
 class PhonemizerTextRef(TextRef):
@@ -30,9 +31,19 @@ class PhonemizerTextRef(TextRef):
     invocar :meth:`text_to_ipa` mediante el argumento ``lang``.
     """
 
-    def __init__(self, language: str | None = None, config_path: Path | None = None):
+    def __init__(
+        self,
+        language: str | None = None,
+        config_path: Path | None = None,
+        *,
+        normalizer: IPANormalizer | None = None,
+        normalization_config_path: Path | None = None,
+    ):
         self._config_path = config_path or _CONFIG_PATH
         self._default_language = language or self._load_language()
+        self._normalizer = normalizer or self._load_normalizer(
+            normalization_config_path or _NORMALIZATION_CONFIG
+        )
 
     def _load_language(self) -> str:
         config = self._load_config()
@@ -86,7 +97,13 @@ class PhonemizerTextRef(TextRef):
                 njobs=1,
             )
         normalised = " ".join(phonemes.split())
-        return unicodedata.normalize("NFC", normalised)
+        return self._normalizer.normalize(normalised)
+
+    def _load_normalizer(self, config_path: Path) -> IPANormalizer:
+        try:
+            return IPANormalizer.from_config_file(config_path)
+        except FileNotFoundError:  # pragma: no cover - despliegues sin configuración
+            return IPANormalizer()
 
 
 def _fallback_phonemize(text: str, language: str) -> str:
