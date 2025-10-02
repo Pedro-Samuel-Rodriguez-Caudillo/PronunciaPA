@@ -61,6 +61,19 @@ flowchart TD
 Consulte [`docs/kernel.md`](docs/kernel.md) para la guía detallada sobre la
 configuración (`KernelConfig`), gestión de plugins y uso del CLI stub.
 
+## Datos de ejemplo
+
+El repositorio incluye un dataset mínimo en `data/sample/` con tres pares
+audio-texto pensado para validar el pipeline localmente. Los archivos WAV no se
+versionan; genéralos cuando los necesites con:
+
+```bash
+python scripts/generate_sample_dataset.py
+```
+
+La documentación del formato y los scripts auxiliares están descritos en
+[`docs/data.md`](docs/data.md).
+
 ## Proximos pasos
 - Implementar backend ASR real (Whisper-IPA y/o Allosaurus).
 - Integrar phonemizer/espeak en TextRef.
