@@ -85,6 +85,88 @@
     </div>
   </section>
 
+  <section id="demo" class="py-20 bg-white">
+    <div class="max-w-6xl mx-auto px-6">
+      <div class="text-center mb-16">
+        <h2 class="text-4xl md:text-5xl font-bold text-gray-800 mb-4">Conecta con el núcleo IPA</h2>
+        <p class="text-xl text-gray-600">Sube un audio y obtén métricas en tiempo real usando la API de PronunciaPA</p>
+      </div>
+      <div class="grid gap-12 lg:grid-cols-2 items-start">
+        <div class="bg-gradient-to-br from-purple-50 to-blue-50 p-8 rounded-2xl shadow-lg border border-purple-100">
+          <h3 class="text-2xl font-semibold text-gray-800 mb-4">Plugins detectados</h3>
+          <p class="text-gray-600 mb-6">La API consulta los plugins instalados en el backend para mostrar qué componentes están disponibles.</p>
+          <div id="pluginLoading" class="text-sm text-purple-600 font-medium">Cargando plugins registrados...</div>
+          <ul id="pluginList" class="space-y-3"></ul>
+          <div id="pluginError" class="hidden text-sm text-red-600 mt-4"></div>
+        </div>
+        <div class="bg-white border border-gray-200 rounded-2xl shadow-xl p-8">
+          <h3 class="text-2xl font-semibold text-gray-800 mb-4">Ejecutar un análisis</h3>
+          <p class="text-gray-600 mb-6">Selecciona un archivo de audio (formato WAV/MP3) y proporciona el texto de referencia. El backend generará la transcripción IPA y calculará la métrica PER.</p>
+          <form id="analysisForm" class="space-y-6" enctype="multipart/form-data">
+            <div>
+              <label for="audioInput" class="block text-sm font-medium text-gray-700 mb-2">Archivo de audio</label>
+              <input id="audioInput" name="audio" type="file" accept="audio/wav,audio/x-wav,audio/mpeg,audio/mp3,audio/*" required class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-400">
+              <p class="text-xs text-gray-500 mt-2">Para pruebas rápidas puedes utilizar los WAV generados en <code class="bg-gray-100 px-1 rounded">data/sample/</code>.</p>
+            </div>
+            <div>
+              <label for="textInput" class="block text-sm font-medium text-gray-700 mb-2">Texto de referencia</label>
+              <textarea id="textInput" name="text" rows="3" required class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-400" placeholder="Escribe el texto pronunciado en el audio"></textarea>
+            </div>
+            <div>
+              <label for="langInput" class="block text-sm font-medium text-gray-700 mb-2">Idioma (opcional)</label>
+              <input id="langInput" name="lang" type="text" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-400" placeholder="es, en, etc.">
+            </div>
+            <button type="submit" class="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1">Analizar pronunciación</button>
+          </form>
+          <div id="analysisStatus" class="hidden mt-6 text-sm text-purple-600 font-medium">Procesando audio...</div>
+          <div id="analysisError" class="hidden mt-6 text-sm text-red-600"></div>
+          <div id="analysisResult" class="hidden mt-8 border border-gray-200 rounded-xl p-6 bg-gradient-to-br from-white to-purple-50">
+            <h4 class="text-xl font-semibold text-gray-800 mb-4">Resultados del análisis</h4>
+            <dl class="grid grid-cols-1 gap-4 text-sm text-gray-700 md:grid-cols-2">
+              <div>
+                <dt class="font-semibold text-gray-600">Texto</dt>
+                <dd id="resultText" class="mt-1 break-words"></dd>
+              </div>
+              <div>
+                <dt class="font-semibold text-gray-600">Idioma</dt>
+                <dd id="resultLang" class="mt-1"></dd>
+              </div>
+              <div>
+                <dt class="font-semibold text-gray-600">IPA referencia</dt>
+                <dd id="resultRefIpa" class="mt-1 font-mono text-purple-700"></dd>
+              </div>
+              <div>
+                <dt class="font-semibold text-gray-600">IPA hipótesis</dt>
+                <dd id="resultHypIpa" class="mt-1 font-mono text-blue-700"></dd>
+              </div>
+              <div>
+                <dt class="font-semibold text-gray-600">PER global</dt>
+                <dd id="resultPer" class="mt-1 text-lg font-bold text-purple-600"></dd>
+              </div>
+              <div>
+                <dt class="font-semibold text-gray-600">Resumen de operaciones</dt>
+                <dd class="mt-1 text-sm text-gray-600">
+                  <span id="resultMatches" class="mr-3"></span>
+                  <span id="resultSubstitutions" class="mr-3"></span>
+                  <span id="resultInsertions" class="mr-3"></span>
+                  <span id="resultDeletions"></span>
+                </dd>
+              </div>
+            </dl>
+            <div class="mt-6">
+              <h5 class="text-sm font-semibold text-gray-600 mb-2">Operaciones (máx. 10)</h5>
+              <ul id="resultOps" class="space-y-2 text-sm text-gray-700"></ul>
+            </div>
+            <div class="mt-6">
+              <h5 class="text-sm font-semibold text-gray-600 mb-2">Métricas por fonema</h5>
+              <ul id="resultPerClass" class="space-y-2 text-sm text-gray-700"></ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <section id="caracteristicas" class="py-20 bg-white">
     <div class="max-w-6xl mx-auto px-6">
       <div class="text-center mb-16">
@@ -221,6 +303,195 @@
       section.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
       observer.observe(section);
     });
+
+    const API_BASE_URL = window.PRONUNCIAPA_API_BASE || 'http://localhost:8000';
+    const pluginList = document.getElementById('pluginList');
+    const pluginLoading = document.getElementById('pluginLoading');
+    const pluginError = document.getElementById('pluginError');
+    const analysisForm = document.getElementById('analysisForm');
+    const analysisStatus = document.getElementById('analysisStatus');
+    const analysisError = document.getElementById('analysisError');
+    const analysisResult = document.getElementById('analysisResult');
+    const resultText = document.getElementById('resultText');
+    const resultLang = document.getElementById('resultLang');
+    const resultRefIpa = document.getElementById('resultRefIpa');
+    const resultHypIpa = document.getElementById('resultHypIpa');
+    const resultPer = document.getElementById('resultPer');
+    const resultMatches = document.getElementById('resultMatches');
+    const resultSubstitutions = document.getElementById('resultSubstitutions');
+    const resultInsertions = document.getElementById('resultInsertions');
+    const resultDeletions = document.getElementById('resultDeletions');
+    const resultOps = document.getElementById('resultOps');
+    const resultPerClass = document.getElementById('resultPerClass');
+
+    async function loadPlugins() {
+      if (!pluginList) {
+        return;
+      }
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/plugins`);
+        if (!response.ok) {
+          throw new Error('Respuesta inesperada del servidor');
+        }
+        const data = await response.json();
+        const entries = Object.entries(data.plugins || {});
+        pluginList.innerHTML = '';
+        if (!entries.length) {
+          pluginList.innerHTML = '<li class="text-sm text-gray-600">No se encontraron plugins registrados.</li>';
+        } else {
+          entries.forEach(([group, names]) => {
+            const item = document.createElement('li');
+            item.className = 'bg-white rounded-xl px-4 py-3 shadow flex flex-col sm:flex-row sm:items-center sm:justify-between';
+            const title = document.createElement('span');
+            title.className = 'font-semibold text-gray-700 capitalize';
+            title.textContent = group;
+            const values = document.createElement('span');
+            values.className = 'text-sm text-gray-500 mt-2 sm:mt-0';
+            values.textContent = (names && names.length) ? names.join(', ') : 'Sin plugins disponibles';
+            item.appendChild(title);
+            item.appendChild(values);
+            pluginList.appendChild(item);
+          });
+        }
+        if (pluginLoading) {
+          pluginLoading.classList.add('hidden');
+        }
+        if (pluginError) {
+          pluginError.classList.add('hidden');
+        }
+      } catch (error) {
+        if (pluginLoading) {
+          pluginLoading.classList.add('hidden');
+        }
+        if (pluginError) {
+          pluginError.textContent = 'No se pudieron obtener los plugins: ' + (error instanceof Error ? error.message : 'Error desconocido');
+          pluginError.classList.remove('hidden');
+        }
+      }
+    }
+
+    function renderList(container, items, formatItem) {
+      container.innerHTML = '';
+      if (!Array.isArray(items) || !items.length) {
+        const empty = document.createElement('li');
+        empty.className = 'text-sm text-gray-500';
+        empty.textContent = 'Sin datos disponibles.';
+        container.appendChild(empty);
+        return;
+      }
+      items.forEach((item, index) => {
+        if (index >= 10) {
+          return;
+        }
+        const li = document.createElement('li');
+        li.className = 'bg-white/60 border border-gray-200 rounded-lg px-3 py-2';
+        li.textContent = formatItem(item);
+        container.appendChild(li);
+      });
+    }
+
+    function renderPerClassList(container, perClass) {
+      container.innerHTML = '';
+      const entries = Object.entries(perClass || {});
+      if (!entries.length) {
+        const empty = document.createElement('li');
+        empty.className = 'text-sm text-gray-500';
+        empty.textContent = 'Sin estadísticas registradas.';
+        container.appendChild(empty);
+        return;
+      }
+      entries.slice(0, 10).forEach(([phoneme, stats]) => {
+        const li = document.createElement('li');
+        li.className = 'bg-white/60 border border-gray-200 rounded-lg px-3 py-2 flex flex-wrap gap-3';
+        const title = document.createElement('span');
+        title.className = 'font-semibold text-gray-700';
+        title.textContent = phoneme;
+        const details = document.createElement('span');
+        details.className = 'text-sm text-gray-500';
+        details.textContent = `Aciertos ${stats.matches} · Sustituciones ${stats.substitutions} · Inserciones ${stats.insertions} · Eliminaciones ${stats.deletions}`;
+        li.appendChild(title);
+        li.appendChild(details);
+        container.appendChild(li);
+      });
+    }
+
+    function showAnalysisResult(payload) {
+      if (!analysisResult) {
+        return;
+      }
+      resultText.textContent = payload.text || '—';
+      resultLang.textContent = payload.lang || '—';
+      resultRefIpa.textContent = payload.ref_ipa || '—';
+      resultHypIpa.textContent = payload.hyp_ipa || '—';
+      if (typeof payload.per === 'number') {
+        resultPer.textContent = `${(payload.per * 100).toFixed(2)} %`;
+      } else {
+        resultPer.textContent = '—';
+      }
+      resultMatches.textContent = `✔︎ ${payload.matches ?? 0} aciertos`;
+      resultSubstitutions.textContent = `↺ ${payload.substitutions ?? 0} sustituciones`;
+      resultInsertions.textContent = `＋ ${payload.insertions ?? 0} inserciones`;
+      resultDeletions.textContent = `− ${payload.deletions ?? 0} eliminaciones`;
+
+      renderList(resultOps, payload.ops, (item) => {
+        const ref = item.ref || '∅';
+        const hyp = item.hyp || '∅';
+        return `${item.op}: ${ref} → ${hyp}`;
+      });
+      renderPerClassList(resultPerClass, payload.per_class);
+
+      analysisResult.classList.remove('hidden');
+    }
+
+    if (analysisForm) {
+      analysisForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        if (analysisError) {
+          analysisError.classList.add('hidden');
+        }
+        if (analysisStatus) {
+          analysisStatus.textContent = 'Procesando audio...';
+          analysisStatus.classList.remove('hidden');
+        }
+        if (analysisResult) {
+          analysisResult.classList.add('hidden');
+        }
+
+        const formData = new FormData(analysisForm);
+
+        try {
+          const response = await fetch(`${API_BASE_URL}/api/analyze`, {
+            method: 'POST',
+            body: formData,
+          });
+          if (!response.ok) {
+            let message = 'No se pudo procesar el análisis.';
+            try {
+              const errorPayload = await response.json();
+              if (errorPayload && errorPayload.detail) {
+                message = errorPayload.detail;
+              }
+            } catch (parseError) {
+              message = 'No se pudo interpretar la respuesta del servidor.';
+            }
+            throw new Error(message);
+          }
+          const payload = await response.json();
+          showAnalysisResult(payload);
+        } catch (err) {
+          if (analysisError) {
+            analysisError.textContent = err instanceof Error ? err.message : 'Ocurrió un error inesperado.';
+            analysisError.classList.remove('hidden');
+          }
+        } finally {
+          if (analysisStatus) {
+            analysisStatus.classList.add('hidden');
+          }
+        }
+      });
+    }
+
+    loadPlugins();
   </script>
 </body>
 </html>
