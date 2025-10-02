@@ -12,7 +12,7 @@ La clase `KernelConfig` se define como un `dataclass` con los campos:
 | Campo         | Descripción                                             | Valor por defecto |
 |---------------|---------------------------------------------------------|-------------------|
 | `asr_backend` | Backend ASR que convierte audio a IPA (`ipa_core.backends.asr`) | `null`            |
-| `textref`     | Conversor de texto a IPA (`ipa_core.plugins.textref`)   | `noop`            |
+| `textref`     | Conversor de texto a IPA (`ipa_core.plugins.textref`)   | `phonemizer`      |
 | `comparator`  | Comparador de cadenas IPA (`ipa_core.plugins.compare`)  | `noop`            |
 | `preprocessor`| Preprocesador opcional (`ipa_core.plugins.preprocess`)  | `None`            |
 
@@ -22,7 +22,7 @@ La configuración puede declararse directamente en YAML usando un bloque
 ```yaml
 plugins:
   asr_backend: null
-  textref: noop
+  textref: phonemizer
   comparator: noop
   preprocessor: null
 ```
@@ -42,7 +42,9 @@ Los plugins se descubren mediante los *entry points* definidos en
 - `ipa_core.plugins.preprocess` (alias CLI `preprocessor`)
 
 La utilidad `ipa plugins list` muestra los plugins disponibles, permitiendo
-filtrar por grupo con `--group`.
+filtrar por grupo con `--group`. El conversor por defecto es
+`phonemizer`, que utiliza el backend `espeak-ng` y permite ajustar el idioma a
+través del archivo `config/textref_phonemizer.yaml`.
 
 ## Ejecución del pipeline (stub)
 

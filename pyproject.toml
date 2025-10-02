@@ -11,6 +11,7 @@ dependencies = [
     "typer[all]>=0.12",
     "transformers>=4.37",
     "torch>=2.1",
+    "phonemizer>=3.2",
 ]
 
 [project.scripts]
@@ -22,6 +23,7 @@ whisper-ipa = "ipa_core.backends.whisper_ipa:WhisperIPABackend"
 
 [project.entry-points."ipa_core.plugins.textref"]
 noop = "ipa_core.textref.noop:NoopTextRef"
+phonemizer = "ipa_core.textref.phonemizer_ref:PhonemizerTextRef"
 
 [project.entry-points."ipa_core.plugins.compare"]
 noop = "ipa_core.compare.noop:NoopComparator"

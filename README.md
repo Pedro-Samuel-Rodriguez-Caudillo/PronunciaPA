@@ -31,6 +31,7 @@ ipa_core/
 
 ### textref/
 - base.py: interfaz TextRef.text_to_ipa(text, lang) -> str
+- phonemizer_ref.py: conversor real usando phonemizer/espeak-ng.
 - noop.py: stub de prueba.
 
 ### Nucleo
@@ -61,6 +62,25 @@ flowchart TD
 Consulte [`docs/kernel.md`](docs/kernel.md) para la guía detallada sobre la
 configuración (`KernelConfig`), gestión de plugins y uso del CLI stub.
 
+## Dependencias externas
+
+Para que el conversor de texto a IPA funcione con toda su capacidad es
+necesario instalar los binarios de `espeak-ng` además de las dependencias
+Python del proyecto. En Debian/Ubuntu:
+
+```bash
+sudo apt-get install espeak-ng
+```
+
+Luego instala las dependencias Python (incluido `phonemizer`):
+
+```bash
+pip install -e .
+```
+
+> Nota: si `phonemizer` no está disponible el plugin incluye un fallback muy
+> básico para pruebas que solo cubre algunos ejemplos en español e inglés.
+
 ## Datos de ejemplo
 
 El repositorio incluye un dataset mínimo en `data/sample/` con tres pares
@@ -76,5 +96,4 @@ La documentación del formato y los scripts auxiliares están descritos en
 
 ## Proximos pasos
 - Implementar backend ASR real (Whisper-IPA y/o Allosaurus).
-- Integrar phonemizer/espeak en TextRef.
 - Anadir comparador Levenshtein y PER.
