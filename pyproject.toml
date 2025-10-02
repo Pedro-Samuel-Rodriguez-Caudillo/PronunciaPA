@@ -9,6 +9,8 @@ description = "Microkernel IPA MVP (skeleton)"
 requires-python = ">=3.11"
 dependencies = [
     "typer[all]>=0.12",
+    "transformers>=4.37",
+    "torch>=2.1",
 ]
 
 [project.scripts]

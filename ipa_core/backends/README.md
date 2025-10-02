@@ -5,7 +5,7 @@ Paquete con implementaciones que convierten audio a secuencias IPA.
 ## Estructura
 - base.ASRBackend: clase abstracta con el contrato transcribe_ipa.
 - null_backend.NullASRBackend: stub que devuelve una cadena fija para pruebas.
-- whisper_ipa.WhisperIPABackend: plantilla para integrar un modelo Whisper orientado a IPA.
+- whisper_ipa.WhisperIPABackend: backend real basado en Hugging Face Whisper (salida IPA).
 
 ## Arquitectura de referencia
 - Emplear una CNN (pre-entrenada o a entrenar) para extraer embeddings acusticos robustos del audio crudo.
