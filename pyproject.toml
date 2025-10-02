@@ -12,6 +12,9 @@ dependencies = [
     "transformers>=4.37",
     "torch>=2.1",
     "phonemizer>=3.2",
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.24",
+    "python-multipart>=0.0.7",
 ]
 
 [project.scripts]
