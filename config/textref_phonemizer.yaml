@@ -1,0 +1,3 @@
+# Configuración para el conversor textref basado en phonemizer
+# Puede ajustarse para seleccionar el idioma base al generar IPA.
+language: es
