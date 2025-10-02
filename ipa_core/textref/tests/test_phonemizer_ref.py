@@ -49,3 +49,13 @@ def test_invalid_language_raises() -> None:
     textref = PhonemizerTextRef(language="es")
     with pytest.raises(ValueError):
         textref.text_to_ipa("hola", lang="")
+
+
+def test_normalizer_applied_to_phonemizer_output(monkeypatch) -> None:
+    def fake_phonemize(*args, **kwargs):
+        return "t͡sa?!"
+
+    monkeypatch.setattr("ipa_core.textref.phonemizer_ref.phonemize", fake_phonemize)
+
+    textref = PhonemizerTextRef(language="es")
+    assert textref.text_to_ipa("tza") == "tsa"

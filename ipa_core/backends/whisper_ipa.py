@@ -9,8 +9,13 @@ from pathlib import Path
 from typing import Callable, Dict, Optional
 
 from ipa_core.backends.base import ASRBackend
+from ipa_core.normalization import IPANormalizer
 
 PipelineFactory = Callable[..., Callable[..., Dict[str, str]]]
+
+
+_ROOT_DIR = Path(__file__).resolve().parent.parent.parent
+_NORMALIZATION_CONFIG = _ROOT_DIR / "configs" / "normalization.yaml"
 
 
 class WhisperIPABackend(ASRBackend):
@@ -27,6 +32,8 @@ class WhisperIPABackend(ASRBackend):
         pipeline_factory: PipelineFactory | None = None,
         generate_kwargs: Optional[dict] = None,
         chunk_length_s: float = 30.0,
+        normalizer: IPANormalizer | None = None,
+        normalization_config_path: Path | None = None,
     ) -> None:
         """Inicializa el backend cargando el pipeline de Transformers."""
 
@@ -41,6 +48,9 @@ class WhisperIPABackend(ASRBackend):
         self.chunk_length_s = chunk_length_s
         self._pipeline_factory = pipeline_factory
         self._pipeline = self._create_pipeline()
+        self._normalizer = normalizer or self._load_normalizer(
+            normalization_config_path or _NORMALIZATION_CONFIG
+        )
 
     # ------------------------------------------------------------------
     # Audio helpers
@@ -146,4 +156,10 @@ class WhisperIPABackend(ASRBackend):
         text = result["text"].strip()
         if not text:
             raise RuntimeError("El backend Whisper-IPA devolvió una transcripción vacía")
-        return text
+        return self._normalizer.normalize(text)
+
+    def _load_normalizer(self, config_path: Path) -> IPANormalizer:
+        try:
+            return IPANormalizer.from_config_file(config_path)
+        except FileNotFoundError:  # pragma: no cover - despliegues sin configuración
+            return IPANormalizer()
