@@ -27,3 +27,4 @@ phonemizer = "ipa_core.textref.phonemizer_ref:PhonemizerTextRef"
 
 [project.entry-points."ipa_core.plugins.compare"]
 noop = "ipa_core.compare.noop:NoopComparator"
+levenshtein = "ipa_core.compare.levenshtein:LevenshteinComparator"
