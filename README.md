@@ -127,6 +127,53 @@ python scripts/generate_sample_dataset.py
 La documentación del formato y los scripts auxiliares están descritos en
 [`docs/data.md`](docs/data.md).
 
-## Proximos pasos
-- Implementar backend ASR real (Whisper-IPA y/o Allosaurus).
-- Anadir comparador Levenshtein y PER.
+## Uso
+
+### 1. Preparar el entorno
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -e .
+```
+
+### 2. Generar el dataset de ejemplo
+
+```bash
+python scripts/generate_sample_dataset.py
+```
+
+### 3. Ejecutar el pipeline del núcleo
+
+```bash
+python -m ipa_core.api.cli run \
+  --config configs/local.yaml \
+  --input data/sample/metadata.csv \
+  --output outputs/sample_run
+```
+
+El comando generará `report.json` y `report.csv` con métricas como el PER
+global y detalles por archivo procesado.
+
+### 4. Ejecutar los tests automatizados
+
+```bash
+pytest
+```
+
+## Limitaciones actuales
+
+- El backend ASR por defecto (`null`) devuelve hipótesis fijas y no procesa
+  audio real.
+- El dataset de ejemplo contiene tonos sintéticos; no representa casos de uso
+  con habla humana.
+- No se incluyen modelos de Whisper-IPA ni diccionarios de pronunciación en el
+  repositorio; se deben descargar aparte.
+
+## Roadmap
+
+- Integrar Whisper-IPA como backend ASR por defecto y automatizar la descarga
+  del modelo.
+- Añadir normalización avanzada de IPA y métricas adicionales (ej. WER).
+- Implementar API HTTP y frontend con flujo end-to-end listo para pilotos.
+- Automatizar despliegue de infraestructura y monitoreo para entornos de QA.
