@@ -47,7 +47,7 @@ def test_transcribe_ipa_invoca_pipeline(tmp_path: Path):
             calls["audio"] = audio
             calls["sampling_rate"] = sampling_rate
             calls["call_kwargs"] = call_kwargs
-            return {"text": "t͡sa"}
+            return {"text": "t͡sa?!"}
 
         return run
 
@@ -59,7 +59,7 @@ def test_transcribe_ipa_invoca_pipeline(tmp_path: Path):
 
     ipa = backend.transcribe_ipa(str(audio_path))
 
-    assert ipa == "t͡sa"
+    assert ipa == "tsa"
     assert calls["sampling_rate"] == backend.target_sample_rate
     max_abs = max(abs(value) for value in calls["audio"])
     assert abs(max_abs - 1.0) < 1e-3
