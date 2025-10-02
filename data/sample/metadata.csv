@@ -1,0 +1,4 @@
+audio_path,text,lang
+sample_01.wav,Tono de referencia en 440 Hz,es
+sample_02.wav,Tono de prueba en 554 Hz aproximados,es
+sample_03.wav,Tono de cierre en 659 Hz aproximados,es
