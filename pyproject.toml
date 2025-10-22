@@ -4,30 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ipa-core"
-version = "0.0.1"
-description = "Microkernel IPA MVP (skeleton)"
+version = "0.0.0"
+description = "Reset de estructura (sin dependencias ni entry points)"
 requires-python = ">=3.11"
-dependencies = [
-    "typer[all]>=0.12",
-    "transformers>=4.37",
-    "torch>=2.1",
-    "phonemizer>=3.2",
-    "fastapi>=0.110",
-    "uvicorn[standard]>=0.24",
-    "python-multipart>=0.0.7",
-]
+dependencies = []
 
-[project.scripts]
-ipa = "ipa_core.api.cli:app"
-
-[project.entry-points."ipa_core.backends.asr"]
-null = "ipa_core.backends.null_backend:NullASRBackend"
-whisper-ipa = "ipa_core.backends.whisper_ipa:WhisperIPABackend"
-
-[project.entry-points."ipa_core.plugins.textref"]
-noop = "ipa_core.textref.noop:NoopTextRef"
-phonemizer = "ipa_core.textref.phonemizer_ref:PhonemizerTextRef"
-
-[project.entry-points."ipa_core.plugins.compare"]
-noop = "ipa_core.compare.noop:NoopComparator"
-levenshtein = "ipa_core.compare.levenshtein:LevenshteinComparator"
+# Nota: los scripts y entry points se definirán cuando el microkernel
+# y los plugins básicos estén implementados (ver docs/backlog.md y TODOs).

@@ -1,14 +1,5 @@
-{
-  "replacements": {
-    "ɡ": "g",
-    "t͡ʃ": "tʃ",
-    "d͡ʒ": "dʒ",
-    "ːː": "ː",
-    "ˑ": "ː",
-    "͡": "",
-    "͜": ""
-  },
-  "disallowed_characters": ["!", "?", ",", ".", ";", ":"],
-  "allowed_characters": null,
-  "collapse_whitespace": true
-}
+# TODO: Esquema de normalización IPA
+replacements: {}
+disallowed_characters: []
+allowed_characters: null
+collapse_whitespace: true

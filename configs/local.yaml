@@ -1,4 +1,5 @@
+# TODO: Configuración local de ejemplo
 plugins:
-  asr_backend: null
-  textref: noop
-  comparator: levenshtein
+  asr_backend: null      # TODO
+  textref: null          # TODO
+  comparator: null       # TODO

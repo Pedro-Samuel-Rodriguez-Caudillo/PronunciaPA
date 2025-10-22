@@ -1,6 +1,7 @@
-# Configuración base del kernel IPA
+# TODO: Definir configuración del kernel IPA (microkernel)
+# Selecciona los plugins por nombre una vez implementados.
 plugins:
-  asr_backend: null
-  textref: phonemizer
-  comparator: noop
-  preprocessor:
+  asr_backend: null      # TODO: seleccionar backend ASR
+  textref: null          # TODO: seleccionar conversor texto→IPA
+  comparator: null       # TODO: seleccionar comparador
+  preprocessor: null     # TODO: opcional
