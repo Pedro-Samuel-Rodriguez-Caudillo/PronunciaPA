@@ -1,13 +1,15 @@
 # ===========================================
 # PYTHON - Entorno virtual y archivos temporales
 # ===========================================
-# Entorno virtual (CRÍTICO - ya tienes .venv/ en el proyecto)
+# Entorno virtual (CRÍTICO)
 .venv/
 venv/
 env/
 ENV/
 env.bak/
 venv.bak/
+.venv/
+
 
 # Archivos compilados de Python
 __pycache__/
