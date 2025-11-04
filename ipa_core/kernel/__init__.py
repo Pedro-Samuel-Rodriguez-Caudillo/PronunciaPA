@@ -1,0 +1,2 @@
+"""Núcleo del microkernel (stubs)."""
+
