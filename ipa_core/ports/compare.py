@@ -3,6 +3,7 @@
 Patrón de diseño
 ----------------
 - Strategy: distintos algoritmos de comparación (Levenshtein, DTW, etc.).
+- Visitor: procesar/recorrer alineaciones y operaciones para reportes.
 
 TODO (Issue #18)
 ----------------
