@@ -2,8 +2,9 @@
 
 Descripción
 -----------
-Define el contrato del orquestador de pasos del pipeline. No contiene
-lógica; únicamente explicita entradas y salidas.
+Define el contrato del orquestador de pasos del pipeline.
+
+Estado: Implementación pendiente (expone entradas y salidas del proceso).
 
 Patrones de diseño
 ------------------

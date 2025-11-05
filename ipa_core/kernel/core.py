@@ -1,6 +1,12 @@
 """Core del microkernel: orquesta puertos y pipeline.
 
-Sin lógica funcional; define contratos y conexiones entre módulos.
+Estado: Implementación pendiente (define contratos y conexiones entre módulos).
+
+TODO (Issue #18)
+----------------
+- Definir ciclo de vida de recursos (init/shutdown) para cada plugin.
+- Especificar reglas de concurrencia/seguridad de hilos del `Kernel`.
+- Incorporar Mediator explícito si el `Kernel` debe coordinar eventos entre puertos.
 """
 from __future__ import annotations
 
@@ -55,4 +61,3 @@ def create_kernel(cfg: AppConfig) -> Kernel:
     textref = registry.resolve_textref(cfg["textref"]["name"], cfg["textref"].get("params", {}))
     comp = registry.resolve_comparator(cfg["comparator"]["name"], cfg["comparator"].get("params", {}))
     return Kernel(pre=pre, asr=asr, textref=textref, comp=comp)
-

@@ -3,7 +3,9 @@
 Descripción
 -----------
 Define tipos inmutables para el intercambio de datos entre puertos y el
-`Kernel`. No implementa lógica de negocio.
+`Kernel`.
+
+Estado: Implementación pendiente de validación (si se adopta un validador de esquemas).
 
 TODO (Issue #18)
 ----------------

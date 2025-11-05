@@ -2,17 +2,15 @@
 
 Resumen
 -------
-Este paquete define contratos y puntos de integración del microkernel.
-No incluye lógica; únicamente define tipos, puertos e interfaces de
-conexión.
+Define contratos y puntos de integración del microkernel.
+
+Estado: Implementación pendiente (los módulos funcionales se conectarán a estos contratos).
 
 TODO (Issue #18)
 ----------------
-- Garantizar que todos los contratos se mantengan estables y versionados.
-- Establecer políticas de compatibilidad semántica (SemVer) para puertos.
+- Garantizar estabilidad y versionado de contratos (SemVer para puertos).
 - Documentar mapa de dependencias y responsabilidades por submódulo.
-- Evaluar incorporar un subsistema de eventos (Observer) para métricas y
-  trazas sin acoplar el `Kernel`.
+- Evaluar subsistema de eventos (Observer) para métricas y trazas.
 """
 
 __all__ = [

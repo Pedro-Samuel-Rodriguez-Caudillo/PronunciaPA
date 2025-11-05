@@ -1,6 +1,12 @@
 """Esqueleto de CLI.
 
-No requiere Typer para importar; solo define contratos.
+Estado: Implementación pendiente (contratos del comando definidos).
+
+TODO (Issue #18)
+----------------
+- Validar existencia/formato de audio antes de orquestar el `Kernel`.
+- Resolver configuración combinando `--config` con banderas (precedencia).
+- Definir salida de contrato (`CompareResult`) o tabla según `--json`.
 """
 from __future__ import annotations
 
@@ -30,4 +36,3 @@ def cli_compare(
     # k = create_kernel(cfg)
     # return k.run(audio={"path": audio, "sample_rate": 0, "channels": 0}, text=text, lang=lang)
     raise NotImplementedError("CLI compare sin implementar (contrato únicamente)")
-

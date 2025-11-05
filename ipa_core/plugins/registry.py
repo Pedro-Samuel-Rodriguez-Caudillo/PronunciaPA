@@ -1,4 +1,13 @@
-"""Resolución de plugins por nombre (stub)."""
+"""Resolución de plugins por nombre (stub).
+
+Estado: Implementación pendiente (instanciación mediante factorías).
+
+TODO (Issue #18)
+----------------
+- Resolver por nombre con alias y validación de compatibilidad de puertos.
+- Permitir inyección de dependencias para pruebas (factory overrides).
+- Gestionar versiones de plugins y fallbacks.
+"""
 from __future__ import annotations
 
 from ipa_core.ports.asr import ASRBackend
@@ -25,4 +34,3 @@ def resolve_comparator(name: str, params: dict | None = None) -> Comparator:  # 
 def resolve_preprocessor(name: str, params: dict | None = None) -> Preprocessor:  # noqa: D401
     """Resuelve e instancia un preprocesador por nombre."""
     raise NotImplementedError("resolve_preprocessor no implementado")
-
