@@ -26,9 +26,9 @@ class FileNotFound(KernelError):
     """Archivo de audio/texto no encontrado."""
 """Jerarquía de errores del microkernel.
 
-TODO (Issue #18)
-----------------
+TODO
+----
 - Definir códigos de error estables y su mapeo HTTP/CLI (Observer para logging).
 - Incluir contexto estructurado (archivo, backend, plugin) en cada excepción.
-- Evaluar separación de errores de infraestructura vs. dominio.
+- Separar errores de infraestructura de los de dominio para mensajes más claros.
 """

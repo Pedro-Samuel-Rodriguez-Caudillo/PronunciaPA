@@ -2,11 +2,13 @@
 
 Estado: Implementación pendiente (contratos del comando definidos).
 
-TODO (Issue #18)
-----------------
-- Validar existencia/formato de audio antes de orquestar el `Kernel`.
-- Resolver configuración combinando `--config` con banderas (precedencia).
-- Definir salida de contrato (`CompareResult`) o tabla según `--json`.
+TODO
+----
+- Validar existencia y formato básico del audio antes de invocar el `Kernel`.
+- Combinar configuración de archivo (`--config`) con banderas siguiendo una
+  precedencia clara y documentada.
+- Producir salida `CompareResult` como JSON cuando se pida `--json`; en caso
+  contrario, mostrar una tabla simple en consola.
 """
 from __future__ import annotations
 

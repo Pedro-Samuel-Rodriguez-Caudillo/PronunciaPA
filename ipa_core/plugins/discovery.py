@@ -2,10 +2,10 @@
 
 Estado: Implementación pendiente (enumeración de entry points/registro).
 
-TODO (Issue #18)
-----------------
+TODO
+----
 - Descubrir via entry points e incluir metadatos (versiones, proveedor).
-- Exponer índice cacheable y actualizable en caliente.
+- Exponer un índice cacheable y actualizable en caliente.
 """
 from __future__ import annotations
 

@@ -5,31 +5,55 @@ Descripción
 Define tipos inmutables para el intercambio de datos entre puertos y el
 `Kernel`.
 
-Estado: Implementación pendiente de validación (si se adopta un validador de esquemas).
+Estado: Implementación pendiente de validación (se puede añadir más adelante).
 
-TODO (Issue #18)
-----------------
-- Alinear `CompareWeights` con claves externas (YAML) mapeando `del -> del_`.
-- Incorporar tipos de dominio para audio (bit depth, formato de contenedor).
-- Establecer versiones de esquema en los `TypedDict` si evoluciona el contrato.
-- Considerar uso de `typing_extensions`/`pydantic` si se requiere validación.
+TODO
+----
+- Mapear claves externas del YAML a nombres internos: `del` del YAML debe
+  convertirse a `del_` en `CompareWeights` para evitar conflicto con palabras
+  reservadas de Python.
+- Añadir detalles básicos de audio que ayuden a depurar (por ejemplo,
+  profundidad de bits y formato contenedor) sin complejidad extra.
+- Documentar en una tabla los campos obligatorios y opcionales de cada tipo.
+- Evaluar un validador de esquemas sencillo cuando exista lógica (por ejemplo,
+  `pydantic`), manteniendo el código legible para principiantes.
+
+Diseño sugerido
+---------------
+- Data Transfer Objects (DTO): estos `TypedDict` son estructuras de datos
+  simples para transportar información entre capas sin lógica.
 """
 from __future__ import annotations
 
 from typing import Any, Literal, Optional, Sequence, TypedDict
 
 
-Token = str
-TokenSeq = Sequence[Token]
+Token = str  # Representa un símbolo o token IPA individual (por ejemplo, "a", "ʃ").
+TokenSeq = Sequence[Token]  # Secuencia ordenada de tokens IPA (la transcripción).
 
 
 class AudioInput(TypedDict):
+    """Describe un audio de entrada para el sistema.
+
+    - path: ruta al archivo de audio en disco.
+    - sample_rate: frecuencia de muestreo en Hz (p. ej., 16000).
+    - channels: número de canales (1 para mono, 2 para estéreo).
+    """
+
     path: str
     sample_rate: int
     channels: int
 
 
 class ASRResult(TypedDict, total=False):
+    """Resultado producido por un backend de ASR.
+
+    - tokens: lista de tokens IPA resultantes.
+    - raw_text: texto sin procesar si el backend lo produce.
+    - time_stamps: lista de tuplas (inicio, fin) por token o segmento.
+    - meta: información adicional útil para depurar (modelo, versión, etc.).
+    """
+
     tokens: list[Token]
     raw_text: str
     time_stamps: list[tuple[float, float]]
@@ -37,18 +61,40 @@ class ASRResult(TypedDict, total=False):
 
 
 class CompareWeights(TypedDict, total=False):
+    """Pesos aplicados a cada operación de edición.
+
+    - sub: costo de sustituciones.
+    - ins: costo de inserciones.
+    - del_: costo de eliminaciones (se usa `del_` para evitar conflicto con `del`).
+    """
+
     sub: float
     ins: float
     del_: float  # alias interno para "del"
 
 
 class EditOp(TypedDict):
+    """Describe una operación de edición entre referencia y predicción.
+
+    - op: tipo de operación: eq (=), sub (sustitución), ins (inserción), del (borrado).
+    - ref: token de referencia (o None si es inserción).
+    - hyp: token reconocido (o None si es borrado).
+    """
+
     op: Literal["eq", "sub", "ins", "del"]
     ref: Optional[Token]
     hyp: Optional[Token]
 
 
 class CompareResult(TypedDict, total=False):
+    """Métricas y detalle de la comparación entre dos secuencias IPA.
+
+    - per: Phone Error Rate en el rango [0, 1].
+    - ops: lista con las operaciones de edición calculadas.
+    - alignment: alineación paso a paso (pares ref/hyp o None).
+    - meta: información adicional para trazabilidad y depuración.
+    """
+
     per: float
     ops: list[EditOp]
     alignment: list[tuple[Optional[Token], Optional[Token]]]
@@ -56,5 +102,11 @@ class CompareResult(TypedDict, total=False):
 
 
 class RunOptions(TypedDict, total=False):
+    """Opciones comunes para ejecutar el pipeline.
+
+    - lang: código de idioma (por ejemplo, "es", "en").
+    - weights: pesos para la comparación (si se usa un comparador).
+    """
+
     lang: Optional[str]
     weights: CompareWeights

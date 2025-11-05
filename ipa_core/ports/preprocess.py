@@ -1,15 +1,15 @@
 """Puerto Preprocessor (audio/tokens -> normalización).
 
-Patrón de diseño
-----------------
-- Chain of Responsibility: pasos encadenados de normalización de tokens.
-- Template Method: definir pipeline de preprocesamiento con pasos extensibles.
+Patrón sugerido
+---------------
+- Chain of Responsibility: permite encadenar pasos simples de normalización.
+- Template Method: define un esqueleto de pasos que pueden especializarse.
 
-TODO (Issue #18)
-----------------
-- Definir contrato para paso de VAD/recorte (si aplica) en `process_audio`.
-- Documentar orden recomendado de normalización de tokens (espacios, casing, IPA).
-- Establecer idempotencia de `normalize_tokens` para evitar efectos duplicados.
+TODO
+----
+- Acordar si se hace un recorte básico del audio (VAD simple) en `process_audio`.
+- Documentar un orden recomendado para normalizar tokens (espacios, casing, IPA).
+- Garantizar que `normalize_tokens` sea idempotente (llamar dos veces no cambia el resultado).
 """
 from __future__ import annotations
 
@@ -19,10 +19,15 @@ from ipa_core.types import AudioInput, Token, TokenSeq
 
 
 class Preprocessor(Protocol):
+    """Define operaciones simples para preparar audio y tokens.
+
+    Separar audio y tokens facilita pruebas y reemplazos puntuales.
+    """
+
     def process_audio(self, audio: AudioInput) -> AudioInput:  # noqa: D401
-        """Normaliza/valida el audio de entrada (formato, SR, canales)."""
+        """Normalizar/validar formato del audio (SR, canales, contenedor)."""
         ...
 
     def normalize_tokens(self, tokens: TokenSeq) -> list[Token]:  # noqa: D401
-        """Normaliza tokens IPA (espacios, casing, símbolos)."""
+        """Normalizar tokens IPA (espacios, casing y símbolos)."""
         ...

@@ -11,11 +11,11 @@ Patrones de diseño
 - Template Method: secuencia estable de pasos con puntos de extensión.
 - Observer: hooks opcionales de progreso/telemetría (a definir).
 
-TODO (Issue #18)
-----------------
-- Establecer interfaz de `hooks` (inicio/fin de paso, métricas, errores).
-- Acordar manejo de `lang=None` (propagar desde config u opcional del backend).
-- Determinar inmutabilidad de `AudioInput` y tokens a lo largo del pipeline.
+TODO
+----
+- Definir una interfaz de `hooks` para inicio/fin de paso, métricas y errores.
+- Acordar manejo de `lang=None` (propagar desde configuración o requerirlo).
+- Asegurar inmutabilidad de `AudioInput` y de tokens a lo largo del pipeline.
 """
 from __future__ import annotations
 
@@ -39,8 +39,8 @@ def run_pipeline(
     lang: Optional[str] = None,
     weights: Optional[CompareWeights] = None,
 ) -> CompareResult:
-    """Orquesta preproceso -> ASR -> TextRef -> Comparación.
+    """Orquestar preproceso -> ASR -> TextRef -> Comparación.
 
-    Implementación pendiente: este stub define el contrato y conexiones.
+    Nota: Implementación pendiente. Esta función solo describe entradas y salidas.
     """
     raise NotImplementedError("run_pipeline está sin implementar (contrato únicamente)")

@@ -1,14 +1,16 @@
 """Puerto TextRef (texto -> IPA tokens).
 
-Patrón de diseño
-----------------
-- Strategy: proveedor de conversión texto→IPA intercambiable.
+Patrón sugerido
+---------------
+- Strategy: permite cambiar el proveedor de conversión texto→IPA sin afectar
+  otras partes del sistema.
 
-TODO (Issue #18)
-----------------
-- Definir normalización previa al G2P (Template/Chain para pasos de limpieza).
-- Acordar manejo de signos de puntuación y números (convenciones de tokens).
-- Establecer caché por `(texto, lang, backend)` y su política de expiración.
+TODO
+----
+- Definir una limpieza previa del texto (normalización simple) antes de G2P.
+- Documentar el tratamiento de puntuación y números para unificar resultados.
+- Especificar una caché sencilla por `(texto, lang, backend)` con invalidación
+  explícita para evitar recomputaciones.
 """
 from __future__ import annotations
 
@@ -18,6 +20,21 @@ from ipa_core.types import Token
 
 
 class TextRefProvider(Protocol):
+    """Define el contrato para convertir texto plano a tokens IPA."""
+
     def to_ipa(self, text: str, *, lang: str, **kw) -> list[Token]:  # noqa: D401
-        """Convierte texto a tokens IPA según idioma."""
+        """Convertir texto a tokens IPA.
+
+        Parámetros
+        ----------
+        text: str
+            Texto de entrada a convertir.
+        lang: str
+            Idioma objetivo (por ejemplo, "es").
+
+        Retorna
+        -------
+        list[str]
+            Lista de tokens IPA representando el texto normalizado.
+        """
         ...

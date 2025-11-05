@@ -2,11 +2,11 @@
 
 Estado: Implementación pendiente (instanciación mediante factorías).
 
-TODO (Issue #18)
-----------------
-- Resolver por nombre con alias y validación de compatibilidad de puertos.
+TODO
+----
+- Resolver por nombre con alias y validar compatibilidad de puertos.
 - Permitir inyección de dependencias para pruebas (factory overrides).
-- Gestionar versiones de plugins y fallbacks.
+- Gestionar versiones de plugins y fallbacks de manera simple.
 """
 from __future__ import annotations
 
