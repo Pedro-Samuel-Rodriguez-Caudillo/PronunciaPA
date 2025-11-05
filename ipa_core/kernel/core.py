@@ -25,6 +25,12 @@ from ipa_core.types import AudioInput, CompareResult, CompareWeights
 
 @dataclass
 class Kernel:
+    """Coordina los componentes principales del sistema (Mediator ligero).
+
+    Esta clase crea y usa las dependencias necesarias para ejecutar el
+    pipeline completo. No implementa la lógica de cada etapa, solo las
+    conecta siguiendo los contratos.
+    """
     pre: Preprocessor  # Preprocesa audio y normaliza tokens.
     asr: ASRBackend  # Reconoce el habla y produce tokens IPA.
     textref: TextRefProvider  # Convierte texto de referencia a tokens IPA.

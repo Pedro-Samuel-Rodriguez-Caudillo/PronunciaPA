@@ -14,5 +14,12 @@ from typing import Any
 
 
 def get_app() -> Any:
-    """Devuelve una app HTTP (stub)."""
+    """Construir y devolver la aplicación HTTP del proyecto.
+
+    Explicación sencilla
+    --------------------
+    Aquí se creará la app (por ejemplo, con FastAPI) y se registrarán las
+    rutas. De momento no hay implementación; solo dejamos claro el propósito
+    para que cualquier persona nueva entienda qué va aquí.
+    """
     raise NotImplementedError("HTTP app sin implementar (contrato únicamente)")
