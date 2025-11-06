@@ -163,3 +163,5 @@ docs/_build/
 # Archivos de deployment
 .dockerignore
 docker-compose.override.yml
+
+local/
