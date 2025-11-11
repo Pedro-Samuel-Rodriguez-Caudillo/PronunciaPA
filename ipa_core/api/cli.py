@@ -38,3 +38,18 @@ def cli_compare(
     # k = create_kernel(cfg)
     # return k.run(audio={"path": audio, "sample_rate": 0, "channels": 0}, text=text, lang=lang)
     raise NotImplementedError("CLI compare sin implementar (contrato únicamente)")
+
+
+def cli_transcribe(
+    audio: str,
+    *,
+    lang: Optional[str] = None,
+    config_path: Optional[str] = None,
+    backend_name: Optional[str] = None,
+    textref_name: Optional[str] = None,
+) -> list[str]:
+    """Contrato del comando `transcribe`.
+
+    Implementación pendiente: validación de archivo, carga de config y ejecución del pipeline.
+    """
+    raise NotImplementedError("CLI transcribe sin implementar (contrato únicamente)")
