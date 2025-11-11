@@ -1,0 +1,18 @@
+version: 1
+preprocessor:
+  name: basic
+  params: {}
+backend:
+  name: asr_stub
+  params:
+    stub_tokens: [h, o, l, a]
+textref:
+  name: phonemizer_stub
+  params:
+    lang: es
+comparator:
+  name: levenshtein_stub
+  params: {sub: 1.0, ins: 1.0, del: 1.0}
+options:
+  lang: es
+  output: json
