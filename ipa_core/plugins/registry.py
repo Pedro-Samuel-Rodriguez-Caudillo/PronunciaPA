@@ -21,6 +21,7 @@ from ipa_core.ports.compare import Comparator
 from ipa_core.ports.preprocess import Preprocessor
 from ipa_core.ports.textref import TextRefProvider
 from ipa_core.textref.epitran import EpitranTextRef
+from ipa_core.textref.espeak import EspeakTextRef
 from ipa_core.textref.simple import GraphemeTextRef
 
 
@@ -40,6 +41,9 @@ def resolve_textref(name: str, params: dict | None = None) -> TextRefProvider:  
     if name == "epitran":
         lang = (params or {}).get("default_lang", "es")
         return EpitranTextRef(default_lang=lang)
+    if name == "espeak":
+        lang = (params or {}).get("default_lang", "es")
+        return EspeakTextRef(default_lang=lang)
     raise PluginResolutionError(f"TextRef '{name}' no registrado")
 
 

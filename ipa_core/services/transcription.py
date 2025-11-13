@@ -9,6 +9,7 @@ from typing import Optional
 from ipa_core.audio.files import cleanup_temp, ensure_wav, persist_bytes
 from ipa_core.backends.asr_allosaurus import AllosaurusASR
 from ipa_core.backends.audio_io import to_audio_input
+from ipa_core.errors import NotReadyError
 from ipa_core.ports.asr import ASRBackend
 from ipa_core.ports.preprocess import Preprocessor
 from ipa_core.ports.textref import TextRefProvider
@@ -60,7 +61,14 @@ class TranscriptionService:
         if selected == "epitran":
             from ipa_core.textref.epitran import EpitranTextRef
 
-            return EpitranTextRef(default_lang=lang)
+            try:
+                return EpitranTextRef(default_lang=lang)
+            except NotReadyError:
+                selected = "espeak"
+        if selected == "espeak":
+            from ipa_core.textref.espeak import EspeakTextRef
+
+            return EspeakTextRef(default_lang=lang)
         return GraphemeTextRef()
 
     def transcribe_file(self, path: str, *, lang: Optional[str] = None) -> TranscriptionPayload:
