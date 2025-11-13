@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from ipa_core.backends.asr_allosaurus import AllosaurusASR
 from ipa_core.backends.asr_stub import StubASR
+from ipa_core.compare.levenshtein import LevenshteinComparator
 from ipa_core.compare.noop import NoOpComparator
 from ipa_core.errors import PluginResolutionError
 from ipa_core.preprocessor_basic import BasicPreprocessor
@@ -40,7 +41,9 @@ def resolve_textref(name: str, params: dict | None = None) -> TextRefProvider:  
 
 def resolve_comparator(name: str, params: dict | None = None) -> Comparator:  # noqa: D401
     """Resuelve e instancia un comparador por nombre."""
-    if name in {"noop", "default"}:
+    if name in {"levenshtein", "default"}:
+        return LevenshteinComparator()
+    if name == "noop":
         return NoOpComparator()
     raise PluginResolutionError(f"Comparator '{name}' no registrado (pendiente)")
 

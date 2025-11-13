@@ -10,6 +10,6 @@ backend:
 textref:
   name: grapheme
 comparator:
-  name: noop   # Placeholder hasta implementar un comparador real
+  name: levenshtein
 options:
   lang: es
