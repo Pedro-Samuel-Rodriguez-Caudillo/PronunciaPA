@@ -1,7 +1,15 @@
 # TODO: Definir configuración del kernel IPA (microkernel)
 # Selecciona los plugins por nombre una vez implementados.
-plugins:
-  asr_backend: null      # TODO: seleccionar backend ASR
-  textref: null          # TODO: seleccionar conversor texto→IPA
-  comparator: null       # TODO: seleccionar comparador
-  preprocessor: null     # TODO: opcional
+version: 1
+preprocessor:
+  name: basic
+backend:
+  name: allosaurus
+  params:
+    lang: es
+textref:
+  name: grapheme
+comparator:
+  name: noop   # Placeholder hasta implementar un comparador real
+options:
+  lang: es
