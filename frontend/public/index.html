@@ -104,7 +104,7 @@
     .download-modal-content { max-width: 900px; width: 100%; }
   </style>
 </head>
-<body class="bg-gray-50">
+<body class="bg-gray-50" data-api-base="http://localhost:8000">
   <header class="bg-white shadow-md sticky top-0 z-50 backdrop-blur-sm bg-opacity-95">
     <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
       <div class="flex items-center space-x-3">
@@ -170,78 +170,86 @@
     <div class="max-w-6xl mx-auto px-6">
       <div class="text-center mb-16">
         <h2 class="text-4xl md:text-5xl font-bold text-gray-800 mb-4">Conecta con el núcleo IPA</h2>
-        <p class="text-xl text-gray-600">Sube un audio y obtén métricas en tiempo real usando la API de PronunciaPA</p>
+        <p class="text-xl text-gray-600">Graba o sube un audio y obtén la transcripción IPA en segundos</p>
       </div>
       <div class="grid gap-12 lg:grid-cols-2 items-start">
         <div class="bg-gradient-to-br from-purple-50 to-blue-50 p-8 rounded-2xl shadow-lg border border-purple-100">
-          <h3 class="text-2xl font-semibold text-gray-800 mb-4">Plugins detectados</h3>
-          <p class="text-gray-600 mb-6">La API consulta los plugins instalados en el backend para mostrar qué componentes están disponibles.</p>
-          <div id="pluginLoading" class="text-sm text-purple-600 font-medium">Cargando plugins registrados...</div>
-          <ul id="pluginList" class="space-y-3"></ul>
-          <div id="pluginError" class="hidden text-sm text-red-600 mt-4"></div>
+          <div class="flex items-center justify-between mb-6">
+            <div>
+              <h3 class="text-2xl font-semibold text-gray-800">Estado del microkernel</h3>
+              <p class="text-gray-600">Validamos que el backend esté listo antes de enviar tu audio.</p>
+            </div>
+            <span id="apiStatusBadge" class="px-3 py-1 rounded-full text-sm font-semibold bg-gray-200 text-gray-700">Sin comprobar</span>
+          </div>
+          <ol class="space-y-4 text-gray-700">
+            <li class="flex gap-3">
+              <span class="w-8 h-8 rounded-full bg-white border border-purple-200 flex items-center justify-center font-bold text-purple-600">1</span>
+              <p>Arranca el backend: <code class="bg-white/70 px-2 py-1 rounded text-sm">uvicorn ipa_core.api.http:get_app --reload</code></p>
+            </li>
+            <li class="flex gap-3">
+              <span class="w-8 h-8 rounded-full bg-white border border-purple-200 flex items-center justify-center font-bold text-purple-600">2</span>
+              <p>Desde aquí sube o graba audio y nosotros lo convertimos a IPA usando Allosaurus/Epitran.</p>
+            </li>
+            <li class="flex gap-3">
+              <span class="w-8 h-8 rounded-full bg-white border border-purple-200 flex items-center justify-center font-bold text-purple-600">3</span>
+              <p>Revisa la IPA, copia los tokens y compártelos con tu profe o equipo.</p>
+            </li>
+          </ol>
+          <div class="mt-8 p-4 rounded-xl bg-white shadow-inner border border-purple-100">
+            <p class="text-sm text-gray-600 mb-1">Endpoint activo</p>
+            <code id="apiBaseHint" class="text-sm font-mono text-purple-700 break-all">http://localhost:8000/pronunciapa/transcribe</code>
+          </div>
+          <p class="mt-6 text-sm text-gray-500">
+            Si usas otra URL expórtala como <code class="bg-white/70 px-1 rounded">window.PRONUNCIAPA_API_BASE</code> antes de cargar la página.
+          </p>
         </div>
         <div class="bg-white border border-gray-200 rounded-2xl shadow-xl p-8">
-          <h3 class="text-2xl font-semibold text-gray-800 mb-4">Ejecutar un análisis</h3>
-          <p class="text-gray-600 mb-6">Selecciona un archivo de audio (formato WAV/MP3) y proporciona el texto de referencia. El backend generará la transcripción IPA y calculará la métrica PER.</p>
-          <form id="analysisForm" class="space-y-6" enctype="multipart/form-data">
+          <h3 class="text-2xl font-semibold text-gray-800 mb-4">Sube o graba tu audio</h3>
+          <p class="text-gray-600 mb-6">Aceptamos WAV/MP3 y también puedes usar el micrófono para generar un clip rápido.</p>
+          <form id="ipaForm" class="space-y-5" enctype="multipart/form-data">
             <div>
-              <label for="audioInput" class="block text-sm font-medium text-gray-700 mb-2">Archivo de audio</label>
-              <input id="audioInput" name="audio" type="file" accept="audio/wav,audio/x-wav,audio/mpeg,audio/mp3,audio/*" required class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-400">
-              <p class="text-xs text-gray-500 mt-2">Para pruebas rápidas puedes utilizar los WAV generados en <code class="bg-gray-100 px-1 rounded">data/sample/</code>.</p>
+              <label for="ipaFile" class="block text-sm font-medium text-gray-700 mb-2">Archivo de audio</label>
+              <input id="ipaFile" name="audio" type="file" accept="audio/*" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-400">
+              <p class="text-xs text-gray-500 mt-1">Recomendado: WAV mono 16kHz. También soportamos MP3/OGG.</p>
             </div>
             <div>
-              <label for="textInput" class="block text-sm font-medium text-gray-700 mb-2">Texto de referencia</label>
-              <textarea id="textInput" name="text" rows="3" required class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-400" placeholder="Escribe el texto pronunciado en el audio"></textarea>
+              <label for="ipaLang" class="block text-sm font-medium text-gray-700 mb-2">Idioma objetivo</label>
+              <select id="ipaLang" name="lang" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-400">
+                <option value="es">Español (es)</option>
+                <option value="en">Inglés (en)</option>
+                <option value="fr">Francés (fr)</option>
+                <option value="pt">Portugués (pt)</option>
+              </select>
             </div>
-            <div>
-              <label for="langInput" class="block text-sm font-medium text-gray-700 mb-2">Idioma (opcional)</label>
-              <input id="langInput" name="lang" type="text" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-400" placeholder="es, en, etc.">
-            </div>
-            <button type="submit" class="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1">Analizar pronunciación</button>
+            <button type="submit" class="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1">Transcribir audio</button>
           </form>
-          <div id="analysisStatus" class="hidden mt-6 text-sm text-purple-600 font-medium">Procesando audio...</div>
-          <div id="analysisError" class="hidden mt-6 text-sm text-red-600"></div>
-          <div id="analysisResult" class="hidden mt-8 border border-gray-200 rounded-xl p-6 bg-gradient-to-br from-white to-purple-50">
-            <h4 class="text-xl font-semibold text-gray-800 mb-4">Resultados del análisis</h4>
-            <dl class="grid grid-cols-1 gap-4 text-sm text-gray-700 md:grid-cols-2">
+          <div class="mt-4 flex flex-wrap items-center gap-4">
+            <button id="recordBtn" class="flex-1 bg-white border border-purple-300 text-purple-700 px-4 py-2 rounded-xl font-semibold hover:bg-purple-50 transition-colors">🎙️ Grabar desde el micro</button>
+            <button id="stopRecordBtn" class="hidden flex-1 bg-red-500 text-white px-4 py-2 rounded-xl font-semibold hover:bg-red-600 transition-colors">Detener</button>
+            <span id="recordingBadge" class="hidden text-sm font-semibold text-purple-600">Grabando…</span>
+          </div>
+          <div id="ipaStatus" class="hidden mt-6 text-sm text-purple-600 font-medium">Procesando audio...</div>
+          <div id="ipaError" class="hidden mt-6 text-sm text-red-600"></div>
+          <div id="ipaResult" class="hidden mt-8 border border-gray-200 rounded-xl p-6 bg-gradient-to-br from-white to-purple-50">
+            <div class="flex items-start justify-between gap-4">
               <div>
-                <dt class="font-semibold text-gray-600">Texto</dt>
-                <dd id="resultText" class="mt-1 break-words"></dd>
+                <h4 class="text-xl font-semibold text-gray-800">Resultado IPA</h4>
+                <p class="text-sm text-gray-500">Tokens normalizados listos para practicar.</p>
+              </div>
+              <button id="copyIpaBtn" class="text-sm font-semibold text-purple-700 border border-purple-300 rounded-lg px-3 py-1 hover:bg-purple-50 transition-colors">Copiar IPA</button>
+            </div>
+            <p id="ipaText" class="mt-4 font-mono text-lg text-purple-800 break-words"></p>
+            <div id="ipaTokens" class="mt-4 flex flex-wrap gap-2"></div>
+            <dl class="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm text-gray-700">
+              <div>
+                <dt class="font-semibold text-gray-600">Idioma detectado</dt>
+                <dd id="ipaLangValue" class="mt-1">—</dd>
               </div>
               <div>
-                <dt class="font-semibold text-gray-600">Idioma</dt>
-                <dd id="resultLang" class="mt-1"></dd>
-              </div>
-              <div>
-                <dt class="font-semibold text-gray-600">IPA referencia</dt>
-                <dd id="resultRefIpa" class="mt-1 font-mono text-purple-700"></dd>
-              </div>
-              <div>
-                <dt class="font-semibold text-gray-600">IPA hipótesis</dt>
-                <dd id="resultHypIpa" class="mt-1 font-mono text-blue-700"></dd>
-              </div>
-              <div>
-                <dt class="font-semibold text-gray-600">PER global</dt>
-                <dd id="resultPer" class="mt-1 text-lg font-bold text-purple-600"></dd>
-              </div>
-              <div>
-                <dt class="font-semibold text-gray-600">Resumen de operaciones</dt>
-                <dd class="mt-1 text-sm text-gray-600">
-                  <span id="resultMatches" class="mr-3"></span>
-                  <span id="resultSubstitutions" class="mr-3"></span>
-                  <span id="resultInsertions" class="mr-3"></span>
-                  <span id="resultDeletions"></span>
-                </dd>
+                <dt class="font-semibold text-gray-600">Backend</dt>
+                <dd id="ipaBackend" class="mt-1">—</dd>
               </div>
             </dl>
-            <div class="mt-6">
-              <h5 class="text-sm font-semibold text-gray-600 mb-2">Operaciones (máx. 10)</h5>
-              <ul id="resultOps" class="space-y-2 text-sm text-gray-700"></ul>
-            </div>
-            <div class="mt-6">
-              <h5 class="text-sm font-semibold text-gray-600 mb-2">Métricas por fonema</h5>
-              <ul id="resultPerClass" class="space-y-2 text-sm text-gray-700"></ul>
-            </div>
           </div>
         </div>
       </div>
@@ -578,218 +586,310 @@
   // Los modales de descarga y micrófono fueron removidos del frontend.
   // Eliminadas las referencias y handlers para `downloadBtn`, `downloadBtnMobile` y `micBtn`.
 
-    // API de análisis IPA
-    const API_BASE_URL = window.PRONUNCIAPA_API_BASE || 'http://localhost:8000';
-    const pluginList = document.getElementById('pluginList');
-    const pluginLoading = document.getElementById('pluginLoading');
-    const pluginError = document.getElementById('pluginError');
-    const analysisForm = document.getElementById('analysisForm');
-    const analysisStatus = document.getElementById('analysisStatus');
-    const analysisError = document.getElementById('analysisError');
-    const analysisResult = document.getElementById('analysisResult');
-    const resultText = document.getElementById('resultText');
-    const resultLang = document.getElementById('resultLang');
-    const resultRefIpa = document.getElementById('resultRefIpa');
-    const resultHypIpa = document.getElementById('resultHypIpa');
-    const resultPer = document.getElementById('resultPer');
-    const resultMatches = document.getElementById('resultMatches');
-    const resultSubstitutions = document.getElementById('resultSubstitutions');
-    const resultInsertions = document.getElementById('resultInsertions');
-    const resultDeletions = document.getElementById('resultDeletions');
-    const resultOps = document.getElementById('resultOps');
-    const resultPerClass = document.getElementById('resultPerClass');
+    // Transcripción IPA
+    const fallbackBase = document.body?.dataset?.apiBase || 'http://localhost:8000';
+    const configuredBase = window.PRONUNCIAPA_API_BASE || fallbackBase;
+    const API_BASE_URL = configuredBase.replace(/\/$/, '');
+    const TRANSCRIBE_ENDPOINT = `${API_BASE_URL}/pronunciapa/transcribe`;
 
-    async function loadPlugins() {
-      if (!pluginList) {
-        return;
+    const apiStatusBadge = document.getElementById('apiStatusBadge');
+    const apiBaseHint = document.getElementById('apiBaseHint');
+    const ipaForm = document.getElementById('ipaForm');
+    const ipaFileInput = document.getElementById('ipaFile');
+    const ipaLangSelect = document.getElementById('ipaLang');
+    const ipaStatus = document.getElementById('ipaStatus');
+    const ipaError = document.getElementById('ipaError');
+    const ipaResult = document.getElementById('ipaResult');
+    const ipaText = document.getElementById('ipaText');
+    const ipaTokens = document.getElementById('ipaTokens');
+    const ipaLangValue = document.getElementById('ipaLangValue');
+    const ipaBackend = document.getElementById('ipaBackend');
+    const copyIpaBtn = document.getElementById('copyIpaBtn');
+    const recordBtn = document.getElementById('recordBtn');
+    const stopRecordBtn = document.getElementById('stopRecordBtn');
+    const recordingBadge = document.getElementById('recordingBadge');
+
+    let mediaRecorder = null;
+    let recordedChunks = [];
+    let activeStream = null;
+
+    if (apiBaseHint) {
+      apiBaseHint.textContent = TRANSCRIBE_ENDPOINT;
+    }
+
+    function setApiStatus(state, message) {
+      if (!apiStatusBadge) return;
+      const baseClass = 'px-3 py-1 rounded-full text-sm font-semibold';
+      if (state === 'ok') {
+        apiStatusBadge.className = `${baseClass} bg-green-100 text-green-700`;
+      } else if (state === 'error') {
+        apiStatusBadge.className = `${baseClass} bg-red-100 text-red-700`;
+      } else {
+        apiStatusBadge.className = `${baseClass} bg-gray-200 text-gray-700`;
       }
+      apiStatusBadge.textContent = message;
+    }
+
+    async function checkHealth() {
+      setApiStatus('pending', 'Comprobando...');
       try {
-        // Intentar cargar desde el backend configurado
-        let data = null;
-        try {
-          const response = await fetch(`${API_BASE_URL}/api/plugins`);
-          if (!response.ok) {
-            throw new Error('Respuesta inesperada del servidor');
-          }
-          data = await response.json();
-        } catch (apiErr) {
-          console.warn('loadPlugins: fallo al contactar backend:', apiErr);
-          // Intentar fallback local en public/plugins-fallback.json
-          try {
-            const fbResp = await fetch('./plugins-fallback.json');
-            if (fbResp.ok) {
-              data = await fbResp.json();
-              if (pluginLoading) pluginLoading.classList.add('hidden');
-              if (pluginError) {
-                pluginError.textContent = 'Usando lista de plugins de fallback (backend no disponible).';
-                pluginError.classList.remove('hidden');
-              }
-            } else {
-              throw apiErr;
-            }
-          } catch (fbErr) {
-            throw apiErr; // rethrow el error original para manejarlo en el catch externo
-          }
-        }
-        const entries = Object.entries(data.plugins || {});
-        pluginList.innerHTML = '';
-        if (!entries.length) {
-          pluginList.innerHTML = '<li class="text-sm text-gray-600">No se encontraron plugins registrados.</li>';
-        } else {
-          entries.forEach(([group, names]) => {
-            const item = document.createElement('li');
-            item.className = 'bg-white rounded-xl px-4 py-3 shadow flex flex-col sm:flex-row sm:items-center sm:justify-between';
-            const title = document.createElement('span');
-            title.className = 'font-semibold text-gray-700 capitalize';
-            title.textContent = group;
-            const values = document.createElement('span');
-            values.className = 'text-sm text-gray-500 mt-2 sm:mt-0';
-            values.textContent = (names && names.length) ? names.join(', ') : 'Sin plugins disponibles';
-            item.appendChild(title);
-            item.appendChild(values);
-            pluginList.appendChild(item);
-          });
-        }
-        if (pluginLoading) {
-          pluginLoading.classList.add('hidden');
-        }
-        if (pluginError) {
-          pluginError.classList.add('hidden');
-        }
-      } catch (error) {
-        if (pluginLoading) {
-          pluginLoading.classList.add('hidden');
-        }
-        if (pluginError) {
-          pluginError.textContent = 'No se pudieron obtener los plugins: ' + (error instanceof Error ? error.message : 'Error desconocido');
-          pluginError.classList.remove('hidden');
-        }
-        console.error('loadPlugins: error final', error);
+        const response = await fetch(`${API_BASE_URL}/health`, { cache: 'no-store' });
+        if (!response.ok) throw new Error('Respuesta inesperada');
+        setApiStatus('ok', 'Backend listo');
+      } catch (err) {
+        console.warn('health check', err);
+        setApiStatus('error', 'Sin conexión');
       }
     }
 
-    function renderList(container, items, formatItem) {
-      container.innerHTML = '';
-      if (!Array.isArray(items) || !items.length) {
-        const empty = document.createElement('li');
+    if (apiStatusBadge) {
+      checkHealth();
+      setInterval(checkHealth, 20000);
+    }
+
+    function toggleRecordingUI(recording) {
+      if (recordBtn) recordBtn.classList.toggle('hidden', recording);
+      if (stopRecordBtn) stopRecordBtn.classList.toggle('hidden', !recording);
+      if (recordingBadge) recordingBadge.classList.toggle('hidden', !recording);
+    }
+
+    function resetResult() {
+      if (ipaResult) ipaResult.classList.add('hidden');
+      if (ipaError) ipaError.classList.add('hidden');
+    }
+
+    function setStatus(message) {
+      if (!ipaStatus) return;
+      if (message) {
+        ipaStatus.textContent = message;
+        ipaStatus.classList.remove('hidden');
+      } else {
+        ipaStatus.classList.add('hidden');
+      }
+    }
+
+    function setError(message) {
+      if (!ipaError) return;
+      if (message) {
+        ipaError.textContent = message;
+        ipaError.classList.remove('hidden');
+      } else {
+        ipaError.classList.add('hidden');
+      }
+    }
+
+    function renderTokens(tokens = []) {
+      if (!ipaTokens) return;
+      ipaTokens.innerHTML = '';
+      if (!tokens.length) {
+        const empty = document.createElement('span');
         empty.className = 'text-sm text-gray-500';
-        empty.textContent = 'Sin datos disponibles.';
-        container.appendChild(empty);
+        empty.textContent = 'Sin tokens disponibles.';
+        ipaTokens.appendChild(empty);
         return;
       }
-      items.forEach((item, index) => {
-        if (index >= 10) {
+      tokens.forEach((token) => {
+        const badge = document.createElement('span');
+        badge.className = 'px-3 py-1 rounded-full bg-white text-purple-700 border border-purple-200 text-sm font-semibold';
+        badge.textContent = token;
+        ipaTokens.appendChild(badge);
+      });
+    }
+
+    function renderResult(payload) {
+      if (!ipaResult || !ipaText || !ipaLangValue || !ipaBackend) return;
+      const tokens = payload.tokens || [];
+      ipaText.textContent = payload.ipa || tokens.join(' ') || '—';
+      ipaLangValue.textContent = payload.lang || '—';
+      ipaBackend.textContent = payload.meta?.backend || '—';
+      renderTokens(tokens);
+      ipaResult.classList.remove('hidden');
+    }
+
+    async function sendTranscription(blob, filename) {
+      resetResult();
+      setError(null);
+      setStatus('Procesando audio...');
+      const lang = ipaLangSelect?.value || 'es';
+      const formData = new FormData();
+      formData.append('lang', lang);
+      formData.append('audio', blob, filename);
+      try {
+        const response = await fetch(TRANSCRIBE_ENDPOINT, { method: 'POST', body: formData });
+        if (!response.ok) {
+          let message = 'No se pudo transcribir el audio.';
+          try {
+            const errorPayload = await response.json();
+            if (errorPayload?.detail) {
+              message = errorPayload.detail;
+            }
+          } catch (_err) {
+            // noop
+          }
+          throw new Error(message);
+        }
+        const payload = await response.json();
+        renderResult(payload);
+      } catch (err) {
+        console.error('transcribe error', err);
+        setError(err instanceof Error ? err.message : 'No pudimos interpretar la respuesta del backend.');
+      } finally {
+        setStatus(null);
+      }
+    }
+
+    async function convertBlobToWav(blob) {
+      if (blob.type?.includes('wav')) return blob;
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) throw new Error('Tu navegador no soporta AudioContext; sube un WAV.');
+      const ctx = new AudioCtx();
+      try {
+        const arrayBuffer = await blob.arrayBuffer();
+        const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+        const wavBuffer = audioBufferToWav(audioBuffer);
+        return new Blob([wavBuffer], { type: 'audio/wav' });
+      } finally {
+        ctx.close();
+      }
+    }
+
+    function audioBufferToWav(buffer) {
+      const numChannels = buffer.numberOfChannels;
+      const sampleRate = buffer.sampleRate;
+      const format = 1;
+      const bitDepth = 16;
+      const samples = buffer.length;
+      const blockAlign = numChannels * (bitDepth / 8);
+      const byteRate = sampleRate * blockAlign;
+      const dataLength = samples * blockAlign;
+      const bufferLength = 44 + dataLength;
+      const arrayBuffer = new ArrayBuffer(bufferLength);
+      const view = new DataView(arrayBuffer);
+      writeString(view, 0, 'RIFF');
+      view.setUint32(4, 36 + dataLength, true);
+      writeString(view, 8, 'WAVE');
+      writeString(view, 12, 'fmt ');
+      view.setUint32(16, 16, true);
+      view.setUint16(20, format, true);
+      view.setUint16(22, numChannels, true);
+      view.setUint32(24, sampleRate, true);
+      view.setUint32(28, byteRate, true);
+      view.setUint16(32, blockAlign, true);
+      view.setUint16(34, bitDepth, true);
+      writeString(view, 36, 'data');
+      view.setUint32(40, dataLength, true);
+      const channelData = [];
+      for (let channel = 0; channel < numChannels; channel += 1) {
+        channelData.push(buffer.getChannelData(channel));
+      }
+      const interleaved = interleave(channelData);
+      let offset = 44;
+      for (let i = 0; i < interleaved.length; i += 1) {
+        const sample = Math.max(-1, Math.min(1, interleaved[i]));
+        view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
+        offset += 2;
+      }
+      return arrayBuffer;
+    }
+
+    function interleave(channels) {
+      if (channels.length === 1) {
+        return channels[0];
+      }
+      const length = channels[0].length;
+      const result = new Float32Array(length * channels.length);
+      let index = 0;
+      for (let i = 0; i < length; i += 1) {
+        for (let channel = 0; channel < channels.length; channel += 1) {
+          result[index++] = channels[channel][i];
+        }
+      }
+      return result;
+    }
+
+    function writeString(view, offset, text) {
+      for (let i = 0; i < text.length; i += 1) {
+        view.setUint8(offset + i, text.charCodeAt(i));
+      }
+    }
+
+    if (ipaForm && ipaFileInput) {
+      ipaForm.addEventListener('submit', (event) => {
+        event.preventDefault();
+        if (!ipaFileInput.files || ipaFileInput.files.length === 0) {
+          setError('Selecciona un archivo de audio antes de enviar.');
           return;
         }
-        const li = document.createElement('li');
-        li.className = 'bg-white/60 border border-gray-200 rounded-lg px-3 py-2';
-        li.textContent = formatItem(item);
-        container.appendChild(li);
+        const file = ipaFileInput.files[0];
+        sendTranscription(file, file.name || 'audio.wav');
       });
     }
 
-    function renderPerClassList(container, perClass) {
-      container.innerHTML = '';
-      const entries = Object.entries(perClass || {});
-      if (!entries.length) {
-        const empty = document.createElement('li');
-        empty.className = 'text-sm text-gray-500';
-        empty.textContent = 'Sin estadísticas registradas.';
-        container.appendChild(empty);
-        return;
-      }
-      entries.slice(0, 10).forEach(([phoneme, stats]) => {
-        const li = document.createElement('li');
-        li.className = 'bg-white/60 border border-gray-200 rounded-lg px-3 py-2 flex flex-wrap gap-3';
-        const title = document.createElement('span');
-        title.className = 'font-semibold text-gray-700';
-        title.textContent = phoneme;
-        const details = document.createElement('span');
-        details.className = 'text-sm text-gray-500';
-        details.textContent = `Aciertos ${stats.matches} · Sustituciones ${stats.substitutions} · Inserciones ${stats.insertions} · Eliminaciones ${stats.deletions}`;
-        li.appendChild(title);
-        li.appendChild(details);
-        container.appendChild(li);
-      });
-    }
-
-    function showAnalysisResult(payload) {
-      if (!analysisResult) {
-        return;
-      }
-      resultText.textContent = payload.text || '—';
-      resultLang.textContent = payload.lang || '—';
-      resultRefIpa.textContent = payload.ref_ipa || '—';
-      resultHypIpa.textContent = payload.hyp_ipa || '—';
-      if (typeof payload.per === 'number') {
-        resultPer.textContent = `${(payload.per * 100).toFixed(2)} %`;
-      } else {
-        resultPer.textContent = '—';
-      }
-      resultMatches.textContent = `✔︎ ${payload.matches ?? 0} aciertos`;
-      resultSubstitutions.textContent = `↺ ${payload.substitutions ?? 0} sustituciones`;
-      resultInsertions.textContent = `＋ ${payload.insertions ?? 0} inserciones`;
-      resultDeletions.textContent = `− ${payload.deletions ?? 0} eliminaciones`;
-
-      renderList(resultOps, payload.ops, (item) => {
-        const ref = item.ref || '∅';
-        const hyp = item.hyp || '∅';
-        return `${item.op}: ${ref} → ${hyp}`;
-      });
-      renderPerClassList(resultPerClass, payload.per_class);
-
-      analysisResult.classList.remove('hidden');
-    }
-
-    if (analysisForm) {
-      analysisForm.addEventListener('submit', async (event) => {
-        event.preventDefault();
-        if (analysisError) {
-          analysisError.classList.add('hidden');
-        }
-        if (analysisStatus) {
-          analysisStatus.textContent = 'Procesando audio...';
-          analysisStatus.classList.remove('hidden');
-        }
-        if (analysisResult) {
-          analysisResult.classList.add('hidden');
-        }
-
-        const formData = new FormData(analysisForm);
-
+    if (copyIpaBtn && ipaText) {
+      copyIpaBtn.addEventListener('click', async () => {
         try {
-          const response = await fetch(`${API_BASE_URL}/api/analyze`, {
-            method: 'POST',
-            body: formData,
-          });
-          if (!response.ok) {
-            let message = 'No se pudo procesar el análisis.';
-            try {
-              const errorPayload = await response.json();
-              if (errorPayload && errorPayload.detail) {
-                message = errorPayload.detail;
-              }
-            } catch (parseError) {
-              message = 'No se pudo interpretar la respuesta del servidor.';
-            }
-            throw new Error(message);
-          }
-          const payload = await response.json();
-          showAnalysisResult(payload);
+          await navigator.clipboard.writeText(ipaText.textContent || '');
+          copyIpaBtn.textContent = 'Copiado';
+          setTimeout(() => { copyIpaBtn.textContent = 'Copiar IPA'; }, 2000);
         } catch (err) {
-          if (analysisError) {
-            analysisError.textContent = err instanceof Error ? err.message : 'Ocurrió un error inesperado.';
-            analysisError.classList.remove('hidden');
-          }
-        } finally {
-          if (analysisStatus) {
-            analysisStatus.classList.add('hidden');
-          }
+          console.warn('clipboard error', err);
         }
       });
     }
 
-    loadPlugins();
+    if (recordBtn && stopRecordBtn) {
+      recordBtn.addEventListener('click', async () => {
+        if (!navigator.mediaDevices?.getUserMedia) {
+          setError('Tu navegador no permite capturar audio. Usa un archivo.');
+          return;
+        }
+        try {
+          resetResult();
+          setError(null);
+          setStatus('Preparando micrófono...');
+          activeStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          recordedChunks = [];
+          mediaRecorder = new MediaRecorder(activeStream);
+          mediaRecorder.ondataavailable = (event) => {
+            if (event.data.size > 0) {
+              recordedChunks.push(event.data);
+            }
+          };
+          mediaRecorder.onstop = async () => {
+            toggleRecordingUI(false);
+            setStatus('Convirtiendo grabación...');
+            try {
+              const webmBlob = new Blob(recordedChunks, { type: mediaRecorder?.mimeType || 'audio/webm' });
+              const wavBlob = await convertBlobToWav(webmBlob);
+              await sendTranscription(wavBlob, 'mic-input.wav');
+            } catch (err) {
+              console.error('convert error', err);
+              setError(err instanceof Error ? err.message : 'No pudimos procesar la grabación.');
+            } finally {
+              setStatus(null);
+              recordedChunks = [];
+              if (activeStream) {
+                activeStream.getTracks().forEach((track) => track.stop());
+                activeStream = null;
+              }
+            }
+          };
+          mediaRecorder.start();
+          toggleRecordingUI(true);
+          setStatus('Grabando… habla con claridad.');
+        } catch (err) {
+          console.error('record error', err);
+          setStatus(null);
+          setError(err instanceof Error ? err.message : 'No pudimos acceder al micrófono.');
+        }
+      });
+
+      stopRecordBtn.addEventListener('click', () => {
+        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+          mediaRecorder.stop();
+        }
+      });
+    }
   </script>
 </body>
 </html>
