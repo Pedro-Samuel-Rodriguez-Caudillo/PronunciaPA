@@ -1,7 +1,6 @@
 {
   "plugins": {
-    "phonemizers": ["es_phonemizer", "en_phonemizer"],
-    "analyzers": ["ipa_analyzer_v1"],
-    "postprocessors": []
+    "ipa": ["core"],
+    "asr": ["default"]
   }
 }
