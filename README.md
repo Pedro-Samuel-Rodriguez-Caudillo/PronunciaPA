@@ -23,12 +23,23 @@ pronunciapa transcribe --audio inputs/ejemplo.wav --lang es
 
 # Grabar desde micrófono (3 segundos por defecto)
 pronunciapa transcribe --mic --seconds 4 --lang es --json
+
+# Forzar proveedor Text→IPA
+pronunciapa transcribe --audio inputs/ejemplo.mp3 --textref epitran
 ```
 
 El comando usa `TranscriptionService` con Allosaurus (o con el stub si `PRONUNCIAPA_ASR=stub`).  
 La salida JSON incluye `ipa`, `tokens` y metadatos básicos del audio.
 
 > Conversión MP3→WAV se realiza vía `pydub`, por lo que necesitas `ffmpeg` en tu PATH.
+> Usa `PRONUNCIAPA_TEXTREF=epitran` para habilitar el conversor fonético avanzado (requiere el extra `[speech]`).
+
+### Variables de entorno útiles
+
+- `PRONUNCIAPA_ASR` = `allosaurus` | `stub`
+- `PRONUNCIAPA_TEXTREF` = `grapheme` | `epitran`
+
+Ambas opciones también están disponibles desde la CLI (`--textref`) y podrán configurarse desde el frontend.
 
 ## API HTTP `/pronunciapa/transcribe`
 
@@ -55,6 +66,24 @@ curl -X POST http://localhost:8000/pronunciapa/transcribe \
 ```
 
 La respuesta es JSON con tokens IPA, texto unido, idioma y metadatos del backend.
+
+Respuesta tipo:
+
+```json
+{
+  "ipa": "o l a",
+  "tokens": ["o", "l", "a"],
+  "lang": "es",
+  "audio": {"path": "inputs/rec.wav", "sample_rate": 16000, "channels": 1},
+  "meta": {"backend": "allosaurusasr", "tokens": 3}
+}
+```
+
+## Métricas y comparación
+
+- El microkernel utiliza un comparador de Levenshtein para calcular el Phone Error Rate (PER).
+- `run_pipeline` normaliza audio/tokens, obtiene la predicción y devuelve alineaciones (`ops`, `alignment`) listas para dashboards o reportes.
+- Cuando integres el frontend, puedes usar estas métricas para resaltar fonemas acertados o erróneos.
 
 ## Pruebas
 

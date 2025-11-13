@@ -30,12 +30,13 @@ def cli_transcribe(
     lang: Optional[str] = None,
     use_mic: bool = False,
     seconds: float = 3.0,
+    textref: Optional[str] = None,
 ) -> list[str]:
     """Transcribe un archivo WAV/MP3 o captura desde micrófono."""
     if not use_mic and not audio:
         raise ValueError("Debes especificar '--audio' o '--mic'")
 
-    service = TranscriptionService(default_lang=lang or "es")
+    service = TranscriptionService(default_lang=lang or "es", textref_name=textref)
     temp_path = None
     try:
         if use_mic:
@@ -59,7 +60,7 @@ def _format_payload(payload: TranscriptionPayload, as_json: bool) -> str:
 
 
 def _run_transcribe(args: argparse.Namespace) -> int:
-    service = TranscriptionService(default_lang=args.lang or "es")
+    service = TranscriptionService(default_lang=args.lang or "es", textref_name=args.textref)
     if args.mic:
         temp_path, _meta = record(args.seconds, sample_rate=16000)
         try:
@@ -82,6 +83,11 @@ def main(argv: Optional[list[str]] = None) -> int:
     t_parser.add_argument("--mic", action="store_true", help="Capturar audio del micrófono")
     t_parser.add_argument("--seconds", type=float, default=3.0, help="Duración al grabar con --mic (s)")
     t_parser.add_argument("--json", action="store_true", help="Salida JSON")
+    t_parser.add_argument(
+        "--textref",
+        choices=["grapheme", "epitran"],
+        help="Conversor texto→IPA (default: grapheme)",
+    )
 
     args = parser.parse_args(argv)
     if args.command == "transcribe":

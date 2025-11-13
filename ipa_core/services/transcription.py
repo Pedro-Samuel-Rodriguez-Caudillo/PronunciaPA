@@ -39,19 +39,29 @@ class TranscriptionService:
         asr: Optional[ASRBackend] = None,
         textref: Optional[TextRefProvider] = None,
         default_lang: str = "es",
+        backend_name: Optional[str] = None,
+        textref_name: Optional[str] = None,
     ) -> None:
         self.pre = preprocessor or BasicPreprocessor()
-        self.asr = asr or self._resolve_asr(default_lang)
-        self.textref = textref or GraphemeTextRef()
+        self.asr = asr or self._resolve_asr(default_lang, backend_name)
+        self.textref = textref or self._resolve_textref(default_lang, textref_name)
         self._default_lang = default_lang
 
-    def _resolve_asr(self, lang: str) -> ASRBackend:
-        backend = os.getenv("PRONUNCIAPA_ASR", "allosaurus").lower()
+    def _resolve_asr(self, lang: str, backend_name: Optional[str]) -> ASRBackend:
+        backend = (backend_name or os.getenv("PRONUNCIAPA_ASR") or "allosaurus").lower()
         if backend == "stub":
             from ipa_core.backends.asr_stub import StubASR
 
             return StubASR()
         return AllosaurusASR({"lang": lang})
+
+    def _resolve_textref(self, lang: str, textref_name: Optional[str]) -> TextRefProvider:
+        selected = (textref_name or os.getenv("PRONUNCIAPA_TEXTREF") or "grapheme").lower()
+        if selected == "epitran":
+            from ipa_core.textref.epitran import EpitranTextRef
+
+            return EpitranTextRef(default_lang=lang)
+        return GraphemeTextRef()
 
     def transcribe_file(self, path: str, *, lang: Optional[str] = None) -> TranscriptionPayload:
         wav_path, tmp = ensure_wav(path)

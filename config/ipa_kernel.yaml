@@ -8,7 +8,9 @@ backend:
   params:
     lang: es
 textref:
-  name: grapheme
+  name: epitran
+  params:
+    default_lang: es
 comparator:
   name: levenshtein
 options:
