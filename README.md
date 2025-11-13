@@ -1,18 +1,18 @@
 # PronunciaPA
 
-Reconocimiento fonético (ASR + IPA) con CLI, API HTTP y un frontend listo para practicar pronunciación.
+Reconocimiento fonético (ASR + IPA) con CLI, API HTTP y un frontend listo para que cualquier persona pruebe su pronunciación.
 
 ## Instalación rápida
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -e .[dev]
-# Dependencias de audio/ASR (Allosaurus + micrófono + conversión MP3)
+# Dependencias de audio/ASR (Allosaurus + micrófono + conversión MP3/OGG/WebM)
 pip install -e .[speech]
 ```
 
 > El extra `[speech]` requiere ffmpeg (para MP3/OGG/WebM) y PortAudio (para `sounddevice`).  
-> Si solo quieres usar el backend stub exporta `PRONUNCIAPA_ASR=stub` y omite el extra.
+> Si solo necesitas el stub exporta `PRONUNCIAPA_ASR=stub` y omite el extra.
 
 ## CLI
 
@@ -20,8 +20,11 @@ pip install -e .[speech]
 # Transcribir un WAV/MP3
 pronunciapa transcribe --audio inputs/ejemplo.wav --lang es
 
-# Grabar desde micrófono (3s por defecto)
+# Grabar desde micrófono (3 s por defecto)
 pronunciapa transcribe --mic --seconds 4 --lang es --json
+
+# Elegir proveedor texto→IPA (cuando haya varios)
+pronunciapa transcribe --audio inputs/ejemplo.mp3 --textref epitran
 ```
 
 Variables útiles:
@@ -33,10 +36,22 @@ Variables útiles:
 
 ```bash
 uvicorn ipa_core.api.http:get_app --reload --port 8000
+```
 
+Enviar archivos:
+
+```bash
 curl -X POST http://localhost:8000/pronunciapa/transcribe \
   -F "lang=es" \
   -F "audio=@inputs/ejemplo.wav"
+```
+
+Streaming de bytes crudos:
+
+```bash
+curl -X POST http://localhost:8000/pronunciapa/transcribe \
+  -H "Content-Type: application/octet-stream" \
+  --data-binary @inputs/ejemplo.wav
 ```
 
 Respuesta tipo:
@@ -53,11 +68,11 @@ Respuesta tipo:
 
 ## Frontend Web
 
-El sitio Vite (`frontend/`) consume el endpoint anterior y ofrece:
+El sitio Vite (`frontend/`) consume la API y expone:
 
-- Subida de archivos WAV/MP3 + normalización automática.
-- Grabación rápida desde el navegador (se convierte a WAV localmente antes de enviarse).
-- Indicador de salud del backend y copia de la transcripción IPA con un clic.
+- Subida de audio con validaciones básicas.
+- Grabación desde el navegador (se convierte a WAV local antes de enviarse).
+- Estado del backend y botón para copiar la transcripción IPA.
 
 Pasos:
 
@@ -71,13 +86,13 @@ npm install
 npm run dev -- --host
 ```
 
-Abre `http://localhost:5173`. Si tu backend vive en otra URL, cambia `data-api-base` en `frontend/public/index.html` o define `window.PRONUNCIAPA_API_BASE` antes de cargar la página.
+Visita `http://localhost:5173`. Si tu backend vive en otra URL ajusta `data-api-base` en `frontend/public/index.html` o define `window.PRONUNCIAPA_API_BASE` antes de cargar la página.
 
 ## Métricas y comparación
 
 - `run_pipeline` coordina preprocesador → ASR → TextRef → comparador.
-- El comparador de referencia es Levenshtein y produce Phone Error Rate (PER) más alineaciones (`ops`, `alignment`).
-- Cuando integres dashboards puedes resaltar sustituciones/inserciones con estos resultados.
+- El comparador de referencia es Levenshtein (PER + alineación con detalle de operaciones).
+- Exporta resultados (`ops`, `alignment`, `meta`) listos para dashboards o reportes.
 
 ## Pruebas
 
@@ -94,10 +109,10 @@ PRONUNCIAPA_ASR=stub PYTHONPATH=. pytest \
 
 ## Estructura rápida
 
-- `ipa_core/` – kernel, servicios y puertos principales.
-- `config/` – configuración YAML del microkernel.
-- `frontend/` – sitio Vite/Tailwind para pruebas rápidas en navegador.
-- `scripts/` – herramientas de prueba manual (WAV, CLI, etc.).
+- `ipa_core/` – kernel, servicios y puertos.
+- `config/` – YAML del microkernel.
+- `frontend/` – landing + demo conectada a la API.
+- `scripts/` – herramientas de prueba manual.
 - `docs/` – backlog, plan del sprint y acuerdos de arquitectura.
 
 ## Arquitectura (mermaid)

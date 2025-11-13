@@ -1,0 +1,57 @@
+"""Helpers para normalizar archivos de audio a WAV PCM."""
+from __future__ import annotations
+
+import os
+import tempfile
+from pathlib import Path
+from typing import Tuple
+
+from ipa_core.errors import UnsupportedFormat
+
+try:  # Carga perezosa para evitar dependencia obligatoria en tests unitarios.
+    from pydub import AudioSegment
+except ImportError:  # pragma: no cover - ejecutado solo cuando falta la dependencia.
+    AudioSegment = None  # type: ignore[assignment]
+
+
+def ensure_wav(path: str, *, target_sample_rate: int = 16000) -> Tuple[str, bool]:
+    """Garantiza que `path` apunte a un WAV PCM compatible con Allosaurus.
+
+    Retorna la ruta final y un flag indicando si es temporal.
+    """
+    ext = Path(path).suffix.lower()
+    if ext == ".wav":
+        return path, False
+
+    if ext not in {".mp3", ".ogg", ".m4a"}:
+        raise UnsupportedFormat(f"Formato de audio no soportado: {ext}")
+
+    if AudioSegment is None:
+        raise UnsupportedFormat("pydub/ffmpeg necesarios para convertir MP3/OGG a WAV")
+
+    audio = AudioSegment.from_file(path)
+    audio = audio.set_frame_rate(target_sample_rate).set_channels(1).set_sample_width(2)
+    tmp = tempfile.NamedTemporaryFile(prefix="pronunciapa_", suffix=".wav", delete=False)
+    audio.export(tmp.name, format="wav")
+    return tmp.name, True
+
+
+def persist_bytes(data: bytes, *, suffix: str) -> str:
+    """Guarda bytes arbitrarios respetando el sufijo indicado."""
+    tmp = tempfile.NamedTemporaryFile(prefix="pronunciapa_", suffix=suffix, delete=False)
+    with open(tmp.name, "wb") as fh:
+        fh.write(data)
+    return tmp.name
+
+
+def write_bytes_to_wav(data: bytes) -> str:
+    """Atajo para guardar bytes WAV."""
+    return persist_bytes(data, suffix=".wav")
+
+
+def cleanup_temp(path: str) -> None:
+    """Elimina archivos temporales silenciosamente."""
+    try:
+        os.unlink(path)
+    except OSError:
+        pass
