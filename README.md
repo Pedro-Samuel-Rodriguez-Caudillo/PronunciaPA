@@ -23,14 +23,18 @@ pronunciapa transcribe --audio inputs/ejemplo.wav --lang es
 # Grabar desde micrófono (3 s por defecto)
 pronunciapa transcribe --mic --seconds 4 --lang es --json
 
-# Elegir proveedor texto→IPA (cuando haya varios)
+# Elegir proveedor texto→IPA
 pronunciapa transcribe --audio inputs/ejemplo.mp3 --textref epitran
+pronunciapa transcribe --audio inputs/ejemplo.wav --textref espeak
 ```
 
 Variables útiles:
 
 - `PRONUNCIAPA_ASR=allosaurus|stub`
-- `PRONUNCIAPA_TEXTREF=grapheme|epitran`
+- `PRONUNCIAPA_TEXTREF=grapheme|epitran|espeak`
+- `PRONUNCIAPA_ESPEAK_BIN=/ruta/a/espeak-ng` (opcional cuando el binario no está en el PATH)
+
+Si seleccionas `epitran` y la librería no está instalada, el servicio cambia automáticamente a `espeak` para mantener la experiencia del usuario.
 
 ## API HTTP `/pronunciapa/transcribe`
 

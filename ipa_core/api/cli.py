@@ -85,7 +85,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     t_parser.add_argument("--json", action="store_true", help="Salida JSON")
     t_parser.add_argument(
         "--textref",
-        choices=["grapheme", "epitran"],
+        choices=["grapheme", "epitran", "espeak"],
         help="Conversor texto→IPA (default: grapheme)",
     )
 
