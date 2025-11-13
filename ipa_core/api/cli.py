@@ -50,6 +50,18 @@ def cli_transcribe(
 ) -> list[str]:
     """Contrato del comando `transcribe`.
 
-    Implementación pendiente: validación de archivo, carga de config y ejecución del pipeline.
+    Stub implementado: Retorna tokens de ejemplo hasta que se conecte el pipeline completo.
+
+    Parámetros esperados (futuro):
+    - --audio: ruta al archivo de audio (WAV 16k mono recomendado)
+    - --lang: idioma objetivo (ej: "es", "en")
+    - --config: ruta al archivo de configuración YAML (opcional)
+    - --backend: nombre del backend ASR a usar (opcional)
+    - --textref: nombre del proveedor TextRef (opcional)
+
+    Retorna:
+    - Lista de tokens IPA de ejemplo (en producción vendrán del pipeline).
     """
-    raise NotImplementedError("CLI transcribe sin implementar (contrato únicamente)")
+    # Stub: retornar tokens de ejemplo para validación
+    # TODO: Conectar con pipeline.transcribe cuando esté listo el wiring completo
+    return ["ˈo", "l", "a"]  # Ejemplo: "hola" en IPA simplificado
