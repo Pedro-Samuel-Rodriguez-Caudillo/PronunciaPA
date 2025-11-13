@@ -92,6 +92,48 @@ npm run dev -- --host
 
 Visita `http://localhost:5173`. Si tu backend vive en otra URL ajusta `data-api-base` en `frontend/public/index.html` o define `window.PRONUNCIAPA_API_BASE` antes de cargar la página.
 
+## Docker (demo rápida)
+
+Construir imagen del backend (por defecto usa el ASR `stub`):
+
+```bash
+docker build -t pronunciapa-api .
+docker run --rm -p 8000:8000 -e PRONUNCIAPA_ASR=stub pronunciapa-api
+```
+
+Modo detach (ideal para demo):
+
+```bash
+docker run -d --name pronunciapa-api -p 8000:8000 -e PRONUNCIAPA_ASR=stub pronunciapa-api
+# Parar y remover
+docker stop pronunciapa-api && docker rm pronunciapa-api
+```
+
+Con `docker-compose` (recomendado):
+
+```bash
+docker compose up --build -d
+# Logs
+docker compose logs -f api
+# Detener
+docker compose down
+```
+
+Extras de audio (opcional): si quieres Epitran/eSpeak y soporte MP3 dentro del contenedor, construye con:
+
+```bash
+docker build -t pronunciapa-api --build-arg WITH_SPEECH=true .
+docker run --rm -p 8000:8000 -e PRONUNCIAPA_TEXTREF=epitran pronunciapa-api
+```
+
+Prueba rápida en Docker:
+
+```bash
+curl -X POST http://localhost:8000/pronunciapa/transcribe \
+  -F "lang=es" \
+  -F "audio=@inputs/ejemplo.wav"
+```
+
 ## Métricas y comparación
 
 - `run_pipeline` coordina preprocesador → ASR → TextRef → comparador.

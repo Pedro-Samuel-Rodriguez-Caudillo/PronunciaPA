@@ -1,0 +1,15 @@
+version: '3.9'
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        WITH_SPEECH: "false"  # cambia a "true" para instalar espeak/ffmpeg + extras
+    environment:
+      - PRONUNCIAPA_ASR=${PRONUNCIAPA_ASR:-stub}
+      - PRONUNCIAPA_TEXTREF=${PRONUNCIAPA_TEXTREF:-grapheme}
+      - PORT=8000
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
