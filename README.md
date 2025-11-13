@@ -111,6 +111,13 @@ PRONUNCIAPA_ASR=stub PYTHONPATH=. pytest \
   scripts/tests/test_preprocessor_basic.py
 ```
 
+Atajos disponibles:
+
+```bash
+make test-unit  # pruebas AAA rápidas (FIST) en módulos Python puros
+make test-int   # pruebas de integración CLI/API con stubs
+```
+
 ## Estructura rápida
 
 - `ipa_core/` – kernel, servicios y puertos.

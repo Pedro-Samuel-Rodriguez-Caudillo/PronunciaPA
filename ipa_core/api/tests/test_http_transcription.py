@@ -23,3 +23,12 @@ def test_transcribe_endpoint_with_file(monkeypatch, tmp_path):
     data = response.json()
     assert data["ipa"] == "h o l a"
     assert data["tokens"] == ["h", "o", "l", "a"]
+
+
+def test_transcribe_endpoint_requires_body():
+    client = TestClient(get_app())
+
+    response = client.post("/pronunciapa/transcribe")
+
+    assert response.status_code == 400
+    assert "cuerpo" in response.json()["detail"].lower()
