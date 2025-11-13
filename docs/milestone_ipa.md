@@ -13,7 +13,7 @@ Resultados esperados
 - Normalizar tokens con reglas simples y documentadas.
 - Entregar la transcripción IPA como lista de tokens o cadena unida.
 
-Fases sugeridas (para principiantes)
+Fases sugeridas
 ------------------------------------
 1) Preprocessor básico (Chain/Template sencillo)
    - Aceptar WAV mono 16kHz. Si el audio no es mono/16k, registrar un TODO y
