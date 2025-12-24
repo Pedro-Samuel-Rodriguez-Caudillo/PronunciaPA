@@ -1,7 +1,8 @@
 # Technology Stack - PronunciaPA
 
 ## Backend
-*   **Language:** Python >= 3.11 (utilizing strict type hints)
+*   **Language:** Python >= 3.9 (utilizing strict type hints)
+    *   *Note (2025-12-24): Lowered from 3.11 to 3.9 to match the execution environment.*
 *   **API Framework:** FastAPI
 *   **Web Server:** Uvicorn
 *   **Phonetic Processing:**
