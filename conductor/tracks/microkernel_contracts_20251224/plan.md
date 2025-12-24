@@ -6,7 +6,7 @@
 - [x] Task: Conductor - User Manual Verification 'Core Types and Ports Definition' (Protocol in workflow.md)
 
 ## Phase 2: Configuration and Plugin Infrastructure
-- [ ] Task: Define Configuration Schema
+- [x] Task: Define Configuration Schema a89af02
     - **Goal:** Implement Pydantic models for configuration in `ipa_core/config/schema.py` representing the YAML structure.
     - **Verification:** Unit tests validating valid/invalid YAML examples.
 - [ ] Task: Implement Configuration Loader
