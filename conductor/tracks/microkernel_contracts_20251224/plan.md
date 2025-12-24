@@ -1,13 +1,9 @@
 # Track Plan: Establish Core Microkernel Foundations and API Contracts
 
-## Phase 1: Core Types and Ports Definition
+## Phase 1: Core Types and Ports Definition [checkpoint: d15f97e]
 - [x] Task: Define Shared Data Types fdec09d
-    - **Goal:** Create `ipa_core/types.py` with `AudioInput`, `ASRResult`, `CompareResult` and other shared structures using `TypedDict` or Pydantic.
-    - **Verification:** `mypy` check passes.
 - [x] Task: Define Port Protocols e20a197
-    - **Goal:** Create `ipa_core/ports/` modules defining `ASRBackend`, `TextRefProvider`, `Comparator`, and `Preprocessor` protocols.
-    - **Verification:** `mypy` check passes; code imports cleanly.
-- [ ] Task: Conductor - User Manual Verification 'Core Types and Ports Definition' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Core Types and Ports Definition' (Protocol in workflow.md)
 
 ## Phase 2: Configuration and Plugin Infrastructure
 - [ ] Task: Define Configuration Schema
