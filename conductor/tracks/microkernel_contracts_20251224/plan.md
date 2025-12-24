@@ -1,7 +1,7 @@
 # Track Plan: Establish Core Microkernel Foundations and API Contracts
 
 ## Phase 1: Core Types and Ports Definition
-- [ ] Task: Define Shared Data Types
+- [x] Task: Define Shared Data Types fdec09d
     - **Goal:** Create `ipa_core/types.py` with `AudioInput`, `ASRResult`, `CompareResult` and other shared structures using `TypedDict` or Pydantic.
     - **Verification:** `mypy` check passes.
 - [ ] Task: Define Port Protocols
