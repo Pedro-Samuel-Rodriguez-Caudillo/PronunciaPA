@@ -4,7 +4,7 @@
 - [x] Task: Define Shared Data Types fdec09d
     - **Goal:** Create `ipa_core/types.py` with `AudioInput`, `ASRResult`, `CompareResult` and other shared structures using `TypedDict` or Pydantic.
     - **Verification:** `mypy` check passes.
-- [ ] Task: Define Port Protocols
+- [x] Task: Define Port Protocols e20a197
     - **Goal:** Create `ipa_core/ports/` modules defining `ASRBackend`, `TextRefProvider`, `Comparator`, and `Preprocessor` protocols.
     - **Verification:** `mypy` check passes; code imports cleanly.
 - [ ] Task: Conductor - User Manual Verification 'Core Types and Ports Definition' (Protocol in workflow.md)
