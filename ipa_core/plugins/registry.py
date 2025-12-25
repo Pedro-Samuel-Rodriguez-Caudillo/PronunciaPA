@@ -1,63 +1,88 @@
-"""Resolución de plugins por nombre (stub).
+"""Registro y resolución de plugins.
 
-Estado: Implementación pendiente (instanciación mediante factorías).
-
-TODO
-----
-- Resolver por nombre con alias y validar compatibilidad de puertos.
-- Permitir inyección de dependencias para pruebas (factory overrides).
-- Gestionar versiones de plugins y fallbacks de manera simple.
+Este módulo permite registrar y obtener implementaciones de los puertos
+del sistema (ASR, TextRef, Comparator, Preprocessor).
 """
 from __future__ import annotations
+from typing import Any, Callable, Dict, Optional
 
-from ipa_core.backends.asr_allosaurus import AllosaurusASR
-from ipa_core.backends.asr_stub import StubASR
-from ipa_core.compare.levenshtein import LevenshteinComparator
-from ipa_core.compare.noop import NoOpComparator
-from ipa_core.errors import PluginResolutionError
-from ipa_core.preprocessor_basic import BasicPreprocessor
-from ipa_core.ports.asr import ASRBackend
-from ipa_core.ports.compare import Comparator
-from ipa_core.ports.preprocess import Preprocessor
-from ipa_core.ports.textref import TextRefProvider
-from ipa_core.textref.epitran import EpitranTextRef
-from ipa_core.textref.espeak import EspeakTextRef
-from ipa_core.textref.simple import GraphemeTextRef
+# Diccionario global de plugins: { categoria: { nombre: factory } }
+_REGISTRY: Dict[str, Dict[str, Callable[[Any], Any]]] = {
+    "asr": {},
+    "textref": {},
+    "comparator": {},
+    "preprocessor": {},
+}
 
 
-def resolve_asr(name: str, params: dict | None = None) -> ASRBackend:  # noqa: D401
-    """Resuelve e instancia un backend ASR por nombre."""
-    if name in {"allosaurus", "default"}:
-        return AllosaurusASR(params)
-    if name in {"stub", "fake"}:
-        return StubASR(params)
-    raise PluginResolutionError(f"ASR '{name}' no registrado")
+def register(category: str, name: str, factory: Callable[[Any], Any]) -> None:
+    """Registra un nuevo plugin en una categoría."""
+    if category not in _REGISTRY:
+        raise ValueError(f"Categoría de plugin inválida: {category}")
+    _REGISTRY[category][name] = factory
 
 
-def resolve_textref(name: str, params: dict | None = None) -> TextRefProvider:  # noqa: D401
-    """Resuelve e instancia un proveedor de texto->IPA por nombre."""
-    if name in {"grapheme", "default"}:
-        return GraphemeTextRef()
-    if name == "epitran":
-        lang = (params or {}).get("default_lang", "es")
-        return EpitranTextRef(default_lang=lang)
-    if name == "espeak":
-        lang = (params or {}).get("default_lang", "es")
-        return EspeakTextRef(default_lang=lang)
-    raise PluginResolutionError(f"TextRef '{name}' no registrado")
+def resolve(category: str, name: str, params: dict[str, Any] | None = None) -> Any:
+    """Resuelve e instancia un plugin por categoría y nombre."""
+    if category not in _REGISTRY:
+        raise ValueError(f"Categoría de plugin inválida: {category}")
+    
+    if name not in _REGISTRY[category]:
+        # Intentar cargar defaults si el registro está vacío (lazy load self-registration)
+        if not _REGISTRY[category]:
+            _register_defaults()
+            
+    if name not in _REGISTRY[category]:
+        raise KeyError(f"Plugin '{name}' no encontrado en categoría '{category}'")
+    
+    factory = _REGISTRY[category][name]
+    return factory(params or {})
 
 
-def resolve_comparator(name: str, params: dict | None = None) -> Comparator:  # noqa: D401
-    """Resuelve e instancia un comparador por nombre."""
-    if name in {"levenshtein", "default"}:
-        return LevenshteinComparator()
-    if name == "noop":
-        return NoOpComparator()
-    raise PluginResolutionError(f"Comparator '{name}' no registrado (pendiente)")
+def _register_defaults() -> None:
+    """Registra las implementaciones por defecto incluidas en el core."""
+    # ASR
+    from ipa_core.backends.asr_allosaurus import AllosaurusASR
+    from ipa_core.backends.asr_stub import StubASR
+    register("asr", "allosaurus", AllosaurusASR)
+    register("asr", "default", AllosaurusASR)
+    register("asr", "stub", StubASR)
+    register("asr", "fake", StubASR)
+
+    # TextRef
+    from ipa_core.textref.epitran import EpitranTextRef
+    from ipa_core.textref.espeak import EspeakTextRef
+    from ipa_core.textref.simple import GraphemeTextRef
+    register("textref", "grapheme", lambda _: GraphemeTextRef())
+    register("textref", "default", lambda _: GraphemeTextRef())
+    register("textref", "epitran", lambda p: EpitranTextRef(default_lang=p.get("default_lang", "es")))
+    register("textref", "espeak", lambda p: EspeakTextRef(default_lang=p.get("default_lang", "es")))
+
+    # Comparator
+    from ipa_core.compare.levenshtein import LevenshteinComparator
+    from ipa_core.compare.noop import NoOpComparator
+    register("comparator", "levenshtein", lambda _: LevenshteinComparator())
+    register("comparator", "default", lambda _: LevenshteinComparator())
+    register("comparator", "noop", lambda _: NoOpComparator())
+
+    # Preprocessor
+    from ipa_core.preprocessor_basic import BasicPreprocessor
+    register("preprocessor", "basic", lambda _: BasicPreprocessor())
+    register("preprocessor", "default", lambda _: BasicPreprocessor())
 
 
-def resolve_preprocessor(name: str, params: dict | None = None) -> Preprocessor:  # noqa: D401
-    """Resuelve e instancia un preprocesador por nombre."""
-    if name in {"basic", "default"}:
-        return BasicPreprocessor()
-    raise PluginResolutionError(f"Preprocessor '{name}' no registrado")
+# Resolutores específicos por compatibilidad
+def resolve_asr(name: str, params: dict | None = None) -> Any:
+    return resolve("asr", name, params)
+
+
+def resolve_textref(name: str, params: dict | None = None) -> Any:
+    return resolve("textref", name, params)
+
+
+def resolve_comparator(name: str, params: dict | None = None) -> Any:
+    return resolve("comparator", name, params)
+
+
+def resolve_preprocessor(name: str, params: dict | None = None) -> Any:
+    return resolve("preprocessor", name, params)
