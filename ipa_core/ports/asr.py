@@ -16,11 +16,12 @@ TODO
 """
 from __future__ import annotations
 
-from typing import Optional, Protocol
+from typing import Optional, Protocol, runtime_checkable
 
 from ipa_core.types import ASRResult, AudioInput
 
 
+@runtime_checkable
 class ASRBackend(Protocol):
     """Define el contrato de un backend de reconocimiento de voz.
 

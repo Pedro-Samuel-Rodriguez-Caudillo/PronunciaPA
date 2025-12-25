@@ -14,11 +14,12 @@ TODO
 """
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 from ipa_core.types import Token
 
 
+@runtime_checkable
 class TextRefProvider(Protocol):
     """Define el contrato para convertir texto plano a tokens IPA."""
 

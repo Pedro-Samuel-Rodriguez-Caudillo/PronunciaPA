@@ -13,11 +13,12 @@ TODO
 """
 from __future__ import annotations
 
-from typing import Optional, Protocol
+from typing import Optional, Protocol, runtime_checkable
 
 from ipa_core.types import CompareResult, CompareWeights, TokenSeq
 
 
+@runtime_checkable
 class Comparator(Protocol):
     """Define el contrato para comparar dos secuencias de tokens IPA."""
 

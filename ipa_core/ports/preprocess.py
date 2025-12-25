@@ -13,11 +13,12 @@ TODO
 """
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 from ipa_core.types import AudioInput, Token, TokenSeq
 
 
+@runtime_checkable
 class Preprocessor(Protocol):
     """Define operaciones simples para preparar audio y tokens.
 
