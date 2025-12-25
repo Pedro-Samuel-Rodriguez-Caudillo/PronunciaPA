@@ -12,7 +12,7 @@
 - [x] Task: Implement Configuration Loader 14ab013
     - **Goal:** Create `ipa_core/config/loader.py` to read YAML and environment variables into the schema.
     - **Verification:** Unit tests loading a sample config file.
-- [ ] Task: Define Plugin Registry/Discovery
+- [x] Task: Define Plugin Registry/Discovery 83ea74a
     - **Goal:** Create `ipa_core/plugins/registry.py` to handle registration and retrieval of port implementations.
     - **Verification:** Unit test registering and retrieving a dummy plugin.
 - [ ] Task: Conductor - User Manual Verification 'Configuration and Plugin Infrastructure' (Protocol in workflow.md)
