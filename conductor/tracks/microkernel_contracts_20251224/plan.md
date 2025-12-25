@@ -9,7 +9,7 @@
 - [x] Task: Define Configuration Schema a89af02
     - **Goal:** Implement Pydantic models for configuration in `ipa_core/config/schema.py` representing the YAML structure.
     - **Verification:** Unit tests validating valid/invalid YAML examples.
-- [ ] Task: Implement Configuration Loader
+- [x] Task: Implement Configuration Loader 14ab013
     - **Goal:** Create `ipa_core/config/loader.py` to read YAML and environment variables into the schema.
     - **Verification:** Unit tests loading a sample config file.
 - [ ] Task: Define Plugin Registry/Discovery
