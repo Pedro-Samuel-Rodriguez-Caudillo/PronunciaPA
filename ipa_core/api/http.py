@@ -1,61 +1,70 @@
-"""Aplicación HTTP basada en FastAPI."""
+"""Aplicación HTTP basada en FastAPI.
+
+Este módulo define la API REST para interactuar con el microkernel de
+PronunciaPA.
+"""
 from __future__ import annotations
-
-from functools import lru_cache
-from typing import Any, Optional
-
-from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import JSONResponse
-
-from ipa_core.errors import KernelError, ValidationError
-from ipa_core.services.transcription import TranscriptionService
+from typing import Any, List, Optional
+from fastapi import FastAPI, File, Form, UploadFile
+from pydantic import BaseModel
 
 
-@lru_cache(maxsize=1)
-def _service() -> TranscriptionService:
-    return TranscriptionService()
+class ASRResponse(BaseModel):
+    """Respuesta exitosa de transcripción."""
+    ipa: str
+    tokens: List[str]
+    lang: str
+    meta: dict[str, Any] = {}
 
 
-def get_app() -> Any:
-    """Construye la app FastAPI y registra rutas."""
-    app = FastAPI(title="PronunciaPA", version="0.1.0")
+class CompareResponse(BaseModel):
+    """Respuesta exitosa de comparación."""
+    per: float
+    ops: List[dict[str, Any]]
+    alignment: List[List[Optional[str]]]
+    meta: dict[str, Any] = {}
+
+
+def get_app() -> FastAPI:
+    """Construye y configura la aplicación FastAPI."""
+    app = FastAPI(
+        title="PronunciaPA API",
+        description="API para reconocimiento y evaluación fonética",
+        version="0.1.0"
+    )
 
     @app.get("/health")
     async def health() -> dict[str, str]:
+        """Endpoint de salud para monitoreo."""
         return {"status": "ok"}
 
-    @app.post("/pronunciapa/transcribe")
+    @app.post("/v1/transcribe", response_model=ASRResponse)
     async def transcribe(
-        request: Request,
-        audio: Optional[UploadFile] = File(default=None, description="Archivo de audio opcional"),
-        lang: Optional[str] = Form(default=None, description="Código de idioma"),
+        audio: UploadFile = File(..., description="Archivo de audio a transcribir"),
+        lang: str = Form("es", description="Idioma del audio")
     ) -> dict[str, Any]:
-        service = _service()
-        try:
-            if audio is not None:
-                data = await audio.read()
-                payload = service.transcribe_bytes(data, filename=audio.filename or "upload.wav", lang=lang)
-            else:
-                raw = await request.body()
-                if not raw:
-                    raise ValidationError("El cuerpo del request está vacío")
-                filename = request.headers.get("X-Audio-Filename", "stream.wav")
-                payload = service.transcribe_bytes(raw, filename=filename, lang=lang)
-        except ValidationError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-        except KernelError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-
+        """Stub para transcripción de audio a IPA."""
+        # TODO: Implementar integración con el Kernel
         return {
-            "ipa": payload.ipa,
-            "tokens": payload.tokens,
-            "lang": payload.lang,
-            "audio": payload.audio,
-            "meta": payload.meta,
+            "ipa": "o l a",
+            "tokens": ["o", "l", "a"],
+            "lang": lang,
+            "meta": {"backend": "stub"}
         }
 
-    @app.exception_handler(KernelError)
-    async def kernel_error_handler(request: Request, exc: KernelError):
-        return JSONResponse(status_code=500, content={"detail": str(exc)})
+    @app.post("/v1/compare", response_model=CompareResponse)
+    async def compare(
+        audio: UploadFile = File(..., description="Archivo de audio a comparar"),
+        text: str = Form(..., description="Texto de referencia"),
+        lang: str = Form("es", description="Idioma del audio")
+    ) -> dict[str, Any]:
+        """Stub para comparación de audio contra texto de referencia."""
+        # TODO: Implementar integración con el Kernel
+        return {
+            "per": 0.0,
+            "ops": [{"op": "eq", "ref": "o", "hyp": "o"}],
+            "alignment": [["o", "o"]],
+            "meta": {"backend": "stub"}
+        }
 
     return app
