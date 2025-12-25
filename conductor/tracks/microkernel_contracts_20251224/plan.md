@@ -11,14 +11,10 @@
 - [x] Task: Define Plugin Registry/Discovery 83ea74a
 - [x] Task: Conductor - User Manual Verification 'Configuration and Plugin Infrastructure' (Protocol in workflow.md)
 
-## Phase 3: API Contracts (CLI & HTTP)
+## Phase 3: API Contracts (CLI & HTTP) [checkpoint: 706d404]
 - [x] Task: Implement CLI Skeleton fae9282
-    - **Goal:** Set up `ipa_core/api/cli.py` using `Typer` (or similar) with stubs for `transcribe` and `compare`.
-    - **Verification:** Running `pronunciapa --help` shows the commands; commands return dummy JSON.
 - [x] Task: Implement HTTP API Skeleton 42e9587
-    - **Goal:** Set up `ipa_core/api/http.py` using FastAPI with stubs for `/transcribe` and `/compare` using the defined Pydantic models.
-    - **Verification:** `uvicorn` starts; `/docs` shows the correct schema; requests return dummy 200 OK responses.
-- [ ] Task: Conductor - User Manual Verification 'API Contracts (CLI & HTTP)' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'API Contracts (CLI & HTTP)' (Protocol in workflow.md)
 
 ## Phase 4: Integration and Final Verification
 - [ ] Task: Create "Stub" Implementations
