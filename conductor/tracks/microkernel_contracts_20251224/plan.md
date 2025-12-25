@@ -17,7 +17,7 @@
 - [x] Task: Conductor - User Manual Verification 'API Contracts (CLI & HTTP)' (Protocol in workflow.md)
 
 ## Phase 4: Integration and Final Verification
-- [ ] Task: Create "Stub" Implementations
+- [x] Task: Create "Stub" Implementations 0efaacc
     - **Goal:** Create simple "No-Op" or "Echo" implementations of the ports to prove the wiring works.
     - **Verification:** Tests can instantiate these stubs via the plugin registry.
 - [ ] Task: End-to-End Contract Test
