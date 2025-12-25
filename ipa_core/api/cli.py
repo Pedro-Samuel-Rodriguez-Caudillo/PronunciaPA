@@ -1,103 +1,69 @@
-"""CLI para interactuar con PronunciaPA."""
-from __future__ import annotations
+"""CLI para interactuar con PronunciaPA.
 
-import argparse
+Este módulo define los comandos de línea de comandos para transcripción
+y comparación fonética.
+"""
+from __future__ import annotations
 import json
 from typing import Optional
+import typer
 
-from ipa_core.audio.files import cleanup_temp
-from ipa_core.audio.microphone import record
-from ipa_core.services.transcription import TranscriptionService, TranscriptionPayload
+app = typer.Typer(help="PronunciaPA: Reconocimiento y evaluación fonética")
 
 
-def cli_compare(
-    audio: str,
-    text: str,
-    *,
-    lang: Optional[str] = None,
-    config_path: Optional[str] = None,
-    backend_name: Optional[str] = None,
-    textref_name: Optional[str] = None,
-    comparator_name: Optional[str] = None,
+@app.command()
+def transcribe(
+    audio: Optional[str] = typer.Option(None, "--audio", "-a", help="Ruta al archivo de audio"),
+    lang: str = typer.Option("es", "--lang", "-l", help="Idioma objetivo"),
+    mic: bool = typer.Option(False, "--mic", help="Capturar desde el micrófono"),
+    seconds: float = typer.Option(3.0, "--seconds", help="Duración de la grabación en segundos"),
+    json_output: bool = typer.Option(False, "--json/--no-json", help="Salida en formato JSON"),
 ):
-    """Placeholder hasta implementar comparación."""
-    raise NotImplementedError("CLI compare sigue pendiente. Usa `transcribe`.")
+    """Transcribe audio a tokens IPA."""
+    if not mic and not audio:
+        typer.echo("Error: Debes especificar --audio o --mic", err=True)
+        raise typer.Exit(code=1)
 
+    # TODO: Implementar lógica real llamando al Kernel
+    stub_result = {
+        "ipa": "o l a",
+        "tokens": ["o", "l", "a"],
+        "lang": lang,
+        "audio": {"path": audio or "microphone", "sample_rate": 16000, "channels": 1},
+    }
 
-def cli_transcribe(
-    audio: Optional[str],
-    *,
-    lang: Optional[str] = None,
-    use_mic: bool = False,
-    seconds: float = 3.0,
-    textref: Optional[str] = None,
-) -> list[str]:
-    """Transcribe un archivo WAV/MP3 o captura desde micrófono."""
-    if not use_mic and not audio:
-        raise ValueError("Debes especificar '--audio' o '--mic'")
-
-    service = TranscriptionService(default_lang=lang or "es", textref_name=textref)
-    temp_path = None
-    try:
-        if use_mic:
-            temp_path, _meta = record(seconds, sample_rate=16000)
-            payload = service.transcribe_file(temp_path, lang=lang)
-        else:
-            payload = service.transcribe_file(str(audio), lang=lang)
-    finally:
-        if temp_path:
-            cleanup_temp(temp_path)
-    return payload.tokens
-
-
-def _format_payload(payload: TranscriptionPayload, as_json: bool) -> str:
-    if as_json:
-        return json.dumps(
-            {"ipa": payload.ipa, "tokens": payload.tokens, "lang": payload.lang, "audio": payload.audio},
-            ensure_ascii=False,
-        )
-    return f"IPA ({payload.lang}): {payload.ipa}"
-
-
-def _run_transcribe(args: argparse.Namespace) -> int:
-    service = TranscriptionService(default_lang=args.lang or "es", textref_name=args.textref)
-    if args.mic:
-        temp_path, _meta = record(args.seconds, sample_rate=16000)
-        try:
-            payload = service.transcribe_file(temp_path, lang=args.lang)
-        finally:
-            cleanup_temp(temp_path)
+    if json_output:
+        typer.echo(json.dumps(stub_result, ensure_ascii=False))
     else:
-        payload = service.transcribe_file(args.audio, lang=args.lang)
-    print(_format_payload(payload, args.json))
-    return 0
+        typer.echo(f"IPA ({lang}): {stub_result['ipa']}")
 
 
-def main(argv: Optional[list[str]] = None) -> int:
-    parser = argparse.ArgumentParser(prog="pronunciapa", description="CLI de transcripción IPA")
-    sub = parser.add_subparsers(dest="command", required=True)
+@app.command()
+def compare(
+    audio: str = typer.Option(..., "--audio", "-a", help="Ruta al archivo de audio"),
+    text: str = typer.Option(..., "--text", "-t", help="Texto de referencia"),
+    lang: str = typer.Option("es", "--lang", "-l", help="Idioma objetivo"),
+    json_output: bool = typer.Option(True, "--json/--no-json", help="Salida en formato JSON (por defecto)"),
+):
+    """Compara el audio contra un texto de referencia y evalúa la pronunciación."""
+    # TODO: Implementar lógica real llamando al Kernel
+    stub_result = {
+        "per": 0.0,
+        "ops": [{"op": "eq", "ref": "o", "hyp": "o"}],
+        "alignment": [["o", "o"]],
+        "meta": {"backend": "stub"},
+    }
 
-    t_parser = sub.add_parser("transcribe", help="Transcribir audio a IPA")
-    t_parser.add_argument("--audio", "-a", help="Ruta a WAV/MP3")
-    t_parser.add_argument("--lang", "-l", default="es", help="Idioma (por defecto: es)")
-    t_parser.add_argument("--mic", action="store_true", help="Capturar audio del micrófono")
-    t_parser.add_argument("--seconds", type=float, default=3.0, help="Duración al grabar con --mic (s)")
-    t_parser.add_argument("--json", action="store_true", help="Salida JSON")
-    t_parser.add_argument(
-        "--textref",
-        choices=["grapheme", "epitran", "espeak"],
-        help="Conversor texto→IPA (default: grapheme)",
-    )
-
-    args = parser.parse_args(argv)
-    if args.command == "transcribe":
-        if not args.mic and not args.audio:
-            parser.error("transcribe requiere --audio o --mic")
-        return _run_transcribe(args)
-
-    parser.error("Comando no soportado")
-    return 1
+    if json_output:
+        typer.echo(json.dumps(stub_result, ensure_ascii=False))
+    else:
+        typer.echo(f"PER: {stub_result['per']}")
 
 
-if __name__ == "__main__":  # pragma: no cover
-    raise SystemExit(main())
+def main():
+    """Punto de entrada para el script de consola."""
+    app()
+
+
+if __name__ == "__main__":
+    main()
