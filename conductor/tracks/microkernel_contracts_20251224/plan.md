@@ -5,17 +5,11 @@
 - [x] Task: Define Port Protocols e20a197
 - [x] Task: Conductor - User Manual Verification 'Core Types and Ports Definition' (Protocol in workflow.md)
 
-## Phase 2: Configuration and Plugin Infrastructure
+## Phase 2: Configuration and Plugin Infrastructure [checkpoint: 0136f68]
 - [x] Task: Define Configuration Schema a89af02
-    - **Goal:** Implement Pydantic models for configuration in `ipa_core/config/schema.py` representing the YAML structure.
-    - **Verification:** Unit tests validating valid/invalid YAML examples.
 - [x] Task: Implement Configuration Loader 14ab013
-    - **Goal:** Create `ipa_core/config/loader.py` to read YAML and environment variables into the schema.
-    - **Verification:** Unit tests loading a sample config file.
 - [x] Task: Define Plugin Registry/Discovery 83ea74a
-    - **Goal:** Create `ipa_core/plugins/registry.py` to handle registration and retrieval of port implementations.
-    - **Verification:** Unit test registering and retrieving a dummy plugin.
-- [ ] Task: Conductor - User Manual Verification 'Configuration and Plugin Infrastructure' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Configuration and Plugin Infrastructure' (Protocol in workflow.md)
 
 ## Phase 3: API Contracts (CLI & HTTP)
 - [ ] Task: Implement CLI Skeleton
