@@ -12,7 +12,7 @@
 - [x] Task: Conductor - User Manual Verification 'Configuration and Plugin Infrastructure' (Protocol in workflow.md)
 
 ## Phase 3: API Contracts (CLI & HTTP)
-- [ ] Task: Implement CLI Skeleton
+- [x] Task: Implement CLI Skeleton fae9282
     - **Goal:** Set up `ipa_core/api/cli.py` using `Typer` (or similar) with stubs for `transcribe` and `compare`.
     - **Verification:** Running `pronunciapa --help` shows the commands; commands return dummy JSON.
 - [ ] Task: Implement HTTP API Skeleton
