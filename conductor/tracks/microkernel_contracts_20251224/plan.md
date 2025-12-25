@@ -16,11 +16,7 @@
 - [x] Task: Implement HTTP API Skeleton 42e9587
 - [x] Task: Conductor - User Manual Verification 'API Contracts (CLI & HTTP)' (Protocol in workflow.md)
 
-## Phase 4: Integration and Final Verification
+## Phase 4: Integration and Final Verification [checkpoint: 37ed75e]
 - [x] Task: Create "Stub" Implementations 0efaacc
-    - **Goal:** Create simple "No-Op" or "Echo" implementations of the ports to prove the wiring works.
-    - **Verification:** Tests can instantiate these stubs via the plugin registry.
 - [x] Task: End-to-End Contract Test c24b30e
-    - **Goal:** A test that loads a config using stubs, initializes the kernel (mocked), and calls a CLI command.
-    - **Verification:** `pytest` passes the end-to-end flow.
-- [ ] Task: Conductor - User Manual Verification 'Integration and Final Verification' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Integration and Final Verification' (Protocol in workflow.md)
