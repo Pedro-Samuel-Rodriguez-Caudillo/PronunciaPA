@@ -20,7 +20,7 @@
 - [x] Task: Create "Stub" Implementations 0efaacc
     - **Goal:** Create simple "No-Op" or "Echo" implementations of the ports to prove the wiring works.
     - **Verification:** Tests can instantiate these stubs via the plugin registry.
-- [ ] Task: End-to-End Contract Test
+- [x] Task: End-to-End Contract Test c24b30e
     - **Goal:** A test that loads a config using stubs, initializes the kernel (mocked), and calls a CLI command.
     - **Verification:** `pytest` passes the end-to-end flow.
 - [ ] Task: Conductor - User Manual Verification 'Integration and Final Verification' (Protocol in workflow.md)
