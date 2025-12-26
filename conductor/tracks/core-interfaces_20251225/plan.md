@@ -4,7 +4,7 @@
 Establishing the shared vocabulary and the base behavior for all plugins.
 
 - [x] Task: Define/Refine core types in `ipa_core/types.py` (Token, AudioInput, CompareResult, etc.) (141c5ab)
-- [ ] Task: Implement `BasePlugin` lifecycle class with `async setup()` and `async teardown()`
+- [x] Task: Implement `BasePlugin` lifecycle class with `async setup()` and `async teardown()` (885a265)
 - [ ] Task: Conductor - User Manual Verification 'Foundation' (Protocol in workflow.md)
 
 ## Phase 2: Core Port Protocols
