@@ -60,6 +60,30 @@ class ASRResult(TypedDict, total=False):
     meta: dict[str, Any]
 
 
+class TextRefResult(TypedDict, total=False):
+    """Resultado producido por un proveedor de texto de referencia.
+
+    - tokens: lista de tokens IPA resultantes.
+    - meta: información adicional útil para depurar.
+    """
+
+    tokens: list[Token]
+    meta: dict[str, Any]
+
+
+class PreprocessorResult(TypedDict, total=False):
+    """Resultado producido por un preprocesador.
+
+    - audio: audio procesado (si aplica).
+    - tokens: tokens procesados (si aplica).
+    - meta: información adicional útil para depurar.
+    """
+
+    audio: AudioInput
+    tokens: list[Token]
+    meta: dict[str, Any]
+
+
 class CompareWeights(TypedDict, total=False):
     """Pesos aplicados a cada operación de edición.
 
