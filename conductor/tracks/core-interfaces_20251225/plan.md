@@ -12,8 +12,8 @@ Defining the asynchronous contracts for the primary microkernel ports.
 
 - [x] Task: Define `ASRBackend` protocol in `ipa_core/ports/asr.py` (bb89c9a)
 - [x] Task: Define `TextRefProvider` protocol in `ipa_core/ports/textref.py` (e0c288b)
-- [~] Task: Define `Comparator` protocol in `ipa_core/ports/compare.py`
-- [ ] Task: Define `Preprocessor` protocol in `ipa_core/ports/preprocess.py`
+- [x] Task: Define `Comparator` protocol in `ipa_core/ports/compare.py` (b391713)
+- [~] Task: Define `Preprocessor` protocol in `ipa_core/ports/preprocess.py`
 - [ ] Task: Conductor - User Manual Verification 'Core Port Protocols' (Protocol in workflow.md)
 
 ## Phase 3: Integration and Validation
