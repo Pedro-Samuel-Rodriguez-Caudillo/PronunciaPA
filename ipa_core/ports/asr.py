@@ -26,9 +26,18 @@ class ASRBackend(Protocol):
     """Define el contrato de un backend de reconocimiento de voz.
 
     Un backend recibe un `AudioInput` y devuelve un `ASRResult` con tokens IPA.
+    Debe soportar el ciclo de vida de `BasePlugin` (setup/teardown).
     """
 
-    def transcribe(self, audio: AudioInput, *, lang: Optional[str] = None, **kw) -> ASRResult:  # noqa: D401
+    async def setup(self) -> None:
+        """Configuración inicial del plugin (asíncrona)."""
+        ...
+
+    async def teardown(self) -> None:
+        """Limpieza de recursos del plugin (asíncrona)."""
+        ...
+
+    async def transcribe(self, audio: AudioInput, *, lang: Optional[str] = None, **kw) -> ASRResult:  # noqa: D401
         """Transcribir audio a tokens IPA.
 
         Parámetros
