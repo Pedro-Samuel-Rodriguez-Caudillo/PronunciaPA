@@ -20,9 +20,20 @@ from ipa_core.types import CompareResult, CompareWeights, TokenSeq
 
 @runtime_checkable
 class Comparator(Protocol):
-    """Define el contrato para comparar dos secuencias de tokens IPA."""
+    """Define el contrato para comparar dos secuencias de tokens IPA.
+    
+    Debe soportar el ciclo de vida de `BasePlugin`.
+    """
 
-    def compare(
+    async def setup(self) -> None:
+        """Configuración inicial del plugin (asíncrona)."""
+        ...
+
+    async def teardown(self) -> None:
+        """Limpieza de recursos del plugin (asíncrona)."""
+        ...
+
+    async def compare(
         self,
         ref: TokenSeq,
         hyp: TokenSeq,
