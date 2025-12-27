@@ -1,11 +1,11 @@
 # Plan - Core Interfaces Definition (MK-1)
 
-## Phase 1: Foundation (Types & Lifecycle)
+## Phase 1: Foundation (Types & Lifecycle) [checkpoint: de16d7f]
 Establishing the shared vocabulary and the base behavior for all plugins.
 
 - [x] Task: Define/Refine core types in `ipa_core/types.py` (Token, AudioInput, CompareResult, etc.) (141c5ab)
 - [x] Task: Implement `BasePlugin` lifecycle class with `async setup()` and `async teardown()` (885a265)
-- [ ] Task: Conductor - User Manual Verification 'Foundation' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Foundation' (Protocol in workflow.md)
 
 ## Phase 2: Core Port Protocols
 Defining the asynchronous contracts for the primary microkernel ports.
