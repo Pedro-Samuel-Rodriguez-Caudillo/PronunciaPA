@@ -2,11 +2,12 @@
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
 from ipa_core.errors import NotReadyError
-from ipa_core.ports.textref import TextRefProvider
-from ipa_core.types import Token
+from ipa_core.plugins.base import BasePlugin
+from ipa_core.types import TextRefResult
+
 
 try:  # Carga diferida: solo se necesita cuando se usa este proveedor.
     import epitran
@@ -17,7 +18,7 @@ except ImportError:  # pragma: no cover
 LangFactory = Callable[[str], object]
 
 
-class EpitranTextRef(TextRefProvider):
+class EpitranTextRef(BasePlugin):
     """Convierte texto a IPA usando modelos de Epitran."""
 
     _LANG_CODES: Dict[str, str] = {
@@ -36,13 +37,13 @@ class EpitranTextRef(TextRefProvider):
         self._default_lang = default_lang
         self._factory = factory or self._load_model
 
-    def _load_model(self, code: str):
+    def _load_model(self, code: str) -> Any:
         if epitran is None:
             raise NotReadyError("Epitran no instalado. Ejecuta `pip install ipa-core[speech]`.")
         return epitran.Epitran(code)
 
     @lru_cache(maxsize=8)
-    def _get_model(self, code: str):
+    def _get_model(self, code: str) -> Any:
         return self._factory(code)
 
     def _resolve_code(self, lang: Optional[str]) -> str:
@@ -50,14 +51,16 @@ class EpitranTextRef(TextRefProvider):
             lang = self._default_lang
         return self._LANG_CODES.get(lang, lang)
 
-    def to_ipa(self, text: str, *, lang: str, **kw) -> list[Token]:  # noqa: D401
+    async def to_ipa(self, text: str, *, lang: str, **kw: Any) -> TextRefResult:  # noqa: D401
+        """Convertir texto de forma asíncrona."""
         code = self._resolve_code(lang)
         model = self._get_model(code)
         tokens = self._transliterate(model, text)
-        return [token for token in tokens if token.strip()]
+        clean_tokens = [token for token in tokens if token.strip()]
+        return {"tokens": clean_tokens, "meta": {"method": "epitran", "code": code}}
 
     @staticmethod
-    def _transliterate(model, text: str) -> list[str]:
+    def _transliterate(model: Any, text: str) -> list[str]:
         if hasattr(model, "trans_list"):
             try:
                 return list(model.trans_list(text))

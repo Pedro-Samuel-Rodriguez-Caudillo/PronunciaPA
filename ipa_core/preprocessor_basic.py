@@ -6,11 +6,14 @@ Implementa el contrato `Preprocessor` con reglas mínimas:
 """
 from __future__ import annotations
 
+from typing import Any
+
 from ipa_core.errors import ValidationError
-from ipa_core.types import AudioInput, Token, TokenSeq
+from ipa_core.plugins.base import BasePlugin
+from ipa_core.types import AudioInput, PreprocessorResult, Token, TokenSeq
 
 
-class BasicPreprocessor:
+class BasicPreprocessor(BasePlugin):
     """Normalización mínima para pruebas iniciales.
 
     Nota: El ajuste de sample rate/canales se delega a futuras versiones.
@@ -18,8 +21,8 @@ class BasicPreprocessor:
 
     _REQUIRED_AUDIO_KEYS = ("path", "sample_rate", "channels")
 
-    def process_audio(self, audio: AudioInput) -> AudioInput:  # noqa: D401
-        """Validar claves esperadas y devolver el audio intacto."""
+    async def process_audio(self, audio: AudioInput, **kw: Any) -> PreprocessorResult:  # noqa: D401
+        """Validar claves esperadas y devolver el audio intacto envuelto en PreprocessorResult."""
         try:
             path = audio["path"]
             sample_rate = audio["sample_rate"]
@@ -34,14 +37,13 @@ class BasicPreprocessor:
         if not isinstance(channels, int) or channels <= 0:
             raise ValidationError("AudioInput.channels must be a positive integer")
 
-        return audio
+        return {"audio": dict(audio), "meta": {"preprocessor": "basic", "audio_valid": True}}  # type: ignore
 
-    def normalize_tokens(self, tokens: TokenSeq) -> list[Token]:  # noqa: D401
+    async def normalize_tokens(self, tokens: TokenSeq, **kw: Any) -> PreprocessorResult:  # noqa: D401
         """Aplicar strip/lower y descartar tokens vacíos para mantener idempotencia."""
         out: list[Token] = []
         for token in tokens:
-            # Normalizar tokens garantiza que futuros pasos reciban entradas previsibles.
             normalized = str(token).strip().lower()
             if normalized:
                 out.append(normalized)
-        return out
+        return {"tokens": out, "meta": {"preprocessor": "basic", "count": len(out)}}

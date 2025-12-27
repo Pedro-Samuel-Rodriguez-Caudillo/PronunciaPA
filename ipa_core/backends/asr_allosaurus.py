@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Any, Optional
 
 from ipa_core.errors import NotReadyError, ValidationError
-from ipa_core.ports.asr import ASRBackend
+from ipa_core.plugins.base import BasePlugin
 from ipa_core.types import ASRResult, AudioInput
 
 try:  # Carga diferida para evitar fallos en entornos sin el modelo.
@@ -27,24 +27,33 @@ LANG_MAP = {
 }
 
 
-class AllosaurusASR:
+class AllosaurusASR(BasePlugin):
     """Implementación de `ASRBackend` usando el modelo Allosaurus."""
 
     def __init__(self, params: Optional[dict[str, Any]] = None, *, recognizer: Any | None = None) -> None:
         params = params or {}
         self._default_lang: str = params.get("lang", "eng")
         self._model_dir: Optional[str] = params.get("model_dir")
-        self._recognizer = recognizer or self._load()
+        self._recognizer = recognizer
 
     def _load(self) -> Any:
         if read_recognizer is None:
-            raise NotReadyError("Allosaurus no está instalado. Usa `pip install ipa-core[dev]`.")
+            raise NotReadyError("Allosaurus no está instalado. Usa `pip install ipa-core[speech]`.")
         # Allosaurus 1.0.x no acepta model_dir como keyword argument
         if self._model_dir:
             return read_recognizer(self._model_dir)
         return read_recognizer()
 
-    def transcribe(self, audio: AudioInput, *, lang: Optional[str] = None, **kw) -> ASRResult:  # noqa: D401
+    async def setup(self) -> None:
+        """Cargar el modelo si no está listo."""
+        if self._recognizer is None:
+            self._recognizer = self._load()
+
+    async def transcribe(self, audio: AudioInput, *, lang: Optional[str] = None, **kw: Any) -> ASRResult:  # noqa: D401
+        """Transcribir audio de forma asíncrona."""
+        if self._recognizer is None:
+            await self.setup()
+
         path = audio.get("path")
         if not path:
             raise ValidationError("AudioInput requiere 'path'")

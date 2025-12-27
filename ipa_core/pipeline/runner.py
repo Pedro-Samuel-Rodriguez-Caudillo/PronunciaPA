@@ -19,16 +19,16 @@ TODO
 """
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any, Optional
 
 from ipa_core.ports.asr import ASRBackend
 from ipa_core.ports.compare import Comparator
 from ipa_core.ports.preprocess import Preprocessor
 from ipa_core.ports.textref import TextRefProvider
-from ipa_core.types import AudioInput, CompareResult, CompareWeights, TokenSeq
+from ipa_core.types import AudioInput, CompareResult, CompareWeights, Token
 
 
-def run_pipeline(
+async def run_pipeline(
     pre: Preprocessor,
     asr: ASRBackend,
     textref: TextRefProvider,
@@ -39,30 +39,43 @@ def run_pipeline(
     lang: Optional[str] = None,
     weights: Optional[CompareWeights] = None,
 ) -> CompareResult:
-    """Orquestar preproceso -> ASR -> TextRef -> Comparación."""
+    """Orquestar preproceso -> ASR -> TextRef -> Comparación (Asíncrono)."""
     lang = lang or ""
-    processed_audio = pre.process_audio(audio)
-    asr_result = asr.transcribe(processed_audio, lang=lang or None)
+    # 1. Preproceso de audio
+    pre_audio_res = await pre.process_audio(audio)
+    processed_audio = pre_audio_res.get("audio", audio)
 
-    hyp_tokens = _resolve_hyp_tokens(pre, textref, asr_result, lang)
-    ref_tokens = pre.normalize_tokens(textref.to_ipa(text, lang=lang or ""))
+    # 2. Transcripción ASR
+    asr_result = await asr.transcribe(processed_audio, lang=lang or None)
 
-    return comp.compare(ref_tokens, hyp_tokens, weights=weights)
+    # 3. Resolución y normalización de hipótesis
+    hyp_tokens = await _resolve_hyp_tokens(pre, textref, asr_result, lang)
+
+    # 4. Obtención y normalización de referencia
+    tr_result = await textref.to_ipa(text, lang=lang or "")
+    ref_pre_res = await pre.normalize_tokens(tr_result.get("tokens", []))
+    ref_tokens = ref_pre_res.get("tokens", [])
+
+    # 5. Comparación
+    return await comp.compare(ref_tokens, hyp_tokens, weights=weights)
 
 
-def _resolve_hyp_tokens(
+async def _resolve_hyp_tokens(
     pre: Preprocessor,
     textref: TextRefProvider,
-    asr_result,
+    asr_result: dict[str, Any],
     lang: str,
-) -> list[str]:
-    tokens: Optional[TokenSeq] = asr_result.get("tokens")
+) -> list[Token]:
+    """Extrae tokens del ASR o los deriva del texto plano si es necesario."""
+    tokens = asr_result.get("tokens")
     if tokens:
-        return pre.normalize_tokens(tokens)
+        res = await pre.normalize_tokens(tokens)
+        return res.get("tokens", [])
 
     raw_text = asr_result.get("raw_text", "")
     if raw_text:
-        derived = textref.to_ipa(raw_text, lang=lang or "")
-        return pre.normalize_tokens(derived)
+        derived_res = await textref.to_ipa(raw_text, lang=lang or "")
+        res = await pre.normalize_tokens(derived_res.get("tokens", []))
+        return res.get("tokens", [])
 
     return []

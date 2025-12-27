@@ -15,7 +15,7 @@ from ipa_core.ports.textref import TextRefProvider
 from ipa_core.types import AudioInput, Token
 
 
-def transcribe(
+async def transcribe(
     pre: Preprocessor,
     asr: ASRBackend,
     textref: TextRefProvider,
@@ -23,13 +23,24 @@ def transcribe(
     audio: AudioInput,
     lang: Optional[str] = None,
 ) -> list[Token]:
-    a1 = pre.process_audio(audio)
-    res = asr.transcribe(a1, lang=lang)
+    """Transcribir audio a tokens IPA normalizados (Asíncrono)."""
+    # 1. Preproceso de audio
+    pre_audio_res = await pre.process_audio(audio)
+    processed_audio = pre_audio_res.get("audio", audio)
+
+    # 2. ASR
+    res = await asr.transcribe(processed_audio, lang=lang)
+
+    # 3. Extracción y normalización de tokens
     tokens = res.get("tokens")
     if tokens:
-        return pre.normalize_tokens(tokens)
+        norm_res = await pre.normalize_tokens(tokens)
+        return norm_res.get("tokens", [])
+
     raw = res.get("raw_text", "")
     if raw:
-        return pre.normalize_tokens(textref.to_ipa(raw, lang=lang or ""))
-    return []
+        tr_res = await textref.to_ipa(raw, lang=lang or "")
+        norm_res = await pre.normalize_tokens(tr_res.get("tokens", []))
+        return norm_res.get("tokens", [])
 
+    return []

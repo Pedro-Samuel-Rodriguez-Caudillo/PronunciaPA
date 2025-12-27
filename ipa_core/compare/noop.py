@@ -3,14 +3,14 @@ from __future__ import annotations
 
 from typing import Optional
 
-from ipa_core.ports.compare import Comparator
+from ipa_core.plugins.base import BasePlugin
 from ipa_core.types import CompareResult, CompareWeights, TokenSeq
 
 
-class NoOpComparator(Comparator):
+class NoOpComparator(BasePlugin):
     """Devuelve PER 0.0 sin cálculo real."""
 
-    def compare(
+    async def compare(
         self,
         ref: TokenSeq,
         hyp: TokenSeq,

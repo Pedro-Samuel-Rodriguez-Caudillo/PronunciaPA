@@ -2,9 +2,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Optional
 
-from ipa_core.ports.compare import Comparator
+from ipa_core.plugins.base import BasePlugin
 from ipa_core.types import CompareResult, CompareWeights, EditOp, Token, TokenSeq
 
 
@@ -25,17 +25,18 @@ class _Weights:
         )
 
 
-class LevenshteinComparator(Comparator):
+class LevenshteinComparator(BasePlugin):
     """Calcula PER mediante distancia de Levenshtein con backtracking."""
 
-    def compare(
+    async def compare(
         self,
         ref: TokenSeq,
         hyp: TokenSeq,
         *,
         weights: Optional[CompareWeights] = None,
-        **kw,
+        **kw: Any,
     ) -> CompareResult:
+        """Comparación asíncrona de secuencias IPA."""
         ref_tokens = list(ref)
         hyp_tokens = list(hyp)
         n, m = len(ref_tokens), len(hyp_tokens)

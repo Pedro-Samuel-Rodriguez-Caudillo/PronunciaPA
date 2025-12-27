@@ -7,11 +7,11 @@ from __future__ import annotations
 
 from typing import Optional
 
-from ipa_core.ports.asr import ASRBackend
+from ipa_core.plugins.base import BasePlugin
 from ipa_core.types import ASRResult, AudioInput, Token
 
 
-class StubASR:
+class StubASR(BasePlugin):
     """Implementación simple del contrato `ASRBackend`.
 
     Params (dict):
@@ -23,6 +23,5 @@ class StubASR:
         if params and isinstance(params.get("stub_tokens"), list):
             self._tokens = [str(t) for t in params["stub_tokens"]]
 
-    def transcribe(self, audio: AudioInput, *, lang: Optional[str] = None, **kw) -> ASRResult:  # noqa: D401
+    async def transcribe(self, audio: AudioInput, *, lang: Optional[str] = None, **kw) -> ASRResult:  # noqa: D401
         return {"tokens": list(self._tokens), "meta": {"backend": "stub", "lang": lang or ""}}
-

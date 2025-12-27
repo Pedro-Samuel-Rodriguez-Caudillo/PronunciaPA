@@ -1,20 +1,18 @@
 """TextRef provider basado en la CLI de eSpeak/eSpeak-NG."""
 from __future__ import annotations
 
+import asyncio
 import os
 import shutil
-import subprocess
-from typing import Callable, Optional
+from typing import Any, Optional
 
 from ipa_core.errors import NotReadyError, ValidationError
-from ipa_core.ports.textref import TextRefProvider
-from ipa_core.types import Token
-
-Runner = Callable[[list[str], str], str]
+from ipa_core.plugins.base import BasePlugin
+from ipa_core.types import TextRefResult
 
 
-class EspeakTextRef(TextRefProvider):
-    """Convierte texto a IPA usando el binario `espeak`/`espeak-ng`."""
+class EspeakTextRef(BasePlugin):
+    """Convierte texto a IPA usando el binario `espeak`/`espeak-ng`. """
 
     _VOICE_MAP = {
         "es": "es",
@@ -28,11 +26,9 @@ class EspeakTextRef(TextRefProvider):
         *,
         default_lang: str = "es",
         binary: Optional[str] = None,
-        runner: Optional[Runner] = None,
     ) -> None:
         self._default_lang = default_lang
         self._binary = binary or os.getenv("PRONUNCIAPA_ESPEAK_BIN") or self._detect_binary()
-        self._runner = runner or self._run_command
 
     def _detect_binary(self) -> str:
         for candidate in (os.getenv("ESPEAK_BIN"), "espeak-ng", "espeak"):
@@ -46,30 +42,38 @@ class EspeakTextRef(TextRefProvider):
         lang = lang or self._default_lang
         return self._VOICE_MAP.get(lang, lang)
 
-    def to_ipa(self, text: str, *, lang: str, **kw) -> list[Token]:  # noqa: D401
+    async def to_ipa(self, text: str, *, lang: str, **kw: Any) -> TextRefResult:  # noqa: D401
+        """Convertir texto a IPA usando el binario externo de forma asíncrona."""
         cleaned = text.strip()
         if not cleaned:
-            return []
+            return {"tokens": [], "meta": {"empty": True}}
+            
         voice = self._resolve_voice(lang or self._default_lang)
         cmd = [self._binary, "-q", "-v", voice, "--ipa=3", cleaned]
+        
         try:
-            output = self._runner(cmd, cleaned)
+            # Ejecución asíncrona del subproceso
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await proc.communicate()
+            
+            if proc.returncode != 0:
+                raise ValidationError(f"eSpeak falló con código {proc.returncode}: {stderr.decode()}")
+                
+            output = stdout.decode().strip()
+            
         except FileNotFoundError as exc:  # pragma: no cover
             raise NotReadyError(f"No se pudo ejecutar {self._binary}") from exc
-        except subprocess.CalledProcessError as exc:  # pragma: no cover
-            raise ValidationError(f"eSpeak falló con código {exc.returncode}: {exc.stderr}") from exc
+        except Exception as exc:  # pragma: no cover
+            if isinstance(exc, (ValidationError, NotReadyError)):
+                raise
+            raise ValidationError(f"Error al ejecutar eSpeak: {exc}") from exc
+            
         tokens = [tok for tok in output.replace("\n", " ").split() if tok]
-        return tokens
-
-    @staticmethod
-    def _run_command(cmd: list[str], text: str) -> str:
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        return result.stdout.strip()
+        return {"tokens": tokens, "meta": {"method": "espeak", "voice": voice}}
 
 
 __all__ = ["EspeakTextRef"]
