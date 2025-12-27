@@ -19,6 +19,6 @@ Defining the asynchronous contracts for the primary microkernel ports.
 ## Phase 3: Integration and Validation
 Ensuring all interfaces are correctly typed and can be implemented.
 
-- [~] Task: Create contract tests in `ipa_core/ports/tests/` to verify protocol compliance
-- [ ] Task: Verify project-wide type safety with `mypy`
+- [x] Task: Create contract tests in `ipa_core/ports/tests/` to verify protocol compliance (9dbdd28)
+- [~] Task: Verify project-wide type safety with `mypy`
 - [ ] Task: Conductor - User Manual Verification 'Integration and Validation' (Protocol in workflow.md)
