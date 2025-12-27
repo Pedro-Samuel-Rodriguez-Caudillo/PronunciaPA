@@ -14,21 +14,20 @@ def test_transcribe_endpoint_with_file(monkeypatch, tmp_path):
 
     with open(wav_path, "rb") as fh:
         response = client.post(
-            "/pronunciapa/transcribe",
+            "/v1/transcribe",
             files={"audio": ("api.wav", fh, "audio/wav")},
             data={"lang": "es"},
         )
 
     assert response.status_code == 200
     data = response.json()
-    assert data["ipa"] == "h o l a"
-    assert data["tokens"] == ["h", "o", "l", "a"]
+    assert data["ipa"] == "o l a"
+    assert data["tokens"] == ["o", "l", "a"]
 
 
 def test_transcribe_endpoint_requires_body():
     client = TestClient(get_app())
 
-    response = client.post("/pronunciapa/transcribe")
+    response = client.post("/v1/transcribe")
 
-    assert response.status_code == 400
-    assert "cuerpo" in response.json()["detail"].lower()
+    assert response.status_code == 422  # FastAPI validation error

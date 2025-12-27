@@ -1,5 +1,11 @@
-# TODO: Configuración local de ejemplo
-plugins:
-  asr_backend: null      # TODO
-  textref: null          # TODO
-  comparator: null       # TODO
+version: 1
+preprocessor:
+  name: default
+backend:
+  name: stub
+textref:
+  name: default
+comparator:
+  name: default
+options:
+  lang: es

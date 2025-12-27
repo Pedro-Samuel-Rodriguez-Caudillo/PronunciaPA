@@ -4,5 +4,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-## [ ] Track: Establish Core Microkernel Foundations and API Contracts
-*Link: [./conductor/tracks/microkernel_contracts_20251224/](./conductor/tracks/microkernel_contracts_20251224/)*
+## [~] Track: Definir Interfaces del Núcleo (MK-1)
+*Link: [./conductor/tracks/core-interfaces_20251225/](./conductor/tracks/core-interfaces_20251225/)*
