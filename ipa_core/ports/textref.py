@@ -14,16 +14,27 @@ TODO
 """
 from __future__ import annotations
 
-from typing import Protocol, runtime_checkable
+from typing import Optional, Protocol, runtime_checkable
 
-from ipa_core.types import Token
+from ipa_core.types import TextRefResult
 
 
 @runtime_checkable
 class TextRefProvider(Protocol):
-    """Define el contrato para convertir texto plano a tokens IPA."""
+    """Define el contrato para convertir texto plano a tokens IPA.
+    
+    Debe soportar el ciclo de vida de `BasePlugin`.
+    """
 
-    def to_ipa(self, text: str, *, lang: str, **kw) -> list[Token]:  # noqa: D401
+    async def setup(self) -> None:
+        """Configuración inicial del plugin (asíncrona)."""
+        ...
+
+    async def teardown(self) -> None:
+        """Limpieza de recursos del plugin (asíncrona)."""
+        ...
+
+    async def to_ipa(self, text: str, *, lang: str, **kw) -> TextRefResult:  # noqa: D401
         """Convertir texto a tokens IPA.
 
         Parámetros
@@ -35,7 +46,7 @@ class TextRefProvider(Protocol):
 
         Retorna
         -------
-        list[str]
-            Lista de tokens IPA representando el texto normalizado.
+        TextRefResult
+            Contiene la lista de tokens IPA y metadatos.
         """
         ...
