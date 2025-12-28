@@ -4,6 +4,7 @@ Este módulo define los comandos de línea de comandos para transcripción
 y comparación fonética.
 """
 from __future__ import annotations
+import asyncio
 import json
 from typing import Optional
 import typer
@@ -31,6 +32,11 @@ def _get_kernel() -> Kernel:
     return create_kernel(cfg)
 
 
+async def _transcribe_async(kernel: Kernel, audio_in: AudioInput, lang: str) -> dict:
+    processed = await kernel.pre.process_audio(audio_in)
+    return await kernel.asr.transcribe(processed, lang=lang)
+
+
 @app.command()
 def transcribe(
     audio: Optional[str] = typer.Option(None, "--audio", "-a", help="Ruta al archivo de audio"),
@@ -48,10 +54,7 @@ def transcribe(
     # TODO: Manejar grabación de micrófono real
     audio_in: AudioInput = {"path": audio or "microphone", "sample_rate": 16000, "channels": 1}
     
-    # Usamos el preprocesador y ASR del kernel para el stub de transcribe
-    # En el futuro esto llamará a un método del kernel
-    processed = kernel.pre.process_audio(audio_in)
-    res = kernel.asr.transcribe(processed, lang=lang)
+    res = asyncio.run(_transcribe_async(kernel, audio_in, lang))
 
     if json_output:
         typer.echo(json.dumps({
@@ -75,25 +78,12 @@ def compare(
     kernel = _get_kernel()
     audio_in: AudioInput = {"path": audio, "sample_rate": 16000, "channels": 1}
     
-    res = kernel.run(audio=audio_in, text=text, lang=lang)
+    res = asyncio.run(kernel.run(audio=audio_in, text=text, lang=lang))
 
     if json_output:
         typer.echo(json.dumps(res, ensure_ascii=False))
     else:
         typer.echo(f"PER: {res['per']}")
-    """Compara el audio contra un texto de referencia y evalúa la pronunciación."""
-    # TODO: Implementar lógica real llamando al Kernel
-    stub_result = {
-        "per": 0.0,
-        "ops": [{"op": "eq", "ref": "o", "hyp": "o"}],
-        "alignment": [["o", "o"]],
-        "meta": {"backend": "stub"},
-    }
-
-    if json_output:
-        typer.echo(json.dumps(stub_result, ensure_ascii=False))
-    else:
-        typer.echo(f"PER: {stub_result['per']}")
 
 
 def main():

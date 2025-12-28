@@ -7,22 +7,29 @@ from ipa_core.errors import NotReadyError
 from ipa_core.textref.espeak import EspeakTextRef
 
 
-def test_espeak_produces_tokens_from_runner():
-    captured_cmd = {}
+@pytest.mark.asyncio
+async def test_espeak_produces_tokens_from_subprocess():
+    from unittest.mock import patch, AsyncMock
+    from ipa_core.textref.espeak import EspeakTextRef
 
-    def fake_runner(cmd, text):
-        captured_cmd["cmd"] = cmd
-        captured_cmd["text"] = text
-        return "h o l a"
+    # Mock the process object
+    mock_proc = AsyncMock()
+    mock_proc.communicate.return_value = (b"h o l a\n", b"")
+    mock_proc.returncode = 0
 
-    provider = EspeakTextRef(default_lang="es", binary="espeak", runner=fake_runner)
+    # Patch create_subprocess_exec
+    with patch("asyncio.create_subprocess_exec", return_value=mock_proc) as mock_exec:
+        provider = EspeakTextRef(default_lang="es", binary="espeak")
+        result = await provider.to_ipa("hola", lang="es")
 
-    tokens = provider.to_ipa(" hola ", lang="es")
+        assert result["tokens"] == ["h", "o", "l", "a"]
+        
+        # Verify call arguments
+        args = mock_exec.call_args[0]
+        assert args[0] == "espeak"
+        assert "-v" in args
+        assert "--ipa=3" in args
 
-    assert tokens == ["h", "o", "l", "a"]
-    assert captured_cmd["cmd"][0] == "espeak"
-    assert "--ipa=3" in captured_cmd["cmd"]
-    assert captured_cmd["text"] == "hola"
 
 
 def test_espeak_detects_binary_and_raises_when_missing(monkeypatch):

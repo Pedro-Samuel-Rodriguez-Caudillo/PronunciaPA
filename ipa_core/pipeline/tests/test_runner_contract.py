@@ -6,24 +6,26 @@ import pytest
 from ipa_core.pipeline import runner
 
 
-def test_run_pipeline_orchestration() -> None:
+@pytest.mark.asyncio
+async def test_run_pipeline_orchestration() -> None:
     """Verifica que run_pipeline orquesta las llamadas correctamente."""
-    from unittest.mock import Mock
+    from unittest.mock import Mock, AsyncMock
     from ipa_core.types import AudioInput
 
     pre = Mock()
-    pre.process_audio.return_value = {"path": "processed"}
-    
+    pre.process_audio = AsyncMock(return_value={"path": "processed"})
+    pre.normalize_tokens = AsyncMock(return_value={"tokens": ["a"]}) # Mock normalize too
+
     asr = Mock()
-    asr.transcribe.return_value = {"tokens": ["a"]}
-    
+    asr.transcribe = AsyncMock(return_value={"tokens": ["a"]})
+
     textref = Mock()
-    textref.to_ipa.return_value = ["a"]
-    
+    textref.to_ipa = AsyncMock(return_value={"tokens": ["a"]})
+
     comp = Mock()
-    comp.compare.return_value = {"per": 0.0}
-    
-    res = runner.run_pipeline(
+    comp.compare = AsyncMock(return_value={"per": 0.0})
+
+    res = await runner.run_pipeline(
         pre=pre,
         asr=asr,
         textref=textref,
@@ -32,7 +34,7 @@ def test_run_pipeline_orchestration() -> None:
         text="a",
         lang="es"
     )
-    
+
     pre.process_audio.assert_called_once()
     asr.transcribe.assert_called_once()
     textref.to_ipa.assert_called_once()

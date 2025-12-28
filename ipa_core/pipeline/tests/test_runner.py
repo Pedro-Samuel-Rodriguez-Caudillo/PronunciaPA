@@ -1,7 +1,9 @@
 """Tests para `run_pipeline`."""
 from __future__ import annotations
 
+import pytest
 from ipa_core.pipeline.runner import run_pipeline
+
 from ipa_core.types import AudioInput, CompareResult
 
 
@@ -9,12 +11,12 @@ class _Preprocessor:
     def __init__(self) -> None:
         self.audio_seen: AudioInput | None = None
 
-    def process_audio(self, audio: AudioInput) -> AudioInput:
+    async def process_audio(self, audio: AudioInput) -> AudioInput:
         self.audio_seen = audio
-        return audio
+        return {"audio": audio} # Return dict as expected by protocol
 
-    def normalize_tokens(self, tokens):
-        return [str(t).strip().lower() for t in tokens if str(t).strip()]
+    async def normalize_tokens(self, tokens):
+        return {"tokens": [str(t).strip().lower() for t in tokens if str(t).strip()]}
 
 
 class _ASR:
@@ -22,7 +24,7 @@ class _ASR:
         self._tokens = tokens
         self._raw_text = raw_text
 
-    def transcribe(self, audio, *, lang=None, **_kw):
+    async def transcribe(self, audio, *, lang=None, **_kw):
         result = {}
         if self._tokens is not None:
             result["tokens"] = self._tokens
@@ -32,8 +34,8 @@ class _ASR:
 
 
 class _TextRef:
-    def to_ipa(self, text: str, *, lang: str, **_kw):
-        return list(text)
+    async def to_ipa(self, text: str, *, lang: str, **_kw):
+        return {"tokens": list(text)}
 
 
 class _Comparator:
@@ -41,19 +43,22 @@ class _Comparator:
         self.last_ref = None
         self.last_hyp = None
 
-    def compare(self, ref, hyp, *, weights=None, **_kw) -> CompareResult:
+    async def compare(self, ref, hyp, *, weights=None, **_kw) -> CompareResult:
         self.last_ref = list(ref)
         self.last_hyp = list(hyp)
-        return {"per": 0.0, "ops": [], "alignment": []}
+        return {"per": 0.0, "ops": [], "alignment": list(zip(ref, hyp))}
 
 
-def test_run_pipeline_uses_asr_tokens():
+
+
+@pytest.mark.asyncio
+async def test_run_pipeline_uses_asr_tokens():
     pre = _Preprocessor()
     asr = _ASR(tokens=[" A", "b "])
     textref = _TextRef()
     comp = _Comparator()
 
-    result = run_pipeline(
+    result = await run_pipeline(
         pre,
         asr,
         textref,
@@ -64,17 +69,17 @@ def test_run_pipeline_uses_asr_tokens():
     )
 
     assert result["per"] == 0.0
-    assert comp.last_ref == ["a", "b"]
-    assert comp.last_hyp == ["a", "b"]
+    assert result["alignment"] == [("a", "a"), ("b", "b")]
 
 
-def test_run_pipeline_falls_back_to_raw_text():
+@pytest.mark.asyncio
+async def test_run_pipeline_falls_back_to_raw_text():
     pre = _Preprocessor()
     asr = _ASR(tokens=None, raw_text=" a b ")
     textref = _TextRef()
     comp = _Comparator()
 
-    run_pipeline(
+    await run_pipeline(
         pre,
         asr,
         textref,

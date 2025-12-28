@@ -1,7 +1,9 @@
 """Tests para `EpitranTextRef`."""
 from __future__ import annotations
 
+import pytest
 from ipa_core.textref.epitran import EpitranTextRef
+
 
 
 class _FakeModel:
@@ -18,17 +20,21 @@ class _FakeModel:
         return text.replace(" ", "")
 
 
-def test_epitran_uses_lang_mapping():
+@pytest.mark.asyncio
+async def test_epitran_uses_lang_mapping():
     provider = EpitranTextRef(factory=lambda code: _FakeModel(code))
 
-    tokens = provider.to_ipa("hola", lang="es")
+    res = await provider.to_ipa("hola", lang="es")
+    tokens = res["tokens"]
 
     assert tokens[-1] == "spa-Latn"
 
 
-def test_epitran_fallback_transliterate():
+@pytest.mark.asyncio
+async def test_epitran_fallback_transliterate():
     provider = EpitranTextRef(factory=lambda code: _FakeModel(code, has_trans_list=False))
 
-    tokens = provider.to_ipa("ho la", lang="en")
+    res = await provider.to_ipa("ho la", lang="en")
 
-    assert tokens == ["h", "o", "l", "a"]
+    assert res["tokens"] == ["h", "o", "l", "a"]
+
