@@ -5,7 +5,7 @@ Implement the search strategy and in-memory defaults.
 
 - [x] Task: Refine `AppConfig` schema in `ipa_core/config/schema.py` to ensure all fields have factory defaults. (a9e692e)
 - [x] Task: Implement `load_config(path=None)` in `ipa_core/config/loader.py` with search path logic (Env -> CWD -> Defaults). (e2935c8)
-- [ ] Task: Create unit tests in `ipa_core/config/tests/` to verify search order and fallback behavior.
+- [x] Task: Create unit tests in `ipa_core/config/tests/` to verify search order and fallback behavior. (e2935c8)
 - [ ] Task: Conductor - User Manual Verification 'Robust Loading & Defaults' (Protocol in workflow.md)
 
 ## Phase 2: Error Handling & CLI Integration
