@@ -4,5 +4,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-## [~] Track: Definir Interfaces del Núcleo (MK-1)
-*Link: [./conductor/tracks/core-interfaces_20251225/](./conductor/tracks/core-interfaces_20251225/)*
+## [~] Track: Configuración DX y Valores por Defecto (MK-2)
+*Link: [./conductor/tracks/config-dx-defaults_20251227/](./conductor/tracks/config-dx-defaults_20251227/)*
