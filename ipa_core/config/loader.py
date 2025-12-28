@@ -9,10 +9,34 @@ import os
 from pathlib import Path
 from typing import Any
 import yaml
+from pydantic import ValidationError
 from ipa_core.config.schema import AppConfig
 
 
+def format_validation_error(exc: ValidationError) -> str:
+    """Transforma un ValidationError de Pydantic en un mensaje amigable.
+
+    Parámetros
+    ----------
+    exc : ValidationError
+        La excepción capturada.
+
+    Retorna
+    -------
+    str
+        Resumen formateado de los errores.
+    """
+    lines = ["Error en la configuración:"]
+    for error in exc.errors():
+        # loc suele ser una tupla ('seccion', 'campo')
+        loc = " -> ".join(str(p) for p in error["loc"])
+        msg = error["msg"]
+        lines.append(f"  - [{loc}]: {msg}")
+    return "\n".join(lines)
+
+
 def load_config(path: str | None = None) -> AppConfig:
+
     """Carga YAML desde un path o busca en rutas por defecto.
 
     Prioridad:
