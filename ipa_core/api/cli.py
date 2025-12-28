@@ -17,19 +17,18 @@ app = typer.Typer(help="PronunciaPA: Reconocimiento y evaluación fonética")
 
 def _get_kernel() -> Kernel:
     """Carga la configuración y crea el kernel."""
-    import os
-    config_path = os.environ.get("PRONUNCIAPA_CONFIG", "configs/local.yaml")
-    # Si el archivo no existe y es el default, creamos uno mínimo para stubs
-    if not os.path.exists(config_path) and config_path == "configs/local.yaml":
-        return create_kernel(loader.AppConfig(
-            version=1,
-            preprocessor={"name": "default"},
-            backend={"name": "stub"},
-            textref={"name": "default"},
-            comparator={"name": "default"}
-        ))
-    cfg = loader.load_config(config_path)
-    return create_kernel(cfg)
+    from ipa_core.errors import NotReadyError
+    try:
+        cfg = loader.load_config()
+        return create_kernel(cfg)
+    except loader.ValidationError as e:
+        typer.echo(loader.format_validation_error(e), err=True)
+        raise typer.Exit(code=1)
+    except (FileNotFoundError, NotReadyError) as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(code=1)
+
+
 
 
 async def _transcribe_async(kernel: Kernel, audio_in: AudioInput, lang: str) -> dict:
