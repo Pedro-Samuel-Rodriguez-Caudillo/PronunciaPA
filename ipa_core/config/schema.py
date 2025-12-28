@@ -36,9 +36,9 @@ class OptionsCfg(BaseModel):
 class AppConfig(BaseModel):
     """Estructura principal de configuración de la aplicación."""
 
-    version: int
-    preprocessor: PluginCfg
-    backend: PluginCfg
-    textref: PluginCfg
-    comparator: PluginCfg
+    version: int = 1
+    preprocessor: PluginCfg = Field(default_factory=lambda: PluginCfg(name="basic"))
+    backend: PluginCfg = Field(default_factory=lambda: PluginCfg(name="allosaurus"))
+    textref: PluginCfg = Field(default_factory=lambda: PluginCfg(name="grapheme"))
+    comparator: PluginCfg = Field(default_factory=lambda: PluginCfg(name="levenshtein"))
     options: OptionsCfg = Field(default_factory=OptionsCfg)
