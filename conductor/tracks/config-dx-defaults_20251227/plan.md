@@ -12,7 +12,7 @@ Implement the search strategy and in-memory defaults.
 ## Phase 2: Error Handling & CLI Integration
 Make errors friendly and connect it to the CLI.
 
-- [ ] Task: Implement `format_validation_error` utility to transform Pydantic errors into user-friendly strings.
+- [x] Task: Implement `format_validation_error` utility to transform Pydantic errors into user-friendly strings. (b6a5fdd)
 - [ ] Task: Integrate `load_config` into `ipa_core/api/cli.py` (replacing the current temporary logic).
 - [ ] Task: Verify handling of malformed config files via CLI integration tests.
 - [ ] Task: Conductor - User Manual Verification 'Error Handling & CLI Integration' (Protocol in workflow.md)
