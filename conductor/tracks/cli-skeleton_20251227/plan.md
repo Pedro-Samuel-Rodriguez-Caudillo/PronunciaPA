@@ -1,13 +1,14 @@
 # Plan - CLI Skeleton & UX (MK-3)
 
-## Phase 1: Foundation & Registry Commands
+## Phase 1: Foundation & Registry Commands [checkpoint: d41b958]
 Establishing the full command structure and implementing metadata commands.
 
-- [x] Task: Refactor `ipa_core/api/cli.py` to use a cleaner sub-command structure if needed, or refine existing commands.
-- [x] Task: Implement `pronunciapa config show` to display the active YAML/Env configuration.
-- [x] Task: Implement `pronunciapa plugin list` command to display registered plugins from `ipa_core/plugins/registry.py`.
-- [x] Task: Write contract tests for CLI command discovery and help messages.
-- [ ] Task: Conductor - User Manual Verification 'Foundation & Registry Commands' (Protocol in workflow.md)
+- [x] Task: Refactor `ipa_core/api/cli.py` to use a cleaner sub-command structure if needed, or refine existing commands. (d04236f)
+- [x] Task: Implement `pronunciapa config show` to display the active YAML/Env configuration. (d04236f)
+- [x] Task: Implement `pronunciapa plugin list` command to display registered plugins from `ipa_core/plugins/registry.py`. (d04236f)
+- [x] Task: Write contract tests for CLI command discovery and help messages. (d04236f)
+- [x] Task: Conductor - User Manual Verification 'Foundation & Registry Commands' (Protocol in workflow.md) (d41b958)
+
 
 ## Phase 2: Rich Output & Pipeline Commands
 Enhancing core commands with polished visual feedback.
