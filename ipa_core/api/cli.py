@@ -1,13 +1,12 @@
-"""CLI para interactuar con PronunciaPA.
-
-Este módulo define los comandos de línea de comandos para transcripción
-y comparación fonética.
-"""
 from __future__ import annotations
 import asyncio
 import json
-from typing import Optional
+from typing import Optional, List
+from enum import Enum
 import typer
+from rich.console import Console
+from rich.table import Table
+from rich.progress import Progress, SpinnerColumn, TextColumn
 from ipa_core.config import loader
 from ipa_core.kernel.core import create_kernel, Kernel
 from ipa_core.types import AudioInput
@@ -20,6 +19,13 @@ plugin_app = typer.Typer(help="Gestión de plugins")
 app.add_typer(config_app, name="config")
 app.add_typer(plugin_app, name="plugin")
 
+console = Console()
+
+class OutputFormat(str, Enum):
+    json = "json"
+    table = "table"
+    aligned = "aligned"
+
 
 def _get_kernel() -> Kernel:
     """Carga la configuración y crea el kernel."""
@@ -28,10 +34,10 @@ def _get_kernel() -> Kernel:
         cfg = loader.load_config()
         return create_kernel(cfg)
     except loader.ValidationError as e:
-        typer.echo(loader.format_validation_error(e), err=True)
+        console.print(loader.format_validation_error(e), style="red")
         raise typer.Exit(code=1)
     except (FileNotFoundError, NotReadyError) as e:
-        typer.echo(f"Error: {e}", err=True)
+        console.print(f"Error: {e}", style="red")
         raise typer.Exit(code=1)
 
 
@@ -50,24 +56,61 @@ def transcribe(
 ):
     """Transcribe audio a tokens IPA."""
     if not mic and not audio:
-        typer.echo("Error: Debes especificar --audio o --mic", err=True)
+        console.print("Error: Debes especificar --audio o --mic", style="red")
         raise typer.Exit(code=1)
 
     kernel = _get_kernel()
-    # TODO: Manejar grabación de micrófono real
     audio_in: AudioInput = {"path": audio or "microphone", "sample_rate": 16000, "channels": 1}
     
-    res = asyncio.run(_transcribe_async(kernel, audio_in, lang))
+    with console.status("[bold green]Transcribiendo..."):
+        res = asyncio.run(_transcribe_async(kernel, audio_in, lang))
 
     if json_output:
-        typer.echo(json.dumps({
+        console.print_json(data={
             "ipa": " ".join(res["tokens"]),
             "tokens": res["tokens"],
             "lang": lang,
             "audio": audio_in
-        }, ensure_ascii=False))
+        })
     else:
-        typer.echo(f"IPA ({lang}): {' '.join(res['tokens'])}")
+        console.print(f"IPA ({lang}): [bold cyan]{' '.join(res['tokens'])}[/bold cyan]")
+
+
+def _print_compare_table(res: dict):
+    table = Table(title=f"Resultado de la Comparación (PER: {res['per']:.2%})")
+    table.add_column("Referencia", justify="center", style="green")
+    table.add_column("Hipótesis (Usuario)", justify="center", style="cyan")
+    table.add_column("Operación", justify="center")
+
+    for ref, hyp in res["alignment"]:
+        # Determinar la operación
+        if ref == hyp:
+            op = "[green]Match[/green]"
+        elif ref is None:
+            op = "[yellow]Inserción[/yellow]"
+        elif hyp is None:
+            op = "[red]Omisión[/red]"
+        else:
+            op = "[magenta]Sustitución[/magenta]"
+            
+        table.add_row(ref or "-", hyp or "-", op)
+    
+    console.print(table)
+
+
+def _print_compare_aligned(res: dict):
+    ref_line = "REF: "
+    hyp_line = "HYP: "
+    for ref, hyp in res["alignment"]:
+        r = ref or "-"
+        h = hyp or "-"
+        width = max(len(r), len(h))
+        ref_line += r.ljust(width) + " "
+        hyp_line += h.ljust(width) + " "
+    
+    console.print(f"[bold]PER: {res['per']:.2%}[/bold]")
+    console.print(ref_line)
+    console.print(hyp_line)
 
 
 @app.command()
@@ -75,18 +118,21 @@ def compare(
     audio: str = typer.Option(..., "--audio", "-a", help="Ruta al archivo de audio"),
     text: str = typer.Option(..., "--text", "-t", help="Texto de referencia"),
     lang: str = typer.Option("es", "--lang", "-l", help="Idioma objetivo"),
-    json_output: bool = typer.Option(True, "--json/--no-json", help="Salida en formato JSON (por defecto)"),
+    output_format: OutputFormat = typer.Option(OutputFormat.table, "--format", "-f", help="Formato de salida"),
 ):
     """Compara el audio contra un texto de referencia y evalúa la pronunciación."""
     kernel = _get_kernel()
     audio_in: AudioInput = {"path": audio, "sample_rate": 16000, "channels": 1}
     
-    res = asyncio.run(kernel.run(audio=audio_in, text=text, lang=lang))
+    with console.status("[bold green]Procesando comparación..."):
+        res = asyncio.run(kernel.run(audio=audio_in, text=text, lang=lang))
 
-    if json_output:
-        typer.echo(json.dumps(res, ensure_ascii=False))
+    if output_format == OutputFormat.json:
+        console.print_json(data=res)
+    elif output_format == OutputFormat.aligned:
+        _print_compare_aligned(res)
     else:
-        typer.echo(f"PER: {res['per']}")
+        _print_compare_table(res)
 
 
 @config_app.command("show")
@@ -94,27 +140,26 @@ def config_show():
     """Muestra la configuración actual."""
     try:
         cfg = loader.load_config()
-        # Convert Pydantic model to dict, then to pretty JSON
-        typer.echo(json.dumps(cfg.model_dump(), indent=2, ensure_ascii=False))
+        console.print_json(data=cfg.model_dump())
     except Exception as e:
-        typer.echo(f"Error cargando configuración: {e}", err=True)
+        console.print(f"Error cargando configuración: {e}", style="red")
         raise typer.Exit(code=1)
 
 
 @plugin_app.command("list")
 def plugin_list():
     """Lista los plugins registrados."""
-    # Force registration of defaults if not already done
-    # This is a bit of a hack, ideally registry should expose a 'list_all' method
-    # that handles lazy loading internally. For now, we trigger it via a safe resolve attempt or manual call.
-    # Accessing private _REGISTRY is not ideal, but for listing all it's easiest given current implementation.
     registry._register_defaults()
     
-    plugins_info = {}
+    table = Table(title="Plugins Registrados")
+    table.add_column("Categoría", style="bold magenta")
+    table.add_column("Plugins", style="cyan")
+    
     for category, plugins in registry._REGISTRY.items():
-        plugins_info[category] = list(plugins.keys())
+        table.add_row(category, ", ".join(plugins.keys()))
         
-    typer.echo(json.dumps(plugins_info, indent=2))
+    console.print(table)
+
 
 
 def main():

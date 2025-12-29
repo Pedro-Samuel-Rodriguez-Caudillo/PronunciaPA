@@ -13,10 +13,10 @@ Establishing the full command structure and implementing metadata commands.
 ## Phase 2: Rich Output & Pipeline Commands
 Enhancing core commands with polished visual feedback.
 
-- [ ] Task: Refactor `compare` command to use `rich.table` for displaying phonetic alignments by default.
-- [ ] Task: Implement `--format` flag in `compare` to support `raw` (JSON) and `aligned` (text-only) views.
-- [ ] Task: Add a loading spinner (via `rich.console.status`) for `transcribe` and `compare` long-running operations.
-- [ ] Task: Create integration tests for `compare` output formatting.
+- [x] Task: Refactor `compare` command to use `rich.table` for displaying phonetic alignments by default. (ea80cf5)
+- [x] Task: Implement `--format` flag in `compare` to support `raw` (JSON) and `aligned` (text-only) views. (ea80cf5)
+- [x] Task: Add a loading spinner (via `rich.console.status`) for `transcribe` and `compare` long-running operations. (ea80cf5)
+- [x] Task: Create integration tests for `compare` output formatting. (ea80cf5)
 - [ ] Task: Conductor - User Manual Verification 'Rich Output & Pipeline Commands' (Protocol in workflow.md)
 
 ## Phase 3: Implicit Download UX
