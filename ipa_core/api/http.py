@@ -4,8 +4,10 @@ Este módulo define la API REST para interactuar con el microkernel de
 PronunciaPA.
 """
 from __future__ import annotations
+import os
 from typing import Any, List, Optional
 from fastapi import FastAPI, File, Form, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 
@@ -33,10 +35,27 @@ def get_app() -> FastAPI:
         version="0.1.0"
     )
 
+    # Configurar CORS
+    raw_origins = os.environ.get("PRONUNCIAPA_ALLOWED_ORIGINS", "")
+    allowed_origins = [o.strip() for o in raw_origins.split(",") if o.strip()]
+    
+    if not allowed_origins and os.environ.get("DEBUG"):
+        allowed_origins = ["*"]
+    
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=allowed_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+
     @app.get("/health")
     async def health() -> dict[str, str]:
         """Endpoint de salud para monitoreo."""
         return {"status": "ok"}
+
 
     @app.post("/v1/transcribe", response_model=ASRResponse)
     async def transcribe(
