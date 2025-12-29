@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ipa-plugin-allosaurus"
+version = "0.1.0"
+description = "Allosaurus backend for PronunciaPA"
+requires-python = ">=3.9"
+dependencies = [
+    "ipa-core",
+    "allosaurus>=1.0.0,<2",
+]
+
+[project.entry-points."pronunciapa.plugins"]
+"asr.allosaurus" = "ipa_plugin_allosaurus.backend:AllosaurusASR"
+
+[tool.setuptools]
+packages = ["ipa_plugin_allosaurus"]

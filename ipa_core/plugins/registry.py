@@ -4,7 +4,11 @@ Este módulo permite registrar y obtener implementaciones de los puertos
 del sistema (ASR, TextRef, Comparator, Preprocessor).
 """
 from __future__ import annotations
+import logging
 from typing import Any, Callable, Dict, Optional
+from ipa_core.plugins import discovery
+
+logger = logging.getLogger(__name__)
 
 # Diccionario global de plugins: { categoria: { nombre: factory } }
 _REGISTRY: Dict[str, Dict[str, Callable[[Any], Any]]] = {
@@ -14,6 +18,8 @@ _REGISTRY: Dict[str, Dict[str, Callable[[Any], Any]]] = {
     "preprocessor": {},
 }
 
+_DISCOVERY_DONE = False
+
 
 def register(category: str, name: str, factory: Callable[[Any], Any]) -> None:
     """Registra un nuevo plugin en una categoría."""
@@ -22,15 +28,42 @@ def register(category: str, name: str, factory: Callable[[Any], Any]) -> None:
     _REGISTRY[category][name] = factory
 
 
+def register_discovered_plugins() -> None:
+    """Escanea y registra plugins desde entry points.
+    
+    Idempotente si se llama varias veces, pero re-escanea entry points.
+    """
+    global _DISCOVERY_DONE
+    for category, name, ep in discovery.iter_plugin_entry_points():
+        if category not in _REGISTRY:
+            continue
+            
+        try:
+            plugin_cls = ep.load()
+            # Factory wrapper capturando la clase
+            def factory(params: dict[str, Any], cls=plugin_cls) -> Any:
+                return cls(params)
+            
+            register(category, name, factory)
+        except Exception as e:
+            logger.warning(f"Error cargando plugin {category}.{name}: {e}")
+            
+    _DISCOVERY_DONE = True
+
+
 def resolve(category: str, name: str, params: dict[str, Any] | None = None) -> Any:
     """Resuelve e instancia un plugin por categoría y nombre."""
     if category not in _REGISTRY:
         raise ValueError(f"Categoría de plugin inválida: {category}")
     
     if name not in _REGISTRY[category]:
-        # Intentar cargar defaults si el registro está vacío (lazy load self-registration)
+        # Intentar cargar defaults si el registro está vacío
         if not _REGISTRY[category]:
             _register_defaults()
+            
+        # Si aún no está, intentar descubrimiento si no se ha hecho
+        if name not in _REGISTRY[category] and not _DISCOVERY_DONE:
+            register_discovered_plugins()
             
     if name not in _REGISTRY[category]:
         raise KeyError(f"Plugin '{name}' no encontrado en categoría '{category}'")
@@ -69,6 +102,9 @@ def _register_defaults() -> None:
     from ipa_core.preprocessor_basic import BasicPreprocessor
     register("preprocessor", "basic", lambda _: BasicPreprocessor())
     register("preprocessor", "default", lambda _: BasicPreprocessor())
+    
+    # También ejecutar descubrimiento inicial
+    register_discovered_plugins()
 
 
 # Resolutores específicos por compatibilidad

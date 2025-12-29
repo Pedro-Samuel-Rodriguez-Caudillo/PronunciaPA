@@ -44,5 +44,6 @@ strict_optional = true
 warn_redundant_casts = true
 warn_unused_ignores = true
 
-# Nota: los scripts y entry points se definirán cuando el microkernel
-# y los plugins básicos estén implementados (ver docs/backlog.md y TODOs).
+[project.entry-points."pronunciapa.plugins"]
+"asr.stub_ep" = "ipa_core.backends.asr_stub:StubASR"
+
