@@ -8,10 +8,10 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Preparation & Directory Setup' (Protocol in workflow.md)
 
 ## Phase 2: Code Migration
-- [ ] Task: Move `ipa_core/backends/asr_allosaurus.py` to `plugins/allosaurus/ipa_plugin_allosaurus/backend.py`.
-- [ ] Task: Move `ipa_core/api/http.py` to `ipa_server/main.py`.
-- [ ] Task: Refactor `ipa_core/api/cli.py` to `ipa_core/interfaces/cli.py` and update entry points.
-- [ ] Task: Clean up `ipa_core/backends` (keeping only stubs/built-ins).
+- [x] Task: Move `ipa_core/backends/asr_allosaurus.py` to `plugins/allosaurus/ipa_plugin_allosaurus/backend.py`.
+- [x] Task: Move `ipa_core/api/http.py` to `ipa_server/main.py`.
+- [x] Task: Refactor `ipa_core/api/cli.py` to `ipa_core/interfaces/cli.py` and update entry points.
+- [x] Task: Clean up `ipa_core/backends` (keeping only stubs/built-ins).
 - [ ] Task: Conductor - User Manual Verification 'Phase 2: Code Migration' (Protocol in workflow.md)
 
 ## Phase 3: Decoupling & Integration

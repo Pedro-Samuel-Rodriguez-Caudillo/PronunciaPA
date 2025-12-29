@@ -32,7 +32,7 @@ speech = [
 ]
 
 [project.scripts]
-pronunciapa = "ipa_core.api.cli:main"
+pronunciapa = "ipa_core.interfaces.cli:main"
 
 [tool.setuptools]
 packages = ["ipa_core"]
