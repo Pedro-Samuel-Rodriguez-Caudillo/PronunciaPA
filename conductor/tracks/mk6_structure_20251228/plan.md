@@ -14,11 +14,11 @@
 - [x] Task: Clean up `ipa_core/backends` (keeping only stubs/built-ins).
 - [x] Task: Conductor - User Manual Verification 'Phase 2: Code Migration' (Protocol in workflow.md)
 
-## Phase 3: Decoupling & Integration
+## Phase 3: Decoupling & Integration [checkpoint: fd6c2c7]
 - [x] Task: Update `ipa_core/plugins/registry.py` to remove hardcoded imports of Allosaurus.
 - [x] Task: Configure `plugins/allosaurus/pyproject.toml` or update main `pyproject.toml` to register the Allosaurus entry point.
 - [x] Task: Update imports across the entire project to reflect new structure.
-- [ ] Task: Conductor - User Manual Verification 'Phase 3: Decoupling & Integration' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 3: Decoupling & Integration' (Protocol in workflow.md)
 
 ## Phase 4: Verification & Finalization
 - [ ] Task: Verify that `ipa_core` unit tests run successfully without `allosaurus` dependencies.
