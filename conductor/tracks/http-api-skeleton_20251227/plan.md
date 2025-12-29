@@ -1,12 +1,13 @@
 # Plan - HTTP API Skeleton (MK-4)
 
-## Phase 1: Foundation & Health Check
+## Phase 1: Foundation & Health Check [checkpoint: 68aeff2]
 Setting up the FastAPI app structure, middleware, and basic connectivity.
 
 - [x] Task: Refactor `ipa_core/api/http.py` to initialize the FastAPI app with CORS middleware using `PRONUNCIAPA_ALLOWED_ORIGINS`. (ea80cf5)
 - [x] Task: Implement `GET /health` endpoint returning `{ "status": "ok" }`. (ea80cf5)
 - [x] Task: Create contract tests for the health endpoint and CORS headers. (ea80cf5)
-- [ ] Task: Conductor - User Manual Verification 'Foundation & Health Check' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Foundation & Health Check' (Protocol in workflow.md) (68aeff2)
+
 
 ## Phase 2: Action Endpoints & Kernel Integration
 Connecting the HTTP routes to the microkernel processing logic.
