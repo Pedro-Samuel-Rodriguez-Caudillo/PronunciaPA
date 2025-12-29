@@ -9,14 +9,15 @@ Setting up the FastAPI app structure, middleware, and basic connectivity.
 - [x] Task: Conductor - User Manual Verification 'Foundation & Health Check' (Protocol in workflow.md) (68aeff2)
 
 
-## Phase 2: Action Endpoints & Kernel Integration
+## Phase 2: Action Endpoints & Kernel Integration [checkpoint: d682dd1]
 Connecting the HTTP routes to the microkernel processing logic.
 
 - [x] Task: Implement `POST /v1/transcribe` using `UploadFile` and integrating with `kernel.asr.transcribe`. (ea80cf5)
 - [x] Task: Implement `POST /v1/compare` using `UploadFile` and `Form`, integrating with `kernel.run`. (ea80cf5)
 - [x] Task: Implement global exception handlers to map `ValidationError` and `NotReadyError` to HTTP 400/503 responses. (ea80cf5)
 - [x] Task: Write integration tests for `transcribe` and `compare` using `TestClient` and `stub` plugins. (ea80cf5)
-- [ ] Task: Conductor - User Manual Verification 'Action Endpoints & Kernel Integration' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Action Endpoints & Kernel Integration' (Protocol in workflow.md) (d682dd1)
+
 
 ## Phase 3: OpenAPI Documentation & Refinement
 Ensuring the API is self-documenting and follows the established schemas.
