@@ -10,14 +10,15 @@ Establishing the full command structure and implementing metadata commands.
 - [x] Task: Conductor - User Manual Verification 'Foundation & Registry Commands' (Protocol in workflow.md) (d41b958)
 
 
-## Phase 2: Rich Output & Pipeline Commands
+## Phase 2: Rich Output & Pipeline Commands [checkpoint: de04e9c]
 Enhancing core commands with polished visual feedback.
 
-- [x] Task: Refactor `compare` command to use `rich.table` for displaying phonetic alignments by default. (ea80cf5)
-- [x] Task: Implement `--format` flag in `compare` to support `raw` (JSON) and `aligned` (text-only) views. (ea80cf5)
-- [x] Task: Add a loading spinner (via `rich.console.status`) for `transcribe` and `compare` long-running operations. (ea80cf5)
-- [x] Task: Create integration tests for `compare` output formatting. (ea80cf5)
-- [ ] Task: Conductor - User Manual Verification 'Rich Output & Pipeline Commands' (Protocol in workflow.md)
+- [x] Task: Refactor `compare` command to use `rich.table` for displaying phonetic alignments by default. (0c4a6c6)
+- [x] Task: Implement `--format` flag in `compare` to support `raw` (JSON) and `aligned` (text-only) views. (0c4a6c6)
+- [x] Task: Add a loading spinner (via `rich.console.status`) for `transcribe` and `compare` long-running operations. (0c4a6c6)
+- [x] Task: Create integration tests for `compare` output formatting. (0c4a6c6)
+- [x] Task: Conductor - User Manual Verification 'Rich Output & Pipeline Commands' (Protocol in workflow.md) (de04e9c)
+
 
 ## Phase 3: Implicit Download UX
 Implementing the model management flow with progress indicators.
