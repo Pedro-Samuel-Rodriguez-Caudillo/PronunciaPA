@@ -4,5 +4,6 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-## [~] Track: Configuración DX y Valores por Defecto (MK-2)
-*Link: [./conductor/tracks/config-dx-defaults_20251227/](./conductor/tracks/config-dx-defaults_20251227/)*
+## [~] Track: CLI Skeleton & UX (MK-3)
+*Link: [./conductor/tracks/cli-skeleton_20251227/](./conductor/tracks/cli-skeleton_20251227/)*
+
