@@ -1,3 +1,8 @@
+"""CLI para interactuar con PronunciaPA.
+
+Este módulo define los comandos de línea de comandos para transcripción
+y comparación fonética.
+"""
 from __future__ import annotations
 import asyncio
 import json
@@ -6,7 +11,6 @@ from enum import Enum
 import typer
 from rich.console import Console
 from rich.table import Table
-from rich.progress import Progress, SpinnerColumn, TextColumn
 from ipa_core.config import loader
 from ipa_core.kernel.core import create_kernel, Kernel
 from ipa_core.types import AudioInput
@@ -42,8 +46,12 @@ def _get_kernel() -> Kernel:
 
 
 async def _transcribe_async(kernel: Kernel, audio_in: AudioInput, lang: str) -> dict:
-    processed = await kernel.pre.process_audio(audio_in)
-    return await kernel.asr.transcribe(processed, lang=lang)
+    await kernel.setup()
+    try:
+        processed = await kernel.pre.process_audio(audio_in)
+        return await kernel.asr.transcribe(processed, lang=lang)
+    finally:
+        await kernel.teardown()
 
 
 @app.command()
@@ -83,7 +91,6 @@ def _print_compare_table(res: dict):
     table.add_column("Operación", justify="center")
 
     for ref, hyp in res["alignment"]:
-        # Determinar la operación
         if ref == hyp:
             op = "[green]Match[/green]"
         elif ref is None:
@@ -124,8 +131,15 @@ def compare(
     kernel = _get_kernel()
     audio_in: AudioInput = {"path": audio, "sample_rate": 16000, "channels": 1}
     
+    async def _run_compare():
+        await kernel.setup()
+        try:
+            return await kernel.run(audio=audio_in, text=text, lang=lang)
+        finally:
+            await kernel.teardown()
+
     with console.status("[bold green]Procesando comparación..."):
-        res = asyncio.run(kernel.run(audio=audio_in, text=text, lang=lang))
+        res = asyncio.run(_run_compare())
 
     if output_format == OutputFormat.json:
         console.print_json(data=res)
@@ -159,7 +173,6 @@ def plugin_list():
         table.add_row(category, ", ".join(plugins.keys()))
         
     console.print(table)
-
 
 
 def main():

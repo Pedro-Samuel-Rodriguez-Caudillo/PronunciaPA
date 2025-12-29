@@ -1,6 +1,10 @@
 """Base para plugins del sistema.
 """
 from __future__ import annotations
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ipa_core.plugins.models import ModelManager
 
 
 class BasePlugin:
@@ -10,7 +14,19 @@ class BasePlugin:
     al cargar o descargar el plugin.
     """
 
+    def __init__(self) -> None:
+        self._model_manager: ModelManager | None = None
+
+    @property
+    def model_manager(self) -> ModelManager:
+        """Retorna el gestor de modelos, inicializándolo si es necesario."""
+        if self._model_manager is None:
+            from ipa_core.plugins.models import ModelManager
+            self._model_manager = ModelManager()
+        return self._model_manager
+
     async def setup(self) -> None:
+
         """Configuración inicial del plugin.
         
         Puede usarse para cargar modelos, abrir conexiones o inicializar

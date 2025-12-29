@@ -31,8 +31,10 @@ class AllosaurusASR(BasePlugin):
     """Implementación de `ASRBackend` usando el modelo Allosaurus."""
 
     def __init__(self, params: Optional[dict[str, Any]] = None, *, recognizer: Any | None = None) -> None:
+        super().__init__()
         params = params or {}
         self._default_lang: str = params.get("lang", "eng")
+
         self._model_dir: Optional[str] = params.get("model_dir")
         self._recognizer = recognizer
 

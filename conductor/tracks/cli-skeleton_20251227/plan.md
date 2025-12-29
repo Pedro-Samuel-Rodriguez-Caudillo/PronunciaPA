@@ -20,11 +20,11 @@ Enhancing core commands with polished visual feedback.
 - [x] Task: Conductor - User Manual Verification 'Rich Output & Pipeline Commands' (Protocol in workflow.md) (de04e9c)
 
 
-## Phase 3: Implicit Download UX
+## Phase 3: Implicit Download UX [checkpoint: 5ea6c2f]
 Implementing the model management flow with progress indicators.
 
-- [ ] Task: Create a `ModelManager` or utility in `ipa_core/plugins/base.py` to handle "Missing Model" detection.
-- [ ] Task: Integrate `rich.progress` into the `Kernel.setup()` or plugin initialization flow to show a progress bar during (mocked) downloads.
-- [ ] Task: Update `AllosaurusASR` (or a stub) to trigger this download flow if assets are missing.
-- [ ] Task: Verify the download UX by simulating a missing model in a controlled test environment.
+- [x] Task: Create a `ModelManager` or utility in `ipa_core/plugins/base.py` to handle "Missing Model" detection. (0c4a6c6)
+- [x] Task: Integrate `rich.progress` into the `Kernel.setup()` or plugin initialization flow to show a progress bar during (mocked) downloads. (0c4a6c6)
+- [x] Task: Update `AllosaurusASR` (or a stub) to trigger this download flow if assets are missing. (0c4a6c6)
+- [x] Task: Verify the download UX by simulating a missing model in a controlled test environment. (0c4a6c6)
 - [ ] Task: Conductor - User Manual Verification 'Implicit Download UX' (Protocol in workflow.md)
