@@ -5,10 +5,18 @@ PronunciaPA.
 """
 from __future__ import annotations
 import os
+import tempfile
+from pathlib import Path
 from typing import Any, List, Optional
-from fastapi import FastAPI, File, Form, UploadFile
+from fastapi import FastAPI, File, Form, UploadFile, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+
+from ipa_core.config import loader
+from ipa_core.kernel.core import create_kernel, Kernel
+from ipa_core.errors import KernelError, ValidationError, NotReadyError
+from ipa_core.types import AudioInput
 
 
 class ASRResponse(BaseModel):
@@ -25,6 +33,16 @@ class CompareResponse(BaseModel):
     ops: List[dict[str, Any]]
     alignment: List[List[Optional[str]]]
     meta: dict[str, Any] = {}
+
+
+def _get_kernel() -> Kernel:
+    """Carga la configuración y crea el kernel (Inyectable)."""
+    try:
+        cfg = loader.load_config()
+        return create_kernel(cfg)
+    except KernelError as e:
+        # Fallback para errores de inicialización pesados
+        raise e
 
 
 def get_app() -> FastAPI:
@@ -50,40 +68,83 @@ def get_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    # Handlers de excepciones
+    @app.exception_handler(ValidationError)
+    async def validation_exception_handler(request: Request, exc: ValidationError):
+        return JSONResponse(
+            status_code=400,
+            content={"detail": str(exc), "type": "validation_error"},
+        )
+
+    @app.exception_handler(NotReadyError)
+    async def not_ready_exception_handler(request: Request, exc: NotReadyError):
+        return JSONResponse(
+            status_code=503,
+            content={"detail": str(exc), "type": "not_ready"},
+        )
+
+    @app.exception_handler(KernelError)
+    async def kernel_exception_handler(request: Request, exc: KernelError):
+        return JSONResponse(
+            status_code=500,
+            content={"detail": str(exc), "type": "kernel_error"},
+        )
 
     @app.get("/health")
     async def health() -> dict[str, str]:
         """Endpoint de salud para monitoreo."""
         return {"status": "ok"}
 
+    async def _process_upload(audio: UploadFile) -> Path:
+        """Guarda un UploadFile en un archivo temporal y retorna su ruta."""
+        suffix = Path(audio.filename).suffix if audio.filename else ".wav"
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+            content = await audio.read()
+            tmp.write(content)
+            return Path(tmp.name)
 
     @app.post("/v1/transcribe", response_model=ASRResponse)
     async def transcribe(
         audio: UploadFile = File(..., description="Archivo de audio a transcribir"),
-        lang: str = Form("es", description="Idioma del audio")
+        lang: str = Form("es", description="Idioma del audio"),
+        kernel: Kernel = Depends(_get_kernel)
     ) -> dict[str, Any]:
-        """Stub para transcripción de audio a IPA."""
-        # TODO: Implementar integración con el Kernel
-        return {
-            "ipa": "o l a",
-            "tokens": ["o", "l", "a"],
-            "lang": lang,
-            "meta": {"backend": "stub"}
-        }
+        """Transcripción de audio a IPA usando el microkernel."""
+        tmp_path = await _process_upload(audio)
+        try:
+            await kernel.setup()
+            audio_in: AudioInput = {"path": str(tmp_path), "sample_rate": 16000, "channels": 1}
+            # El kernel no tiene transcribe directo, orquestamos pre + asr como en el CLI
+            processed = await kernel.pre.process_audio(audio_in)
+            res = await kernel.asr.transcribe(processed, lang=lang)
+            return {
+                "ipa": " ".join(res["tokens"]),
+                "tokens": res["tokens"],
+                "lang": lang,
+                "meta": res.get("meta", {})
+            }
+        finally:
+            await kernel.teardown()
+            if tmp_path.exists():
+                tmp_path.unlink()
 
     @app.post("/v1/compare", response_model=CompareResponse)
     async def compare(
         audio: UploadFile = File(..., description="Archivo de audio a comparar"),
         text: str = Form(..., description="Texto de referencia"),
-        lang: str = Form("es", description="Idioma del audio")
+        lang: str = Form("es", description="Idioma del audio"),
+        kernel: Kernel = Depends(_get_kernel)
     ) -> dict[str, Any]:
-        """Stub para comparación de audio contra texto de referencia."""
-        # TODO: Implementar integración con el Kernel
-        return {
-            "per": 0.0,
-            "ops": [{"op": "eq", "ref": "o", "hyp": "o"}],
-            "alignment": [["o", "o"]],
-            "meta": {"backend": "stub"}
-        }
+        """Comparación de audio contra texto de referencia usando el microkernel."""
+        tmp_path = await _process_upload(audio)
+        try:
+            await kernel.setup()
+            audio_in: AudioInput = {"path": str(tmp_path), "sample_rate": 16000, "channels": 1}
+            res = await kernel.run(audio=audio_in, text=text, lang=lang)
+            return res
+        finally:
+            await kernel.teardown()
+            if tmp_path.exists():
+                tmp_path.unlink()
 
     return app
