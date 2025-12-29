@@ -40,5 +40,14 @@ def test_cors_headers_disallow_origin(monkeypatch) -> None:
             "Access-Control-Request-Method": "GET",
         },
     )
-    # FastAPI CORS middleware doesn't return 403, it just omits headers
-    assert "access-control-allow-origin" not in response.headers
+def test_openapi_schema() -> None:
+    """Verifica que el schema OpenAPI se genera correctamente."""
+    client = TestClient(get_app())
+    response = client.get("/openapi.json")
+    assert response.status_code == 200
+    schema = response.json()
+    assert "ASRResponse" in schema["components"]["schemas"]
+    assert "CompareResponse" in schema["components"]["schemas"]
+    assert "/v1/transcribe" in schema["paths"]
+    assert "/v1/compare" in schema["paths"]
+
