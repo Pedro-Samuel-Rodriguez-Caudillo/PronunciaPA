@@ -1,11 +1,11 @@
 # Plan: MK-6 Estructura de Paquetes
 
-## Phase 1: Preparation & Directory Setup
+## Phase 1: Preparation & Directory Setup [checkpoint: 75a8b13]
 - [x] Task: Create new top-level directories for plugins and interfaces.
     - Create `plugins/allosaurus/ipa_plugin_allosaurus`
     - Create `ipa_server/`
 - [x] Task: Initialize new packages with basic `__init__.py` and metadata.
-- [ ] Task: Conductor - User Manual Verification 'Phase 1: Preparation & Directory Setup' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 1: Preparation & Directory Setup' (Protocol in workflow.md)
 
 ## Phase 2: Code Migration
 - [ ] Task: Move `ipa_core/backends/asr_allosaurus.py` to `plugins/allosaurus/ipa_plugin_allosaurus/backend.py`.
