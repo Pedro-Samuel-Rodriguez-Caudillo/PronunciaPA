@@ -36,7 +36,10 @@ Connecting the HTTP routes to the microkernel processing logic.
 
 
 
-## Phase 3: OpenAPI Documentation & Refinement
+## Phase 3: OpenAPI Documentation & Refinement [checkpoint: d578bdb]
+
+
+
 
 
 Ensuring the API is self-documenting and follows the established schemas.
@@ -45,13 +48,34 @@ Ensuring the API is self-documenting and follows the established schemas.
 
 
 
+
+
+
+
+
+
 - [x] Task: Refine Pydantic models in `ipa_core/api/http.py` to match the global types and ensure accurate Swagger documentation. (ea80cf5)
+
+
+
 
 
 - [x] Task: Verify that the `/docs` endpoint correctly renders all input/output schemas. (ea80cf5)
 
 
+
+
+
 - [x] Task: Perform a final end-to-end integration test with a real (mocked) audio file. (ea80cf5)
 
 
-- [ ] Task: Conductor - User Manual Verification 'OpenAPI Documentation & Refinement' (Protocol in workflow.md)
+
+
+
+- [x] Task: Conductor - User Manual Verification 'OpenAPI Documentation & Refinement' (Protocol in workflow.md) (d578bdb)
+
+
+
+
+
+
