@@ -1,0 +1,28 @@
+# Plan - CLI Skeleton & UX (MK-3)
+
+## Phase 1: Foundation & Registry Commands
+Establishing the full command structure and implementing metadata commands.
+
+- [x] Task: Refactor `ipa_core/api/cli.py` to use a cleaner sub-command structure if needed, or refine existing commands.
+- [x] Task: Implement `pronunciapa config show` to display the active YAML/Env configuration.
+- [x] Task: Implement `pronunciapa plugin list` command to display registered plugins from `ipa_core/plugins/registry.py`.
+- [x] Task: Write contract tests for CLI command discovery and help messages.
+- [ ] Task: Conductor - User Manual Verification 'Foundation & Registry Commands' (Protocol in workflow.md)
+
+## Phase 2: Rich Output & Pipeline Commands
+Enhancing core commands with polished visual feedback.
+
+- [ ] Task: Refactor `compare` command to use `rich.table` for displaying phonetic alignments by default.
+- [ ] Task: Implement `--format` flag in `compare` to support `raw` (JSON) and `aligned` (text-only) views.
+- [ ] Task: Add a loading spinner (via `rich.console.status`) for `transcribe` and `compare` long-running operations.
+- [ ] Task: Create integration tests for `compare` output formatting.
+- [ ] Task: Conductor - User Manual Verification 'Rich Output & Pipeline Commands' (Protocol in workflow.md)
+
+## Phase 3: Implicit Download UX
+Implementing the model management flow with progress indicators.
+
+- [ ] Task: Create a `ModelManager` or utility in `ipa_core/plugins/base.py` to handle "Missing Model" detection.
+- [ ] Task: Integrate `rich.progress` into the `Kernel.setup()` or plugin initialization flow to show a progress bar during (mocked) downloads.
+- [ ] Task: Update `AllosaurusASR` (or a stub) to trigger this download flow if assets are missing.
+- [ ] Task: Verify the download UX by simulating a missing model in a controlled test environment.
+- [ ] Task: Conductor - User Manual Verification 'Implicit Download UX' (Protocol in workflow.md)

@@ -11,8 +11,14 @@ import typer
 from ipa_core.config import loader
 from ipa_core.kernel.core import create_kernel, Kernel
 from ipa_core.types import AudioInput
+from ipa_core.plugins import registry
 
 app = typer.Typer(help="PronunciaPA: Reconocimiento y evaluación fonética")
+config_app = typer.Typer(help="Gestión de configuración")
+plugin_app = typer.Typer(help="Gestión de plugins")
+
+app.add_typer(config_app, name="config")
+app.add_typer(plugin_app, name="plugin")
 
 
 def _get_kernel() -> Kernel:
@@ -27,8 +33,6 @@ def _get_kernel() -> Kernel:
     except (FileNotFoundError, NotReadyError) as e:
         typer.echo(f"Error: {e}", err=True)
         raise typer.Exit(code=1)
-
-
 
 
 async def _transcribe_async(kernel: Kernel, audio_in: AudioInput, lang: str) -> dict:
@@ -83,6 +87,34 @@ def compare(
         typer.echo(json.dumps(res, ensure_ascii=False))
     else:
         typer.echo(f"PER: {res['per']}")
+
+
+@config_app.command("show")
+def config_show():
+    """Muestra la configuración actual."""
+    try:
+        cfg = loader.load_config()
+        # Convert Pydantic model to dict, then to pretty JSON
+        typer.echo(json.dumps(cfg.model_dump(), indent=2, ensure_ascii=False))
+    except Exception as e:
+        typer.echo(f"Error cargando configuración: {e}", err=True)
+        raise typer.Exit(code=1)
+
+
+@plugin_app.command("list")
+def plugin_list():
+    """Lista los plugins registrados."""
+    # Force registration of defaults if not already done
+    # This is a bit of a hack, ideally registry should expose a 'list_all' method
+    # that handles lazy loading internally. For now, we trigger it via a safe resolve attempt or manual call.
+    # Accessing private _REGISTRY is not ideal, but for listing all it's easiest given current implementation.
+    registry._register_defaults()
+    
+    plugins_info = {}
+    for category, plugins in registry._REGISTRY.items():
+        plugins_info[category] = list(plugins.keys())
+        
+    typer.echo(json.dumps(plugins_info, indent=2))
 
 
 def main():
