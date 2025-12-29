@@ -23,25 +23,26 @@ async def test_transcribe_file_with_stub(monkeypatch, tmp_path):
 async def test_transcription_service_falls_back_to_espeak_when_epitran_missing(monkeypatch, tmp_path):
     wav_path = write_sine_wave(tmp_path / "service-espeak.wav")
 
-    class RaisingEpitran:
-        def __init__(self, *args, **kwargs) -> None:
-            raise NotReadyError("epitran unavailable")
+    from ipa_core.plugins import registry
 
-    class FakeEspeak:
-        def __init__(self, *args, **kwargs) -> None:
-            pass
+    def mock_resolve(category, name, params=None):
+        if category == "textref":
+            if name == "epitran":
+                raise NotReadyError("epitran unavailable")
+            if name == "espeak":
+                class FakeEspeak:
+                    async def setup(self): pass
+                    async def teardown(self): pass
+                    async def to_ipa(self, text: str, *, lang: str, **kw):
+                        return {"tokens": ["f", "a", "k", "e"]}
+                return FakeEspeak()
+        return registry.resolve(category, name, params)
 
-        async def to_ipa(self, text: str, *, lang: str, **kw):
-            return {"tokens": ["f", "a", "k", "e"]} # Must return dict, not list
-
-    import ipa_core.textref.epitran as epitran_module
-    import ipa_core.textref.espeak as espeak_module
-
-    monkeypatch.setattr(epitran_module, "EpitranTextRef", RaisingEpitran)
-    monkeypatch.setattr(espeak_module, "EspeakTextRef", FakeEspeak)
+    monkeypatch.setattr(registry, "resolve", mock_resolve)
 
     class RawOnlyASR:
         async def setup(self): pass
+        async def teardown(self): pass
         async def transcribe(self, audio, *, lang=None, **kw):
             return {"raw_text": "hola"}
 

@@ -2,7 +2,7 @@
 from __future__ import annotations
 import pytest
 from typer.testing import CliRunner
-from ipa_core.api.cli import app
+from ipa_core.interfaces.cli import app
 
 runner = CliRunner()
 

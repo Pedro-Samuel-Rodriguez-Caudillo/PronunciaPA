@@ -15,9 +15,9 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 2: Code Migration' (Protocol in workflow.md)
 
 ## Phase 3: Decoupling & Integration
-- [ ] Task: Update `ipa_core/plugins/registry.py` to remove hardcoded imports of Allosaurus.
-- [ ] Task: Configure `plugins/allosaurus/pyproject.toml` or update main `pyproject.toml` to register the Allosaurus entry point.
-- [ ] Task: Update imports across the entire project to reflect new structure.
+- [x] Task: Update `ipa_core/plugins/registry.py` to remove hardcoded imports of Allosaurus.
+- [x] Task: Configure `plugins/allosaurus/pyproject.toml` or update main `pyproject.toml` to register the Allosaurus entry point.
+- [x] Task: Update imports across the entire project to reflect new structure.
 - [ ] Task: Conductor - User Manual Verification 'Phase 3: Decoupling & Integration' (Protocol in workflow.md)
 
 ## Phase 4: Verification & Finalization

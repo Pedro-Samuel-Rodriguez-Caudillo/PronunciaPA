@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Optional
 
 from ipa_core.audio.files import cleanup_temp, ensure_wav, persist_bytes
-from ipa_core.backends.asr_allosaurus import AllosaurusASR
 from ipa_core.backends.audio_io import to_audio_input
 from ipa_core.errors import NotReadyError
 from ipa_core.ports.asr import ASRBackend
@@ -17,6 +16,7 @@ from ipa_core.pipeline.transcribe import transcribe
 from ipa_core.preprocessor_basic import BasicPreprocessor
 from ipa_core.textref.simple import GraphemeTextRef
 from ipa_core.types import AudioInput, Token
+from ipa_core.plugins import registry
 
 
 @dataclass
@@ -51,27 +51,20 @@ class TranscriptionService:
         self._default_lang = default_lang
 
     def _resolve_asr(self, lang: str, backend_name: Optional[str]) -> ASRBackend:
-        backend = (backend_name or os.getenv("PRONUNCIAPA_ASR") or "allosaurus").lower()
-        if backend == "stub":
-            from ipa_core.backends.asr_stub import StubASR
-
-            return StubASR()
-        return AllosaurusASR({"lang": lang})
+        backend = (backend_name or os.getenv("PRONUNCIAPA_ASR") or "default").lower()
+        return registry.resolve_asr(backend, {"lang": lang})
 
     def _resolve_textref(self, lang: str, textref_name: Optional[str]) -> TextRefProvider:
         selected = (textref_name or os.getenv("PRONUNCIAPA_TEXTREF") or "grapheme").lower()
-        if selected == "epitran":
-            from ipa_core.textref.epitran import EpitranTextRef
-
-            try:
-                return EpitranTextRef(default_lang=lang)
-            except NotReadyError:
-                selected = "espeak"
-        if selected == "espeak":
-            from ipa_core.textref.espeak import EspeakTextRef
-
-            return EspeakTextRef(default_lang=lang)
-        return GraphemeTextRef()
+        try:
+            return registry.resolve_textref(selected, {"default_lang": lang})
+        except (NotReadyError, KeyError):
+            if selected == "epitran":
+                try:
+                    return registry.resolve_textref("espeak", {"default_lang": lang})
+                except (NotReadyError, KeyError):
+                    pass
+            raise
 
     async def transcribe_file(self, path: str, *, lang: Optional[str] = None) -> TranscriptionPayload:
         """Transcribir archivo de audio de forma asíncrona."""

@@ -1,7 +1,7 @@
 """Tests for the CLI command structure."""
 from __future__ import annotations
 from typer.testing import CliRunner
-from ipa_core.api.cli import app
+from ipa_core.interfaces.cli import app
 
 runner = CliRunner()
 

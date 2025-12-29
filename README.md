@@ -39,7 +39,7 @@ Si seleccionas `epitran` y la librería no está instalada, el servicio cambia a
 ## API HTTP `/pronunciapa/transcribe`
 
 ```bash
-uvicorn ipa_core.api.http:get_app --reload --port 8000
+uvicorn ipa_server.main:get_app --reload --port 8000
 ```
 
 Enviar archivos:
@@ -82,7 +82,7 @@ Pasos:
 
 ```bash
 # Ventana 1
-uvicorn ipa_core.api.http:get_app --reload --port 8000
+uvicorn ipa_server.main:get_app --reload --port 8000
 
 # Ventana 2
 cd frontend

@@ -2,7 +2,7 @@
 from __future__ import annotations
 import os
 from typer.testing import CliRunner
-from ipa_core.api.cli import app
+from ipa_core.interfaces.cli import app
 
 runner = CliRunner()
 
@@ -35,7 +35,7 @@ def test_cli_compare_e2e(tmp_path) -> None:
     
     os.environ["PRONUNCIAPA_CONFIG"] = str(cfg_file)
     try:
-        result = runner.invoke(app, ["compare", "--audio", "test.wav", "--text", "hola", "--json"])
+        result = runner.invoke(app, ["compare", "--audio", "test.wav", "--text", "hola", "--format", "json"])
         assert result.exit_code == 0
         assert '"per"' in result.stdout
     finally:

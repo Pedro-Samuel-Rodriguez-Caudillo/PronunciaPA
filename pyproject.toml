@@ -35,7 +35,8 @@ speech = [
 pronunciapa = "ipa_core.interfaces.cli:main"
 
 [tool.setuptools]
-packages = ["ipa_core"]
+packages = ["ipa_core", "ipa_plugin_allosaurus"]
+package-dir = {"" = ".", "ipa_plugin_allosaurus" = "plugins/allosaurus/ipa_plugin_allosaurus"}
 
 [tool.mypy]
 ignore_missing_imports = true
@@ -46,4 +47,5 @@ warn_unused_ignores = true
 
 [project.entry-points."pronunciapa.plugins"]
 "asr.stub_ep" = "ipa_core.backends.asr_stub:StubASR"
+"asr.allosaurus" = "ipa_plugin_allosaurus.backend:AllosaurusASR"
 

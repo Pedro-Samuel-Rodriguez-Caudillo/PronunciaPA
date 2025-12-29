@@ -37,5 +37,5 @@ RUN if [ "$WITH_SPEECH" = "true" ]; then \
 
 EXPOSE 8000
 
-CMD ["uvicorn", "ipa_core.api.http:get_app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "ipa_server.main:get_app", "--host", "0.0.0.0", "--port", "8000"]
 

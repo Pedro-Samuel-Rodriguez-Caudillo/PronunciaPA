@@ -9,7 +9,7 @@ from ipa_core.types import ASRResult, AudioInput
 
 try:  # Carga diferida para evitar fallos en entornos sin el modelo.
     from allosaurus.app import read_recognizer
-except ImportError:  # pragma: no cover
+except (ImportError, TypeError):  # pragma: no cover
     read_recognizer = None  # type: ignore[assignment]
 
 # Mapeo de códigos ISO 639-1 (2 letras) a ISO 639-3 (3 letras) que usa Allosaurus

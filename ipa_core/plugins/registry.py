@@ -75,12 +75,10 @@ def resolve(category: str, name: str, params: dict[str, Any] | None = None) -> A
 def _register_defaults() -> None:
     """Registra las implementaciones por defecto incluidas en el core."""
     # ASR
-    from ipa_core.backends.asr_allosaurus import AllosaurusASR
     from ipa_core.backends.asr_stub import StubASR
-    register("asr", "allosaurus", AllosaurusASR)
-    register("asr", "default", AllosaurusASR)
     register("asr", "stub", StubASR)
     register("asr", "fake", StubASR)
+    register("asr", "default", StubASR)  # En el core ligero, el default es el stub
 
     # TextRef
     from ipa_core.textref.epitran import EpitranTextRef

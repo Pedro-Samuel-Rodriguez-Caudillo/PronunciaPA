@@ -2,7 +2,7 @@
 from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
-from ipa_core.api.http import get_app
+from ipa_server.main import get_app
 
 client = TestClient(get_app())
 

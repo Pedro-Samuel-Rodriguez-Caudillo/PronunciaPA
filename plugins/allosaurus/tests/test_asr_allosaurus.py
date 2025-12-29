@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import MagicMock, patch
-from ipa_core.backends.asr_allosaurus import AllosaurusASR
+from ipa_plugin_allosaurus.backend import AllosaurusASR
 from ipa_core.errors import NotReadyError, ValidationError
 
 @pytest.fixture
@@ -9,7 +9,7 @@ def mock_recognizer():
 
 @pytest.fixture
 def mock_read_recognizer(mock_recognizer):
-    with patch("ipa_core.backends.asr_allosaurus.read_recognizer", return_value=mock_recognizer) as m:
+    with patch("ipa_plugin_allosaurus.backend.read_recognizer", return_value=mock_recognizer) as m:
         yield m
 
 @pytest.mark.asyncio

@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import pytest
 from fastapi.testclient import TestClient
-from ipa_core.api.http import get_app
+from ipa_server.main import get_app
 
 def test_health_endpoint() -> None:
     """Verifica que el endpoint /health responde ok."""

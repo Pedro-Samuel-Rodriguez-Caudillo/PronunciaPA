@@ -14,13 +14,15 @@ def _build_audio(**overrides: object) -> dict[str, object]:
     return audio
 
 
-def test_process_audio_returns_same_instance() -> None:
+@pytest.mark.asyncio
+async def test_process_audio_returns_valid_result() -> None:
     pre = BasicPreprocessor()
     audio = _build_audio()
 
-    processed = pre.process_audio(audio)
+    res = await pre.process_audio(audio) # type: ignore
 
-    assert processed is audio
+    assert res["audio"] == audio
+    assert res["meta"]["audio_valid"] is True
 
 
 @pytest.mark.parametrize(
@@ -33,36 +35,42 @@ def test_process_audio_returns_same_instance() -> None:
         ("channels", "1"),
     ],
 )
-def test_process_audio_rejects_invalid_types_or_values(field: str, value: object) -> None:
+@pytest.mark.asyncio
+async def test_process_audio_rejects_invalid_types_or_values(field: str, value: object) -> None:
     pre = BasicPreprocessor()
     audio = _build_audio(**{field: value})
 
     with pytest.raises(ValidationError):
-        pre.process_audio(audio)  # type: ignore[arg-type]
+        await pre.process_audio(audio)  # type: ignore[arg-type]
 
 
-def test_process_audio_requires_all_keys() -> None:
+@pytest.mark.asyncio
+async def test_process_audio_requires_all_keys() -> None:
     pre = BasicPreprocessor()
     audio = _build_audio()
     audio.pop("path")
 
     with pytest.raises(ValidationError):
-        pre.process_audio(audio)  # type: ignore[arg-type]
+        await pre.process_audio(audio)  # type: ignore[arg-type]
 
 
-def test_normalize_tokens_strips_lowercases_and_filters_empty() -> None:
+@pytest.mark.asyncio
+async def test_normalize_tokens_strips_lowercases_and_filters_empty() -> None:
     pre = BasicPreprocessor()
 
-    tokens = pre.normalize_tokens([" A ", "b", "  ", "C"])
+    res = await pre.normalize_tokens([" A ", "b", "  ", "C"])
 
-    assert tokens == ["a", "b", "c"]
+    assert res["tokens"] == ["a", "b", "c"]
 
 
-def test_normalize_tokens_is_idempotent() -> None:
+@pytest.mark.asyncio
+async def test_normalize_tokens_is_idempotent() -> None:
     pre = BasicPreprocessor()
     tokens = ["a", "b", "c"]
 
-    first_pass = pre.normalize_tokens([" A ", " b", "c "])
-    second_pass = pre.normalize_tokens(first_pass)
+    res1 = await pre.normalize_tokens([" A ", " b", "c "])
+    first_pass = res1["tokens"]
+    res2 = await pre.normalize_tokens(first_pass)
+    second_pass = res2["tokens"]
 
     assert first_pass == second_pass == tokens

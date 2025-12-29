@@ -180,5 +180,30 @@ def main():
     app()
 
 
+def cli_transcribe(audio: Optional[str], lang: str = "es", use_mic: bool = False, seconds: float = 3.0, textref: Optional[str] = None):
+    """Wrapper para compatibilidad con tests antiguos."""
+    if not use_mic and not audio:
+        raise ValueError("Debes especificar audio o mic")
+        
+    kernel = _get_kernel()
+    # Si se especificó un textref por parámetro, sobreescribir el del kernel para el test
+    if textref:
+        from ipa_core.plugins import registry
+        kernel.textref = registry.resolve_textref(textref, {"default_lang": lang})
+        
+    audio_in: AudioInput = {"path": audio or "microphone", "sample_rate": 16000, "channels": 1}
+    
+    async def _run():
+        await kernel.setup()
+        try:
+            processed = await kernel.pre.process_audio(audio_in)
+            res = await kernel.asr.transcribe(processed, lang=lang)
+            return res["tokens"]
+        finally:
+            await kernel.teardown()
+            
+    return asyncio.run(_run())
+
+
 if __name__ == "__main__":
     main()

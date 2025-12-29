@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from ipa_core.api.cli import cli_transcribe
+from ipa_core.interfaces.cli import cli_transcribe
 from tests.utils.audio import write_sine_wave
 
 
