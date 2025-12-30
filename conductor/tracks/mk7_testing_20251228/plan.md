@@ -14,9 +14,9 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 2: Kernel & Integration Consolidation' (Protocol in workflow.md)
 
 ## Phase 3: Performance Benchmarking
-- [ ] Task: Add `pytest-benchmark` or a custom RTF measurement utility.
-- [ ] Task: Create `ipa_core/tests/performance/test_latency.py`.
-- [ ] Task: Implement RTF baseline for `StubASR` and (if possible) `AllosaurusASR`.
+- [x] Task: Add `pytest-benchmark` or a custom RTF measurement utility.
+- [x] Task: Create `ipa_core/tests/performance/test_latency.py`.
+- [x] Task: Implement RTF baseline for `StubASR` and (if possible) `AllosaurusASR`.
 - [ ] Task: Conductor - User Manual Verification 'Phase 3: Performance Benchmarking' (Protocol in workflow.md)
 
 ## Phase 4: E2E Smoke Tests & Finalization
