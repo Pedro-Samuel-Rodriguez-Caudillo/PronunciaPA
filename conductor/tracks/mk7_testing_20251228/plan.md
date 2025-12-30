@@ -19,8 +19,8 @@
 - [x] Task: Implement RTF baseline for `StubASR` and (if possible) `AllosaurusASR`.
 - [x] Task: Conductor - User Manual Verification 'Phase 3: Performance Benchmarking' (Protocol in workflow.md)
 
-## Phase 4: E2E Smoke Tests & Finalization
+## Phase 4: E2E Smoke Tests & Finalization [checkpoint: ac35cd8]
 - [x] Task: Implement CLI smoke tests in `ipa_core/interfaces/tests/test_cli_smoke.py`.
 - [x] Task: Implement API smoke tests in `ipa_server/tests/test_api_smoke.py`.
 - [x] Task: Update `README.md` with instructions on how to run the different test layers.
-- [ ] Task: Conductor - User Manual Verification 'Phase 4: E2E Smoke Tests & Finalization' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 4: E2E Smoke Tests & Finalization' (Protocol in workflow.md)
