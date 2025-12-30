@@ -1,11 +1,11 @@
 # Plan: MK-7 Plan de Pruebas
 
-## Phase 1: Shared Contract Suites
+## Phase 1: Shared Contract Suites [checkpoint: 605288d]
 - [x] Task: Create the `ipa_core.testing` package structure.
 - [x] Task: Implement `ASRBackend` contract tests in `ipa_core.testing.contracts.asr`.
 - [x] Task: Implement `TextRefProvider` and `Comparator` contract tests.
 - [x] Task: Refactor `plugins/allosaurus` tests to inherit from the shared contract suite.
-- [ ] Task: Conductor - User Manual Verification 'Phase 1: Shared Contract Suites' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 1: Shared Contract Suites' (Protocol in workflow.md)
 
 ## Phase 2: Kernel & Integration Consolidation
 - [ ] Task: Create `ipa_core/tests/integration/test_kernel_orchestration.py`.
