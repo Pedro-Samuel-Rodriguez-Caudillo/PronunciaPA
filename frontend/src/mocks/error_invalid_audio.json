@@ -1,0 +1,5 @@
+{
+  "detail": "El archivo enviado no es un formato de audio válido.",
+  "type": "invalid_audio",
+  "code": 400
+}

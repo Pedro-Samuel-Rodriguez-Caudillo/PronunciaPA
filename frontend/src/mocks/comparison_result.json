@@ -1,0 +1,28 @@
+{
+  "per": 0.33,
+  "ops": [
+    {
+      "op": "eq",
+      "ref": "o",
+      "hyp": "o"
+    },
+    {
+      "op": "sub",
+      "ref": "l",
+      "hyp": "r"
+    },
+    {
+      "op": "eq",
+      "ref": "a",
+      "hyp": "a"
+    }
+  ],
+  "alignment": [
+    ["o", "o"],
+    ["l", "r"],
+    ["a", "a"]
+  ],
+  "meta": {
+    "algorithm": "levenshtein"
+  }
+}
