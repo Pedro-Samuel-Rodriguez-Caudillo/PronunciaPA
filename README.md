@@ -143,12 +143,12 @@ curl -X POST http://localhost:8000/pronunciapa/transcribe \
 ## Pruebas
 
 ```bash
-PRONUNCIAPA_ASR=stub PYTHONPATH=. pytest \
+PRONUNCIAPA_ASR=stub PYTHONPATH=. python -m pytest \
   ipa_core/compare/tests/test_levenshtein.py \
   ipa_core/pipeline/tests/test_runner.py \
   ipa_core/textref/tests/test_epitran_provider.py \
   ipa_core/services/tests/test_transcription_service.py \
-  ipa_core/api/tests/test_http_transcription.py \
+  ipa_server/tests/test_http_transcription.py \
   scripts/tests/test_cli_transcribe_stub.py \
   scripts/tests/test_preprocessor_basic.py
 ```
@@ -160,13 +160,14 @@ make test-unit  # pruebas AAA rápidas (FIST) en módulos Python puros
 make test-int   # pruebas de integración CLI/API con stubs
 ```
 
-## Estructura rápida
+## Estructura
 
-- `ipa_core/` – kernel, servicios y puertos.
-- `config/` – YAML del microkernel.
-- `frontend/` – landing + demo conectada a la API.
-- `scripts/` – herramientas de prueba manual.
-- `docs/` – backlog, plan del sprint y acuerdos de arquitectura.
+- `ipa_core/` – Núcleo Microkernel (ligero).
+- `plugins/` - Adaptadores externos (p. ej. Allosaurus).
+- `ipa_server/` - Servidor HTTP independiente.
+- `frontend/` – Landing + demo conectada a la API.
+- `scripts/` – Herramientas de prueba manual.
+- `docs/` – Backlog, arquitectura y planes de sprint.
 
 ## Arquitectura (mermaid)
 

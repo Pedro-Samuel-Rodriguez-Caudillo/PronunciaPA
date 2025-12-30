@@ -21,7 +21,7 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 3: Decoupling & Integration' (Protocol in workflow.md)
 
 ## Phase 4: Verification & Finalization
-- [ ] Task: Verify that `ipa_core` unit tests run successfully without `allosaurus` dependencies.
-- [ ] Task: Verify `ipa_core` + `ipa-plugin-allosaurus` works together via dynamic discovery.
-- [ ] Task: Update project-level documentation (`README.md`, `ARCHITECTURE.md`) with the new structure.
-- [ ] Task: Conductor - User Manual Verification 'Phase 4: Verification & Finalization' (Protocol in workflow.md)
+- [x] Task: Verify that `ipa_core` unit tests run successfully without `allosaurus` dependencies.
+- [x] Task: Verify `ipa_core` + `ipa-plugin-allosaurus` works together via dynamic discovery.
+- [x] Task: Update project-level documentation (`README.md`, `ARCHITECTURE.md`) with the new structure.
+- [x] Task: Conductor - User Manual Verification 'Phase 4: Verification & Finalization' (Protocol in workflow.md)
