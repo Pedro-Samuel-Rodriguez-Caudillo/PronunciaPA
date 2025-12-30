@@ -19,7 +19,7 @@ Translate the backend contracts into TypeScript and create sample data for UI pr
 - [x] **Task: Create Scenarios Mock Data** [a7b41b9]
     - Create `frontend/src/mocks/` directory.
     - Generate `success_transcription.json`, `comparison_result.json`, and `error_invalid_audio.json`.
-- [ ] **Task: Define TypeScript Interfaces**
+- [x] **Task: Define TypeScript Interfaces** [588e12f]
     - Create `frontend/src/types/api.ts`.
     - Manually or via tooling (e.g., extracting from FastAPI's `/openapi.json`), define the TS interfaces matching the backend models.
 - [ ] **Task: Verify Type-Mock Consistency**
