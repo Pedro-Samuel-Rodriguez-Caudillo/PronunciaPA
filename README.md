@@ -142,22 +142,39 @@ curl -X POST http://localhost:8000/pronunciapa/transcribe \
 
 ## Pruebas
 
+PronunciaPA utiliza una estrategia de pruebas por capas:
+
+1.  **Unitarias (FIST):** Pruebas rápidas de lógica pura.
+    ```bash
+    pytest ipa_core/compare/tests/test_levenshtein.py
+    ```
+2.  **Contratos:** Verificación de cumplimiento de protocolos para plugins.
+    ```bash
+    pytest plugins/allosaurus/tests/test_asr_allosaurus.py
+    ```
+3.  **Integración:** Orquestación del Kernel con stubs.
+    ```bash
+    pytest ipa_core/tests/integration/
+    ```
+4.  **Performance:** Benchmarks de latencia y RTF.
+    ```bash
+    pytest ipa_core/tests/performance/
+    ```
+5.  **Smoke:** Verificación rápida de interfaces (CLI/API).
+    ```bash
+    pytest ipa_core/interfaces/tests/test_cli_smoke.py
+    pytest ipa_server/tests/test_api_smoke.py
+    ```
+
+Correr todas las pruebas:
 ```bash
-PRONUNCIAPA_ASR=stub PYTHONPATH=. python -m pytest \
-  ipa_core/compare/tests/test_levenshtein.py \
-  ipa_core/pipeline/tests/test_runner.py \
-  ipa_core/textref/tests/test_epitran_provider.py \
-  ipa_core/services/tests/test_transcription_service.py \
-  ipa_server/tests/test_http_transcription.py \
-  scripts/tests/test_cli_transcribe_stub.py \
-  scripts/tests/test_preprocessor_basic.py
+PYTHONPATH=. python -m pytest
 ```
 
 Atajos disponibles:
-
 ```bash
-make test-unit  # pruebas AAA rápidas (FIST) en módulos Python puros
-make test-int   # pruebas de integración CLI/API con stubs
+make test-unit  # unitarias + integración rápida
+make test-int   # integración completa con stubs
 ```
 
 ## Estructura
