@@ -17,7 +17,9 @@ This file tracks all major tracks for the project. Each track has its own detail
 ---
 ## [x] Track: MK-4 API HTTP esqueleto
 [Link to Track Folder](conductor/tracks/mk-4-api)
+
+
 ---
 
-## [~] Track: MK-6 Estructura de paquetes
-*Link: [./conductor/tracks/mk6_structure_20251228/](./conductor/tracks/mk6_structure_20251228/)*
+## [~] Track: MK-7 Plan de pruebas
+*Link: [./conductor/tracks/mk7_testing_20251228/](./conductor/tracks/mk7_testing_20251228/)*
