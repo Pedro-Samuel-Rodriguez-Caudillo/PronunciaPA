@@ -13,11 +13,11 @@
 - [x] Task: Ensure 100% coverage of the `Kernel` class logic.
 - [x] Task: Conductor - User Manual Verification 'Phase 2: Kernel & Integration Consolidation' (Protocol in workflow.md)
 
-## Phase 3: Performance Benchmarking
+## Phase 3: Performance Benchmarking [checkpoint: b8fcee0]
 - [x] Task: Add `pytest-benchmark` or a custom RTF measurement utility.
 - [x] Task: Create `ipa_core/tests/performance/test_latency.py`.
 - [x] Task: Implement RTF baseline for `StubASR` and (if possible) `AllosaurusASR`.
-- [ ] Task: Conductor - User Manual Verification 'Phase 3: Performance Benchmarking' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 3: Performance Benchmarking' (Protocol in workflow.md)
 
 ## Phase 4: E2E Smoke Tests & Finalization
 - [ ] Task: Implement CLI smoke tests in `ipa_core/interfaces/tests/test_cli_smoke.py`.
