@@ -17,33 +17,7 @@ from ipa_core.config import loader
 from ipa_core.kernel.core import create_kernel, Kernel
 from ipa_core.errors import KernelError, ValidationError, NotReadyError
 from ipa_core.types import AudioInput
-
-
-class ASRResponse(BaseModel):
-    """Respuesta exitosa de transcripción."""
-    ipa: str = Field(..., description="Transcripción completa en formato IPA", json_schema_extra={"example": "o l a"})
-    tokens: List[str] = Field(..., description="Lista de tokens fonéticos extraídos", json_schema_extra={"example": ["o", "l", "a"]})
-    lang: str = Field(..., description="Código de idioma utilizado", json_schema_extra={"example": "es"})
-    meta: dict[str, Any] = Field(default_factory=dict, description="Metadatos adicionales del backend")
-
-
-class EditOp(BaseModel):
-    """Operación de edición individual."""
-    op: str = Field(..., description="Tipo de operación (eq, sub, ins, del)", json_schema_extra={"example": "sub"})
-    ref: Optional[str] = Field(None, description="Token de referencia", json_schema_extra={"example": "o"})
-    hyp: Optional[str] = Field(None, description="Token de la hipótesis", json_schema_extra={"example": "u"})
-
-
-class CompareResponse(BaseModel):
-    """Respuesta exitosa de comparación."""
-    per: float = Field(..., description="Phone Error Rate (0.0 a 1.0)", json_schema_extra={"example": 0.15})
-    ops: List[EditOp] = Field(..., description="Lista de operaciones de edición realizadas")
-    alignment: List[List[Optional[str]]] = Field(
-        ..., 
-        description="Pares de tokens alineados [ref, hyp]",
-        json_schema_extra={"example": [["h", "h"], ["o", "u"]]}
-    )
-    meta: dict[str, Any] = Field(default_factory=dict, description="Metadatos adicionales de la comparación")
+from ipa_server.models import TranscriptionResponse, CompareResponse, EditOp
 
 
 def _get_kernel() -> Kernel:
@@ -114,7 +88,7 @@ def get_app() -> FastAPI:
             tmp.write(content)
             return Path(tmp.name)
 
-    @app.post("/v1/transcribe", response_model=ASRResponse)
+    @app.post("/v1/transcribe", response_model=TranscriptionResponse)
     async def transcribe(
         audio: UploadFile = File(..., description="Archivo de audio a transcribir"),
         lang: str = Form("es", description="Idioma del audio"),

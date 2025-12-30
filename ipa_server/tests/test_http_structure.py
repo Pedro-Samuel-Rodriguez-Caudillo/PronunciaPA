@@ -46,7 +46,7 @@ def test_openapi_schema() -> None:
     response = client.get("/openapi.json")
     assert response.status_code == 200
     schema = response.json()
-    assert "ASRResponse" in schema["components"]["schemas"]
+    assert "TranscriptionResponse" in schema["components"]["schemas"]
     assert "CompareResponse" in schema["components"]["schemas"]
     assert "/v1/transcribe" in schema["paths"]
     assert "/v1/compare" in schema["paths"]
