@@ -2,7 +2,7 @@
 
 Establishing the data structures and API schemas between the backend and frontend to enable parallel development.
 
-## Phase 1: Backend Domain Models & Schema
+## Phase 1: Backend Domain Models & Schema [checkpoint: 57c212a]
 Define the Pydantic models in the FastAPI server that will serve as the contract source of truth.
 
 - [x] **Task: TDD - Define Transcription & Audio Models** [b0902eb]
