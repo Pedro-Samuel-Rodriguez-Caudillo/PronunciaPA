@@ -19,7 +19,11 @@ This file tracks all major tracks for the project. Each track has its own detail
 [Link to Track Folder](conductor/tracks/mk-4-api)
 
 
+## [x] Track: MK-6 Estructura de paquetes
+*Link: [./conductor/tracks/mk6_structure_20251228/](./conductor/tracks/mk6_structure_20251228/)*
+
 ---
 
-## [~] Track: MK-7 Plan de pruebas
-*Link: [./conductor/tracks/mk7_testing_20251228/](./conductor/tracks/mk7_testing_20251228/)*
+## [~] Track: MK-8 Frontend Contracts
+*Link: [./conductor/tracks/frontend_contracts_20251230/](./conductor/tracks/frontend_contracts_20251230/)*
+
