@@ -22,7 +22,7 @@ Translate the backend contracts into TypeScript and create sample data for UI pr
 - [x] **Task: Define TypeScript Interfaces** [588e12f]
     - Create `frontend/src/types/api.ts`.
     - Manually or via tooling (e.g., extracting from FastAPI's `/openapi.json`), define the TS interfaces matching the backend models.
-- [ ] **Task: Verify Type-Mock Consistency**
+- [x] **Task: Verify Type-Mock Consistency** [b42e12e]
     - Create a small test utility or script to ensure the created JSON mocks strictly follow the TypeScript interfaces.
 - [ ] **Task: Conductor - User Manual Verification 'Frontend Type Synchronization & Mocks' (Protocol in workflow.md)**
 
