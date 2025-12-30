@@ -16,7 +16,7 @@ Define the Pydantic models in the FastAPI server that will serve as the contract
 ## Phase 2: Frontend Type Synchronization & Mocks
 Translate the backend contracts into TypeScript and create sample data for UI prototyping.
 
-- [ ] **Task: Create Scenarios Mock Data**
+- [x] **Task: Create Scenarios Mock Data** [a7b41b9]
     - Create `frontend/src/mocks/` directory.
     - Generate `success_transcription.json`, `comparison_result.json`, and `error_invalid_audio.json`.
 - [ ] **Task: Define TypeScript Interfaces**
