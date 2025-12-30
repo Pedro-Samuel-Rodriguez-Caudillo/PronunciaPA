@@ -8,9 +8,9 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Shared Contract Suites' (Protocol in workflow.md)
 
 ## Phase 2: Kernel & Integration Consolidation
-- [ ] Task: Create `ipa_core/tests/integration/test_kernel_orchestration.py`.
-- [ ] Task: Implement tests for `Kernel.run` with various stub configurations (success, failures, edge cases).
-- [ ] Task: Ensure 100% coverage of the `Kernel` class logic.
+- [x] Task: Create `ipa_core/tests/integration/test_kernel_orchestration.py`.
+- [x] Task: Implement tests for `Kernel.run` with various stub configurations (success, failures, edge cases).
+- [x] Task: Ensure 100% coverage of the `Kernel` class logic.
 - [ ] Task: Conductor - User Manual Verification 'Phase 2: Kernel & Integration Consolidation' (Protocol in workflow.md)
 
 ## Phase 3: Performance Benchmarking
