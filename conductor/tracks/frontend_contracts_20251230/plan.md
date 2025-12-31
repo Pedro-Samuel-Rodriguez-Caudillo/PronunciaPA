@@ -26,7 +26,7 @@ Translate the backend contracts into TypeScript and create sample data for UI pr
     - Create a small test utility or script to ensure the created JSON mocks strictly follow the TypeScript interfaces.
 - [ ] **Task: Conductor - User Manual Verification 'Frontend Type Synchronization & Mocks' (Protocol in workflow.md)**
 
-## Phase 3: Documentation & Integration Guide
+## Phase 3: Documentation & Integration Guide [checkpoint: 2e175e8]
 Finalize the contract documentation and provide clear instructions for future updates.
 
 - [x] **Task: Create API Contracts Documentation** [60e3ee2]
