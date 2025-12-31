@@ -29,7 +29,7 @@ Translate the backend contracts into TypeScript and create sample data for UI pr
 ## Phase 3: Documentation & Integration Guide
 Finalize the contract documentation and provide clear instructions for future updates.
 
-- [ ] **Task: Create API Contracts Documentation**
+- [x] **Task: Create API Contracts Documentation** [60e3ee2]
     - Create `docs/api_contracts.md`.
     - Document the endpoints, data flow, and the process for updating types when backend models change.
 - [ ] **Task: Final Contract Validation**
