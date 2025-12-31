@@ -2,7 +2,7 @@
 
 Implementation of a comprehensive CLI toolset for discovering, inspecting, and managing the PronunciaPA plugin ecosystem.
 
-## Phase 1: Enhanced Discovery & Listing
+## Phase 1: Enhanced Discovery & Listing [checkpoint: e568007]
 Improve the internal discovery engine to provide the rich metadata required for the CLI.
 
 - [x] **Task: TDD - Metadata Extraction in Discovery** [e9fef02]
