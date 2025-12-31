@@ -13,7 +13,7 @@ Define the Pydantic models in the FastAPI server that will serve as the contract
     - Implement the corresponding Pydantic models.
 - [ ] **Task: Conductor - User Manual Verification 'Backend Domain Models & Schema' (Protocol in workflow.md)**
 
-## Phase 2: Frontend Type Synchronization & Mocks
+## Phase 2: Frontend Type Synchronization & Mocks [checkpoint: 99af120]
 Translate the backend contracts into TypeScript and create sample data for UI prototyping.
 
 - [x] **Task: Create Scenarios Mock Data** [a7b41b9]
