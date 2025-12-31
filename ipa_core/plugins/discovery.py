@@ -44,3 +44,37 @@ def available_plugins() -> Mapping[str, list[str]]:
             results[category].append(name)
 
     return results
+
+
+def get_package_metadata(package_name: str) -> dict[str, str]:
+    """Extrae metadatos básicos de un paquete instalado."""
+    try:
+        meta = importlib.metadata.metadata(package_name)
+        return {
+            "version": meta.get("Version", "unknown"),
+            "author": meta.get("Author", "unknown"),
+            "description": meta.get("Summary", "No description provided.")
+        }
+    except importlib.metadata.PackageNotFoundError:
+        return {
+            "version": "unknown",
+            "author": "unknown",
+            "description": "Package not found."
+        }
+
+
+def get_plugin_details(category: str, name: str) -> dict[str, str]:
+    """Retorna detalles de un plugin específico buscando su entry point."""
+    for cat, n, ep in iter_plugin_entry_points():
+        if cat == category and n == name:
+            # Intentar deducir el paquete desde el entry point
+            # ep.value suele ser 'package.module:attr'
+            package_name = ep.value.split(".")[0].split(":")[0]
+            details = get_package_metadata(package_name)
+            details.update({
+                "category": category,
+                "name": name,
+                "entry_point": ep.value
+            })
+            return details
+    return {}

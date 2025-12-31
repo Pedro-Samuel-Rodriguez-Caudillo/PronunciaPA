@@ -160,18 +160,56 @@ def config_show():
         raise typer.Exit(code=1)
 
 
+from ipa_core.plugins import registry, discovery
+
+
 @plugin_app.command("list")
 def plugin_list():
-    """Lista los plugins registrados."""
-    registry._register_defaults()
-    
-    table = Table(title="Plugins Registrados")
+    """Lista los plugins instalados y su metadata básica."""
+    table = Table(title="Plugins Instalados")
     table.add_column("Categoría", style="bold magenta")
-    table.add_column("Plugins", style="cyan")
+    table.add_column("Nombre", style="cyan")
+    table.add_column("Versión", style="green")
+    table.add_column("Autor", style="yellow")
     
-    for category, plugins in registry._REGISTRY.items():
-        table.add_row(category, ", ".join(plugins.keys()))
+    for category, name, ep in discovery.iter_plugin_entry_points():
+        # Deducir paquete para metadatos
+        package_name = ep.value.split(".")[0].split(":")[0]
+        meta = discovery.get_package_metadata(package_name)
         
+        table.add_row(
+            category.upper(),
+            name,
+            meta["version"],
+            meta["author"]
+        )
+        
+    console.print(table)
+
+
+@plugin_app.command("inspect")
+def plugin_inspect(
+    category: str = typer.Argument(..., help="Categoría del plugin (asr, textref, etc.)"),
+    name: str = typer.Argument(..., help="Nombre del plugin"),
+):
+    """Muestra información detallada de un plugin específico."""
+    details = discovery.get_plugin_details(category.lower(), name)
+    
+    if not details:
+        console.print(f"[red]Error:[/red] No se encontró el plugin '{category}.{name}'")
+        raise typer.Exit(code=1)
+        
+    table = Table(show_header=False, title=f"Detalles: {category}.{name}")
+    table.add_column("Propiedad", style="bold")
+    table.add_column("Valor")
+    
+    table.add_row("Nombre", details["name"])
+    table.add_row("Categoría", details["category"].upper())
+    table.add_row("Versión", details["version"])
+    table.add_row("Autor", details["author"])
+    table.add_row("Descripción", details["description"])
+    table.add_row("Entry Point", details["entry_point"])
+    
     console.print(table)
 
 
