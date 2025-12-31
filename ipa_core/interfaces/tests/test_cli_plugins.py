@@ -55,3 +55,21 @@ def test_plugin_inspect_success():
         assert "ASR" in result.stdout
         assert "My special plugin" in result.stdout
 
+def test_plugin_validate_cli():
+    """Should report validation status for plugins."""
+    with patch("ipa_core.plugins.discovery.iter_plugin_entry_points") as mock_iter, \
+         patch("ipa_core.plugins.registry.validate_plugin") as mock_val:
+        
+        from unittest.mock import MagicMock
+        ep = MagicMock()
+        ep.name = "asr.test_asr"
+        ep.load.return_value = object # fake class
+        
+        mock_iter.return_value = [("asr", "test_asr", ep)]
+        mock_val.return_value = (False, ["Missing transcribe"])
+        
+        result = runner.invoke(app, ["plugin", "validate"])
+        assert result.exit_code == 0
+        assert "INVALID" in result.stdout
+        assert "Missing transcribe" in result.stdout
+

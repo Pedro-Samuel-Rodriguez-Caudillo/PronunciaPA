@@ -213,6 +213,39 @@ def plugin_inspect(
     console.print(table)
 
 
+@plugin_app.command("validate")
+def plugin_validate():
+    """Valida que todos los plugins instalados cumplan con sus contratos."""
+    table = Table(title="Validación de Plugins")
+    table.add_column("Plugin", style="cyan")
+    table.add_column("Estado", justify="center")
+    table.add_column("Detalles")
+    
+    found = False
+    for category, name, ep in discovery.iter_plugin_entry_points():
+        found = True
+        try:
+            plugin_cls = ep.load()
+            is_valid, errors = registry.validate_plugin(category, plugin_cls)
+            
+            if is_valid:
+                status = "[green]VALID[/green]"
+                detail = "Correcto"
+            else:
+                status = "[red]INVALID[/red]"
+                detail = ", ".join(errors)
+        except Exception as e:
+            status = "[bold red]ERROR[/bold red]"
+            detail = f"No se pudo cargar: {e}"
+            
+        table.add_row(f"{category}.{name}", status, detail)
+        
+    if not found:
+        console.print("No se encontraron plugins externos para validar.")
+    else:
+        console.print(table)
+
+
 def main():
     """Punto de entrada para el script de consola."""
     app()
