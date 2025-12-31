@@ -32,6 +32,6 @@ Finalize the contract documentation and provide clear instructions for future up
 - [x] **Task: Create API Contracts Documentation** [60e3ee2]
     - Create `docs/api_contracts.md`.
     - Document the endpoints, data flow, and the process for updating types when backend models change.
-- [ ] **Task: Final Contract Validation**
+- [x] **Task: Final Contract Validation** [40c100d]
     - Run the backend server, fetch the OpenAPI JSON, and perform a final check against the frontend types.
 - [ ] **Task: Conductor - User Manual Verification 'Documentation & Integration Guide' (Protocol in workflow.md)**
