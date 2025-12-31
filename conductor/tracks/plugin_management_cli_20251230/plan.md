@@ -13,7 +13,7 @@ Improve the internal discovery engine to provide the rich metadata required for 
     - Implement the command to show grouped plugins by type (ASR, TextRef, etc.).
 - [ ] **Task: Conductor - User Manual Verification 'Enhanced Discovery & Listing' (Protocol in workflow.md)**
 
-## Phase 2: Inspection & Validation
+## Phase 2: Inspection & Validation [checkpoint: 605a994]
 Implement commands to dive deep into specific plugins and verify their integrity.
 
 - [x] **Task: TDD - CLI 'plugins inspect' Command** [e9fef02]
