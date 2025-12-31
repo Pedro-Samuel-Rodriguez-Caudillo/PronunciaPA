@@ -16,10 +16,10 @@ Improve the internal discovery engine to provide the rich metadata required for 
 ## Phase 2: Inspection & Validation
 Implement commands to dive deep into specific plugins and verify their integrity.
 
-- [ ] **Task: TDD - CLI 'plugins inspect' Command**
+- [x] **Task: TDD - CLI 'plugins inspect' Command** [e9fef02]
     - Write tests for `plugins inspect <name>`.
     - Implement detailed metadata view (Dependencies, entry points).
-- [ ] **Task: TDD - CLI 'plugins validate' Command**
+- [x] **Task: TDD - CLI 'plugins validate' Command** [374d18b]
     - Write tests that check a mock "bad plugin" against its interface.
     - Implement validation logic in `ipa_core/plugins/registry.py` or similar, then expose via CLI.
 - [ ] **Task: Conductor - User Manual Verification 'Inspection & Validation' (Protocol in workflow.md)**
