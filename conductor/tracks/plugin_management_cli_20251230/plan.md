@@ -27,10 +27,10 @@ Implement commands to dive deep into specific plugins and verify their integrity
 ## Phase 3: Package Management (Pip Wrappers)
 Add the ability to install and uninstall plugins with safety checks.
 
-- [ ] **Task: TDD - CLI 'plugins install' with Post-Check**
+- [x] **Task: TDD - CLI 'plugins install' with Post-Check** [06d6f96]
     - Write tests (mocking `subprocess`) for `plugins install`.
     - Implement the pip wrapper and the post-installation discovery check.
-- [ ] **Task: TDD - CLI 'plugins uninstall' Command**
+- [x] **Task: TDD - CLI 'plugins uninstall' Command** [06d6f96]
     - Write tests for `plugins uninstall`.
     - Implement the command with a confirmation prompt.
 - [ ] **Task: Conductor - User Manual Verification 'Package Management (Pip Wrappers)' (Protocol in workflow.md)**
