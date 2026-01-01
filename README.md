@@ -28,6 +28,27 @@ pronunciapa transcribe --audio inputs/ejemplo.mp3 --textref epitran
 pronunciapa transcribe --audio inputs/ejemplo.wav --textref espeak
 ```
 
+### Gestión de Plugins
+
+PronunciaPA utiliza una arquitectura de microkernel extensible mediante plugins. Puedes gestionarlos directamente desde el CLI:
+
+```bash
+# Listar plugins instalados, su versión y autor
+pronunciapa plugin list
+
+# Ver detalles de un plugin específico
+pronunciapa plugin inspect asr stub
+
+# Validar que los plugins instalados cumplen con el contrato
+pronunciapa plugin validate
+
+# Instalar un nuevo plugin (vía pip)
+pronunciapa plugin install nombre-del-paquete
+
+# Desinstalar un plugin
+pronunciapa plugin uninstall nombre-del-paquete
+```
+
 Variables útiles:
 
 - `PRONUNCIAPA_ASR=allosaurus|stub`
