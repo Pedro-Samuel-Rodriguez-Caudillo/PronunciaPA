@@ -38,7 +38,7 @@ Add the ability to install and uninstall plugins with safety checks.
 ## Phase 4: Finalization
 Polish the CLI experience and update documentation.
 
-- [~] **Task: CLI Help & Documentation Update**
+- [x] **Task: CLI Help & Documentation Update** [f961303]
     - Ensure all new commands have clear help strings.
     - Update `README.md` or dedicated docs with plugin management instructions.
 - [ ] **Task: Conductor - User Manual Verification 'Finalization' (Protocol in workflow.md)**
