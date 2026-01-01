@@ -16,10 +16,10 @@ Define the data structures and file layouts required for swappable models.
 ## Phase 2: Feature Extraction & Preprocessing
 Implement the audio-to-tensor pipeline with swappable dependencies.
 
-- [ ] **Task: TDD - Abstract Feature Extractor Port**
+- [x] **Task: TDD - Abstract Feature Extractor Port** [c629280]
     - Write tests for a generic `FeatureExtractor` interface.
     - Implement the base interface in `ipa_core/ports/features.py`.
-- [ ] **Task: TDD - Librosa Implementation**
+- [x] **Task: TDD - Librosa Implementation** [c629280]
     - Write tests for Mel-spectrogram generation matching standard ASR expectations (e.g. Whisper or Wav2Vec2 requirements).
     - Implement `LibrosaFeatureExtractor` in `ipa_core/backends/audio_processing.py`.
 - [ ] **Task: Conductor - User Manual Verification 'Feature Extraction & Preprocessing' (Protocol in workflow.md)**
