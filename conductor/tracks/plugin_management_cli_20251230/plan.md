@@ -35,7 +35,7 @@ Add the ability to install and uninstall plugins with safety checks.
     - Implement the command with a confirmation prompt.
 - [ ] **Task: Conductor - User Manual Verification 'Package Management (Pip Wrappers)' (Protocol in workflow.md)**
 
-## Phase 4: Finalization
+## Phase 4: Finalization [checkpoint: 65098c8]
 Polish the CLI experience and update documentation.
 
 - [x] **Task: CLI Help & Documentation Update** [f961303]
