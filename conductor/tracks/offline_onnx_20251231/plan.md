@@ -2,7 +2,7 @@
 
 Enabling offline phonetic recognition through a modular ONNX-based architecture.
 
-## Phase 1: Model Package Schema & Foundations
+## Phase 1: Model Package Schema & Foundations [checkpoint: 552d288]
 Define the data structures and file layouts required for swappable models.
 
 - [x] **Task: TDD - Define Model Config Schema** [5ef6722]
