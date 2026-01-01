@@ -24,7 +24,7 @@ Implement commands to dive deep into specific plugins and verify their integrity
     - Implement validation logic in `ipa_core/plugins/registry.py` or similar, then expose via CLI.
 - [ ] **Task: Conductor - User Manual Verification 'Inspection & Validation' (Protocol in workflow.md)**
 
-## Phase 3: Package Management (Pip Wrappers)
+## Phase 3: Package Management (Pip Wrappers) [checkpoint: 3e010ed]
 Add the ability to install and uninstall plugins with safety checks.
 
 - [x] **Task: TDD - CLI 'plugins install' with Post-Check** [06d6f96]
