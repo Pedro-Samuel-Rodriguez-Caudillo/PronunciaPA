@@ -19,6 +19,8 @@ from ipa_core.errors import FileNotFound, NotReadyError, UnsupportedFormat, Vali
 from ipa_core.kernel.core import create_kernel, Kernel
 from ipa_core.pipeline.transcribe import transcribe as transcribe_pipeline
 from ipa_core.types import AudioInput
+from ipa_core.plugins.models import storage
+from ipa_core.plugins.model_manager import ModelManager
 
 app = typer.Typer(help="PronunciaPA: Reconocimiento y evaluación fonética")
 config_app = typer.Typer(help="Gestión de configuración")
@@ -26,6 +28,52 @@ plugin_app = typer.Typer(help="Gestión de plugins")
 
 app.add_typer(config_app, name="config")
 app.add_typer(plugin_app, name="plugin")
+
+model_app = typer.Typer(help="Gestión de modelos locales (ONNX)")
+app.add_typer(model_app, name="models")
+
+@model_app.command("list")
+def models_list():
+    """Lista los modelos instalados localmente."""
+    models = storage.scan_models()
+    if not models:
+        console.print("No se encontraron modelos locales.", style="yellow")
+        return
+
+    table = Table(title="Modelos Locales")
+    table.add_column("Nombre", style="cyan")
+    table.add_column("Ruta", style="green")
+    
+    base_dir = storage.get_models_dir()
+    for model in models:
+        table.add_row(model, str(base_dir / model))
+        
+    console.print(table)
+
+
+@model_app.command("download")
+def models_download(
+    url: str = typer.Argument(..., help="URL de descarga"),
+    name: str = typer.Argument(..., help="Nombre local para el modelo"),
+    sha256: Optional[str] = typer.Option(None, "--sha256", help="Hash SHA256 esperado"),
+):
+    """Descarga e instala un modelo desde una URL."""
+    manager = ModelManager()
+    # Por defecto, descargamos como 'model.onnx' dentro de la carpeta del modelo
+    # Esto asume que la URL apunta directamente al archivo .onnx
+    dest = storage.get_models_dir() / name / "model.onnx"
+    
+    async def _download():
+        try:
+            with console.status(f"[bold green]Descargando modelo '{name}'..."):
+                await manager.download_model(name, url, dest, sha256=sha256)
+            console.print(f"[green]✔[/green] Descarga de '[bold]{name}[/bold]' completada.")
+        except Exception as e:
+            console.print(f"[red]Error:[/red] {e}")
+            raise typer.Exit(code=1)
+
+    asyncio.run(_download())
+
 
 console = Console()
 
