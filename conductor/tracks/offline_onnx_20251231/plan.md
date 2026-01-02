@@ -11,9 +11,9 @@ Define the data structures and file layouts required for swappable models.
 - [x] **Task: TDD - Local Storage Utilities** [5ef6722]
     - Write tests for directory creation and scanning.
     - Implement helper functions to locate models in the user's home directory (`~/.pronunciapa/models`).
-- [ ] **Task: Conductor - User Manual Verification 'Model Package Schema & Foundations' (Protocol in workflow.md)**
+- [x] **Task: Conductor - User Manual Verification 'Model Package Schema & Foundations' (Protocol in workflow.md)** [552d288]
 
-## Phase 2: Feature Extraction & Preprocessing
+## Phase 2: Feature Extraction & Preprocessing [checkpoint: c629280]
 Implement the audio-to-tensor pipeline with swappable dependencies.
 
 - [x] **Task: TDD - Abstract Feature Extractor Port** [c629280]
@@ -22,18 +22,18 @@ Implement the audio-to-tensor pipeline with swappable dependencies.
 - [x] **Task: TDD - Librosa Implementation** [c629280]
     - Write tests for Mel-spectrogram generation matching standard ASR expectations (e.g. Whisper or Wav2Vec2 requirements).
     - Implement `LibrosaFeatureExtractor` in `ipa_core/backends/audio_processing.py`.
-- [ ] **Task: Conductor - User Manual Verification 'Feature Extraction & Preprocessing' (Protocol in workflow.md)**
+- [x] **Task: Conductor - User Manual Verification 'Feature Extraction & Preprocessing' (Protocol in workflow.md)** [c629280]
 
-## Phase 3: ONNX Inference Engine
+## Phase 3: ONNX Inference Engine [checkpoint: 3432ce2]
 Develop the runner that executes the models using ONNX Runtime.
 
-- [ ] **Task: TDD - ONNX Session Wrapper**
+- [x] **Task: TDD - ONNX Session Wrapper** [3432ce2]
     - Write tests for loading an ONNX file and inspecting its input/output nodes.
     - Implement `ONNXRunner` in `ipa_core/backends/onnx_engine.py`.
-- [ ] **Task: TDD - Local ASR Plugin Implementation**
+- [x] **Task: TDD - Local ASR Plugin Implementation** [3432ce2]
     - Write unit tests for an ASR plugin that coordinates feature extraction and ONNX inference.
     - Implement `ONNXASRPlugin` in `ipa_core/plugins/asr_onnx.py`.
-- [ ] **Task: Conductor - User Manual Verification 'ONNX Inference Engine' (Protocol in workflow.md)**
+- [x] **Task: Conductor - User Manual Verification 'ONNX Inference Engine' (Protocol in workflow.md)** [3432ce2]
 
 ## Phase 4: Model Manager CLI & Integration [checkpoint: a439fae]
 Add user-facing tools to manage models and verify the full offline flow.
