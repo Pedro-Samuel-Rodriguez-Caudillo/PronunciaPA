@@ -35,7 +35,7 @@ Develop the runner that executes the models using ONNX Runtime.
     - Implement `ONNXASRPlugin` in `ipa_core/plugins/asr_onnx.py`.
 - [ ] **Task: Conductor - User Manual Verification 'ONNX Inference Engine' (Protocol in workflow.md)**
 
-## Phase 4: Model Manager CLI & Integration
+## Phase 4: Model Manager CLI & Integration [checkpoint: a439fae]
 Add user-facing tools to manage models and verify the full offline flow.
 
 - [x] **Task: TDD - Model Management CLI Commands** [acdb293]
@@ -44,4 +44,4 @@ Add user-facing tools to manage models and verify the full offline flow.
 - [x] **Task: TDD - End-to-End Offline Integration** [d9d6797]
     - Write an integration test that uses a mock (small) ONNX model to transcribe a WAV file.
     - Ensure the pipeline can be configured to use the local ONNX plugin via the standard config.
-- [ ] **Task: Conductor - User Manual Verification 'Model Manager CLI & Integration' (Protocol in workflow.md)**
+- [x] **Task: Conductor - User Manual Verification 'Model Manager CLI & Integration' (Protocol in workflow.md)** [a439fae]
