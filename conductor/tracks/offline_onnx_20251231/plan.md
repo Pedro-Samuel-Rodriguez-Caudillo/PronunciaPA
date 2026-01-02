@@ -38,7 +38,7 @@ Develop the runner that executes the models using ONNX Runtime.
 ## Phase 4: Model Manager CLI & Integration
 Add user-facing tools to manage models and verify the full offline flow.
 
-- [ ] **Task: TDD - Model Management CLI Commands**
+- [x] **Task: TDD - Model Management CLI Commands** [acdb293]
     - Write tests for `pronunciapa models list` and `pronunciapa models download` (with mock HTTP).
     - Implement CLI commands in `ipa_core/interfaces/cli.py`.
 - [ ] **Task: TDD - End-to-End Offline Integration**
