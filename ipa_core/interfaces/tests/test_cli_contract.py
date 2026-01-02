@@ -1,6 +1,7 @@
 """Pruebas de contrato para el CLI."""
 from __future__ import annotations
 from typer.testing import CliRunner
+from tests.utils.audio import write_sine_wave
 from ipa_core.interfaces.cli import app
 
 runner = CliRunner()
@@ -12,15 +13,17 @@ def test_cli_help() -> None:
     assert "transcribe" in result.stdout
     assert "compare" in result.stdout
 
-def test_cli_transcribe_json() -> None:
+def test_cli_transcribe_json(tmp_path) -> None:
     """Verifica el stub del comando transcribe con JSON."""
-    result = runner.invoke(app, ["transcribe", "--audio", "test.wav", "--lang", "es", "--json"])
+    wav_path = write_sine_wave(tmp_path / "transcribe.json.wav")
+    result = runner.invoke(app, ["transcribe", "--audio", wav_path, "--lang", "es", "--json"])
     assert result.exit_code == 0
     assert '"tokens"' in result.stdout
 
-def test_cli_transcribe_text() -> None:
+def test_cli_transcribe_text(tmp_path) -> None:
     """Verifica el stub del comando transcribe con texto plano."""
-    result = runner.invoke(app, ["transcribe", "--audio", "test.wav", "--lang", "es"])
+    wav_path = write_sine_wave(tmp_path / "transcribe.text.wav")
+    result = runner.invoke(app, ["transcribe", "--audio", wav_path, "--lang", "es"])
     assert result.exit_code == 0
     assert "IPA (es):" in result.stdout
 
@@ -30,14 +33,16 @@ def test_cli_transcribe_missing_input() -> None:
     assert result.exit_code == 1
     assert "Error: Debes especificar --audio o --mic" in result.stdout
 
-def test_cli_compare_json() -> None:
+def test_cli_compare_json(tmp_path) -> None:
     """Verifica el stub del comando compare con JSON."""
-    result = runner.invoke(app, ["compare", "--audio", "test.wav", "--text", "hola", "--lang", "es", "--format", "json"])
+    wav_path = write_sine_wave(tmp_path / "compare.json.wav")
+    result = runner.invoke(app, ["compare", "--audio", wav_path, "--text", "hola", "--lang", "es", "--format", "json"])
     assert result.exit_code == 0
     assert '"per"' in result.stdout
 
-def test_cli_compare_text() -> None:
+def test_cli_compare_text(tmp_path) -> None:
     """Verifica el stub del comando compare con texto plano."""
-    result = runner.invoke(app, ["compare", "--audio", "test.wav", "--text", "hola", "--lang", "es"])
+    wav_path = write_sine_wave(tmp_path / "compare.text.wav")
+    result = runner.invoke(app, ["compare", "--audio", wav_path, "--text", "hola", "--lang", "es"])
     assert result.exit_code == 0
     assert "PER:" in result.stdout

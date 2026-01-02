@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import pytest
+from ipa_core.errors import ValidationError
 from ipa_core.pipeline.runner import run_pipeline
 
 from ipa_core.types import AudioInput, CompareResult
@@ -73,20 +74,19 @@ async def test_run_pipeline_uses_asr_tokens():
 
 
 @pytest.mark.asyncio
-async def test_run_pipeline_falls_back_to_raw_text():
+async def test_run_pipeline_rejects_raw_text():
     pre = _Preprocessor()
     asr = _ASR(tokens=None, raw_text=" a b ")
     textref = _TextRef()
     comp = _Comparator()
 
-    await run_pipeline(
-        pre,
-        asr,
-        textref,
-        comp,
-        audio={"path": "x.wav", "sample_rate": 16000, "channels": 1},
-        text="ab",
-        lang="es",
-    )
-
-    assert comp.last_hyp == ["a", "b"]
+    with pytest.raises(ValidationError):
+        await run_pipeline(
+            pre,
+            asr,
+            textref,
+            comp,
+            audio={"path": "x.wav", "sample_rate": 16000, "channels": 1},
+            text="ab",
+            lang="es",
+        )

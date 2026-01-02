@@ -21,6 +21,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
+from ipa_core.errors import ValidationError
 from ipa_core.ports.asr import ASRBackend
 from ipa_core.ports.compare import Comparator
 from ipa_core.ports.preprocess import Preprocessor
@@ -49,7 +50,7 @@ async def run_pipeline(
     asr_result = await asr.transcribe(processed_audio, lang=lang or None)
 
     # 3. Resolución y normalización de hipótesis
-    hyp_tokens = await _resolve_hyp_tokens(pre, textref, asr_result, lang)
+    hyp_tokens = await _resolve_hyp_tokens(pre, asr_result)
 
     # 4. Obtención y normalización de referencia
     tr_result = await textref.to_ipa(text, lang=lang or "")
@@ -62,20 +63,11 @@ async def run_pipeline(
 
 async def _resolve_hyp_tokens(
     pre: Preprocessor,
-    textref: TextRefProvider,
     asr_result: dict[str, Any],
-    lang: str,
 ) -> list[Token]:
-    """Extrae tokens del ASR o los deriva del texto plano si es necesario."""
+    """Extrae y normaliza tokens IPA del ASR."""
     tokens = asr_result.get("tokens")
     if tokens:
         res = await pre.normalize_tokens(tokens)
         return res.get("tokens", [])
-
-    raw_text = asr_result.get("raw_text", "")
-    if raw_text:
-        derived_res = await textref.to_ipa(raw_text, lang=lang or "")
-        res = await pre.normalize_tokens(derived_res.get("tokens", []))
-        return res.get("tokens", [])
-
-    return []
+    raise ValidationError("ASR no devolvió tokens IPA")

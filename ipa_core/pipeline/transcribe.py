@@ -3,7 +3,6 @@
 Flujo:
 - pre.process_audio(audio) → asr.transcribe
 - Si ASRResult.tokens: pre.normalize_tokens(tokens) → salida
-- Si solo ASRResult.raw_text: textref.to_ipa(raw_text, lang) → normalize
 """
 from __future__ import annotations
 
@@ -12,6 +11,7 @@ from typing import Optional
 from ipa_core.ports.asr import ASRBackend
 from ipa_core.ports.preprocess import Preprocessor
 from ipa_core.ports.textref import TextRefProvider
+from ipa_core.errors import ValidationError
 from ipa_core.types import AudioInput, Token
 
 
@@ -37,10 +37,4 @@ async def transcribe(
         norm_res = await pre.normalize_tokens(tokens)
         return norm_res.get("tokens", [])
 
-    raw = res.get("raw_text", "")
-    if raw:
-        tr_res = await textref.to_ipa(raw, lang=lang or "")
-        norm_res = await pre.normalize_tokens(tr_res.get("tokens", []))
-        return norm_res.get("tokens", [])
-
-    return []
+    raise ValidationError("ASR no devolvió tokens IPA")

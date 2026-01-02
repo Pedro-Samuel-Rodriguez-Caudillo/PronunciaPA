@@ -5,6 +5,7 @@
     *   **Core:** `ipa_core` (Lightweight, portable, dependency-free core)
     *   **Plugins:** `plugins/` (Dynamic discovery via entry points)
     *   **Server:** `ipa_server` (Independent FastAPI consumer)
+    *   **Plugin Management:** `importlib.metadata` (for discovery and metadata extraction)
 *   **Language:** Python >= 3.9 (utilizing strict type hints)
     *   *Note (2025-12-24): Lowered from 3.11 to 3.9 to match the execution environment.*
 *   **API Framework:** FastAPI

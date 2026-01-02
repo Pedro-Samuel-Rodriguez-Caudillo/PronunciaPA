@@ -1,0 +1,52 @@
+version: 1
+name: default
+languages:
+  en:
+    target: en-us
+    accents:
+      - id: en-us
+        label: English (US)
+        textref_lang: en-us
+        inventory: configs/ipa/inventory_en-us.yaml
+      - id: en-uk
+        label: English (UK)
+        textref_lang: en-uk
+    features:
+      - id: rhoticity
+        label: Rhoticity (r after vowels)
+        pairs:
+          - [ɹ, _]
+          - [ɚ, ə]
+          - [ɝ, ə]
+      - id: flapping
+        label: Flapping /t,d/
+        pairs:
+          - [ɾ, t]
+          - [ɾ, d]
+      - id: t_glottal
+        label: T-glottalization
+        pairs:
+          - [t, ʔ]
+  es:
+    target: es-mx
+    accents:
+      - id: es-mx
+        label: Español (MX)
+        textref_lang: es-la
+        inventory: configs/ipa/inventory_es-mx.yaml
+      - id: es-es
+        label: Español (ES)
+        textref_lang: es
+    features:
+      - id: distincion
+        label: Distinción /θ/ vs /s/
+        pairs:
+          - [s, θ]
+      - id: yeismo
+        label: Yeísmo (ʎ -> ʝ)
+        pairs:
+          - [ʝ, ʎ]
+      - id: aspiration
+        label: Aspiración /s/
+        pairs:
+          - [s, h]

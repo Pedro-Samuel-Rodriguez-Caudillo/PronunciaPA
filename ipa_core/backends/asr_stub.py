@@ -22,18 +22,22 @@ class StubASR(BasePlugin):
 
     def __init__(self, params: Optional[dict[str, Any]] = None) -> None:
         super().__init__()
+        params = params or {}
         self._tokens: list[Token] = ["h", "o", "l", "a"]
-        if params and isinstance(params.get("stub_tokens"), list):
+        if isinstance(params.get("stub_tokens"), list):
             self._tokens = [str(t) for t in params["stub_tokens"]]
-        
+
         self._model_path = Path(params.get("model_path", "data/models/stub_model.bin"))
+        self._download_stub = bool(params.get("download_stub"))
 
     async def setup(self) -> None:
         """Simula la verificación/descarga de activos."""
+        if not self._download_stub:
+            return
         await self.model_manager.ensure_model(
             name="Stub Model",
             local_path=self._model_path,
-            download_url="https://example.com/models/stub.bin" # Mock URL
+            download_url="https://example.com/models/stub.bin",
         )
 
     async def transcribe(self, audio: AudioInput, *, lang: Optional[str] = None, **kw) -> ASRResult:  # noqa: D401

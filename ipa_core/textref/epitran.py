@@ -6,6 +6,7 @@ from typing import Any, Callable, Dict, Optional
 
 from ipa_core.errors import NotReadyError
 from ipa_core.plugins.base import BasePlugin
+from ipa_core.textref.tokenize import tokenize_ipa
 from ipa_core.types import TextRefResult
 
 
@@ -56,18 +57,21 @@ class EpitranTextRef(BasePlugin):
         code = self._resolve_code(lang)
         model = self._get_model(code)
         tokens = self._transliterate(model, text)
-        clean_tokens = [token for token in tokens if token.strip()]
+        if isinstance(tokens, str):
+            clean_tokens = tokenize_ipa(tokens)
+        else:
+            clean_tokens = [token for token in tokens if token.strip()]
         return {"tokens": clean_tokens, "meta": {"method": "epitran", "code": code}}
 
     @staticmethod
-    def _transliterate(model: Any, text: str) -> list[str]:
+    def _transliterate(model: Any, text: str) -> list[str] | str:
         if hasattr(model, "trans_list"):
             try:
                 return list(model.trans_list(text))
             except AttributeError:  # pragma: no cover - fallback dinámico
                 pass
         transliterated = model.transliterate(text)  # pragma: no cover - fallback
-        return [ch for ch in transliterated if not ch.isspace()]
+        return transliterated
 
 
 __all__ = ["EpitranTextRef"]

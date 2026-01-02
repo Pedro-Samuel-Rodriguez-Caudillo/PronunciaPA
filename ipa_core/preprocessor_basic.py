@@ -7,6 +7,7 @@ Implementa el contrato `Preprocessor` con reglas mínimas:
 from __future__ import annotations
 
 from typing import Any
+import unicodedata
 
 from ipa_core.errors import ValidationError
 from ipa_core.plugins.base import BasePlugin
@@ -40,10 +41,10 @@ class BasicPreprocessor(BasePlugin):
         return {"audio": dict(audio), "meta": {"preprocessor": "basic", "audio_valid": True}}  # type: ignore
 
     async def normalize_tokens(self, tokens: TokenSeq, **kw: Any) -> PreprocessorResult:  # noqa: D401
-        """Aplicar strip/lower y descartar tokens vacíos para mantener idempotencia."""
+        """Aplicar strip/NFC y descartar tokens vacíos para mantener idempotencia."""
         out: list[Token] = []
         for token in tokens:
-            normalized = str(token).strip().lower()
+            normalized = unicodedata.normalize("NFC", str(token).strip())
             if normalized:
                 out.append(normalized)
         return {"tokens": out, "meta": {"preprocessor": "basic", "count": len(out)}}

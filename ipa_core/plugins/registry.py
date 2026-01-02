@@ -76,9 +76,13 @@ def _register_defaults() -> None:
     """Registra las implementaciones por defecto incluidas en el core."""
     # ASR
     from ipa_core.backends.asr_stub import StubASR
+    from ipa_core.plugins.asr_onnx import ONNXASRPlugin
     register("asr", "stub", StubASR)
     register("asr", "fake", StubASR)
     register("asr", "default", StubASR)  # En el core ligero, el default es el stub
+    register("asr", "onnx", lambda p: ONNXASRPlugin(p))
+    register("asr", "whisper_onnx", lambda p: ONNXASRPlugin(p))
+    register("asr", "whisper", lambda p: ONNXASRPlugin(p))
 
     # TextRef
     from ipa_core.textref.epitran import EpitranTextRef
@@ -248,4 +252,3 @@ def validate_plugin(category: str, plugin_cls: type) -> tuple[bool, list[str]]:
 
 
     return len(errors) == 0, errors
-

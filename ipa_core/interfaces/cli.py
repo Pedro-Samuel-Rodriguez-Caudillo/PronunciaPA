@@ -5,16 +5,20 @@ y comparación fonética.
 """
 from __future__ import annotations
 import asyncio
-import json
-from typing import Optional, List
+from typing import Optional
 from enum import Enum
 import typer
 from rich.console import Console
 from rich.table import Table
+from ipa_core.analysis import accent as accent_analysis
+from ipa_core.audio.files import ensure_wav, cleanup_temp
+from ipa_core.audio.microphone import record
+from ipa_core.backends.audio_io import to_audio_input
 from ipa_core.config import loader
+from ipa_core.errors import FileNotFound, NotReadyError, UnsupportedFormat, ValidationError
 from ipa_core.kernel.core import create_kernel, Kernel
+from ipa_core.pipeline.transcribe import transcribe as transcribe_pipeline
 from ipa_core.types import AudioInput
-from ipa_core.plugins import registry
 
 app = typer.Typer(help="PronunciaPA: Reconocimiento y evaluación fonética")
 config_app = typer.Typer(help="Gestión de configuración")
@@ -45,11 +49,10 @@ def _get_kernel() -> Kernel:
         raise typer.Exit(code=1)
 
 
-async def _transcribe_async(kernel: Kernel, audio_in: AudioInput, lang: str) -> dict:
+async def _transcribe_async(kernel: Kernel, audio_in: AudioInput, lang: str) -> list[str]:
     await kernel.setup()
     try:
-        processed = await kernel.pre.process_audio(audio_in)
-        return await kernel.asr.transcribe(processed, lang=lang)
+        return await transcribe_pipeline(kernel.pre, kernel.asr, kernel.textref, audio=audio_in, lang=lang)
     finally:
         await kernel.teardown()
 
@@ -68,20 +71,34 @@ def transcribe(
         raise typer.Exit(code=1)
 
     kernel = _get_kernel()
-    audio_in: AudioInput = {"path": audio or "microphone", "sample_rate": 16000, "channels": 1}
-    
-    with console.status("[bold green]Transcribiendo..."):
-        res = asyncio.run(_transcribe_async(kernel, audio_in, lang))
+    wav_path = ""
+    tmp_audio = False
+    try:
+        if mic:
+            wav_path, _ = record(seconds=seconds)
+            tmp_audio = True
+        else:
+            wav_path, tmp_audio = ensure_wav(audio)
+        audio_in = to_audio_input(wav_path)
+
+        with console.status("[bold green]Transcribiendo..."):
+            tokens = asyncio.run(_transcribe_async(kernel, audio_in, lang))
+    except (ValidationError, UnsupportedFormat, FileNotFound, FileNotFoundError, NotReadyError) as e:
+        console.print(f"Error: {e}", style="red")
+        raise typer.Exit(code=1)
+    finally:
+        if tmp_audio and wav_path:
+            cleanup_temp(wav_path)
 
     if json_output:
         console.print_json(data={
-            "ipa": " ".join(res["tokens"]),
-            "tokens": res["tokens"],
+            "ipa": " ".join(tokens),
+            "tokens": tokens,
             "lang": lang,
             "audio": audio_in
         })
     else:
-        console.print(f"IPA ({lang}): [bold cyan]{' '.join(res['tokens'])}[/bold cyan]")
+        console.print(f"IPA ({lang}): [bold cyan]{' '.join(tokens)}[/bold cyan]")
 
 
 def _print_compare_table(res: dict):
@@ -120,33 +137,213 @@ def _print_compare_aligned(res: dict):
     console.print(hyp_line)
 
 
+def _print_accent_ranking(ranking: list[dict]) -> None:
+    if not ranking:
+        return
+    table = Table(title="Acento (confianza)")
+    table.add_column("Acento", style="cyan")
+    table.add_column("PER", justify="right")
+    table.add_column("Confianza", justify="right")
+    for item in ranking:
+        table.add_row(
+            item.get("label", item.get("accent", "")),
+            f"{item['per']:.2%}",
+            f"{item['confidence'] * 100:.1f}%",
+        )
+    console.print(table)
+
+
+def _print_accent_features(features: list[dict]) -> None:
+    if not features:
+        return
+    table = Table(title="Rasgos de acento")
+    table.add_column("Rasgo", style="magenta")
+    table.add_column("Coincidencias", justify="right")
+    table.add_column("Detalles")
+    for feature in features:
+        variants = feature.get("variants", [])
+        details = ", ".join(
+            f"{v['target']}→{v['alt'] or '_'} x{v['count']}" for v in variants
+        ) or "-"
+        table.add_row(
+            feature.get("label", feature.get("id", "")),
+            str(feature.get("matches", 0)),
+            details,
+        )
+    console.print(table)
+
+
+def _print_feedback(feedback: list[dict]) -> None:
+    if not feedback:
+        return
+    table = Table(title="Feedback (ref → hyp)")
+    table.add_column("Referencia", style="green")
+    table.add_column("Hipótesis", style="cyan")
+    table.add_column("Veces", justify="right")
+    for item in feedback:
+        table.add_row(str(item["ref"]), str(item["hyp"]), str(item["count"]))
+    console.print(table)
+
+
 @app.command()
 def compare(
     audio: str = typer.Option(..., "--audio", "-a", help="Ruta al archivo de audio"),
     text: str = typer.Option(..., "--text", "-t", help="Texto de referencia"),
     lang: str = typer.Option("es", "--lang", "-l", help="Idioma objetivo"),
     output_format: OutputFormat = typer.Option(OutputFormat.table, "--format", "-f", help="Formato de salida"),
+    accent_profile: Optional[str] = typer.Option(None, "--accent-profile", help="Ruta o nombre del perfil de acentos"),
+    accent_target: Optional[str] = typer.Option(None, "--accent-target", help="ID del acento objetivo"),
+    show_accent: bool = typer.Option(True, "--show-accent/--no-accent", help="Mostrar ranking de acento"),
+    strict_ipa: bool = typer.Option(True, "--strict-ipa/--allow-textref", help="Requerir IPA directa del ASR"),
 ):
     """Compara el audio contra un texto de referencia y evalúa la pronunciación."""
     kernel = _get_kernel()
-    audio_in: AudioInput = {"path": audio, "sample_rate": 16000, "channels": 1}
-    
+    wav_path = ""
+    tmp_audio = False
+    lang_key = (lang or "").split("-")[0]
+    language_profile: dict | None = None
+    accents: list[dict] = []
+    features: list[dict] = []
+    target_accent_id = accent_target
+    target_ref_lang = lang
+    accent_labels: dict[str, str] = {}
+
+    if show_accent:
+        try:
+            loaded_profile = accent_analysis.load_profile(accent_profile)
+            language_profile = loaded_profile.get("languages", {}).get(lang_key)
+        except FileNotFoundError as exc:
+            console.print(f"Warning: {exc}", style="yellow")
+            show_accent = False
+
+    if language_profile:
+        accents = language_profile.get("accents", [])
+        features = language_profile.get("features", [])
+        if not target_accent_id:
+            target_accent_id = language_profile.get("target")
+        if not target_accent_id and accents:
+            target_accent_id = accents[0].get("id")
+        for accent in accents:
+            accent_id = accent.get("id")
+            if not accent_id:
+                continue
+            accent_labels[accent_id] = accent.get("label", accent_id)
+            if accent_id == target_accent_id:
+                target_ref_lang = accent.get("textref_lang", lang)
+
+    try:
+        wav_path, tmp_audio = ensure_wav(audio)
+        audio_in = to_audio_input(wav_path)
+    except (ValidationError, UnsupportedFormat, FileNotFound, FileNotFoundError, NotReadyError) as e:
+        console.print(f"Error: {e}", style="red")
+        raise typer.Exit(code=1)
+
     async def _run_compare():
         await kernel.setup()
         try:
-            return await kernel.run(audio=audio_in, text=text, lang=lang)
+            pre_audio_res = await kernel.pre.process_audio(audio_in)
+            processed_audio = pre_audio_res.get("audio", audio_in)
+            asr_result = await kernel.asr.transcribe(processed_audio, lang=lang)
+            hyp_tokens = asr_result.get("tokens")
+            if not hyp_tokens and not strict_ipa:
+                raw_text = asr_result.get("raw_text", "")
+                if raw_text:
+                    tr_res = await kernel.textref.to_ipa(raw_text, lang=lang or "")
+                    hyp_tokens = tr_res.get("tokens", [])
+            if not hyp_tokens:
+                raise ValidationError("ASR no devolvió tokens IPA")
+
+            hyp_pre_res = await kernel.pre.normalize_tokens(hyp_tokens)
+            hyp_tokens = hyp_pre_res.get("tokens", [])
+
+            async def _ref_tokens(lang_code: str) -> list[str]:
+                try:
+                    tr_res = await kernel.textref.to_ipa(text, lang=lang_code or "")
+                except (ValidationError, NotReadyError):
+                    if lang_code != lang:
+                        tr_res = await kernel.textref.to_ipa(text, lang=lang or "")
+                    else:
+                        raise
+                norm_res = await kernel.pre.normalize_tokens(tr_res.get("tokens", []))
+                return norm_res.get("tokens", [])
+
+            ref_tokens = await _ref_tokens(target_ref_lang)
+            compare_res = await kernel.comp.compare(ref_tokens, hyp_tokens)
+
+            feedback = accent_analysis.build_feedback(compare_res.get("ops", []))
+            accent_payload = None
+
+            if show_accent and accents:
+                per_by_accent: dict[str, float] = {}
+                accent_results: dict[str, dict] = {}
+                for accent in accents:
+                    accent_id = accent.get("id")
+                    if not accent_id:
+                        continue
+                    accent_lang = accent.get("textref_lang", lang)
+                    accent_ref = await _ref_tokens(accent_lang)
+                    accent_res = await kernel.comp.compare(accent_ref, hyp_tokens)
+                    accent_results[accent_id] = accent_res
+                    per_by_accent[accent_id] = accent_res["per"]
+                ranking = accent_analysis.rank_accents(per_by_accent, accent_labels)
+                target_res = accent_results.get(target_accent_id) if target_accent_id else None
+                feature_data = accent_analysis.extract_features(
+                    target_res.get("alignment", []) if target_res else [],
+                    features,
+                )
+                accent_payload = {
+                    "target": target_accent_id,
+                    "ranking": ranking,
+                    "features": feature_data,
+                }
+
+            result = dict(compare_res)
+            result.update(
+                {
+                    "ref": {
+                        "tokens": ref_tokens,
+                        "ipa": " ".join(ref_tokens),
+                        "lang": target_ref_lang,
+                    },
+                    "hyp": {
+                        "tokens": hyp_tokens,
+                        "ipa": " ".join(hyp_tokens),
+                    },
+                    "feedback": feedback,
+                }
+            )
+            if accent_payload:
+                result["accent"] = accent_payload
+            return result
         finally:
             await kernel.teardown()
 
-    with console.status("[bold green]Procesando comparación..."):
-        res = asyncio.run(_run_compare())
+    try:
+        with console.status("[bold green]Procesando comparación..."):
+            res = asyncio.run(_run_compare())
+    except (ValidationError, UnsupportedFormat, FileNotFound, FileNotFoundError, NotReadyError) as e:
+        console.print(f"Error: {e}", style="red")
+        raise typer.Exit(code=1)
+    finally:
+        if tmp_audio and wav_path:
+            cleanup_temp(wav_path)
 
     if output_format == OutputFormat.json:
         console.print_json(data=res)
     elif output_format == OutputFormat.aligned:
         _print_compare_aligned(res)
+        _print_feedback(res.get("feedback", []))
+        if show_accent:
+            accent_data = res.get("accent", {})
+            _print_accent_ranking(accent_data.get("ranking", []))
+            _print_accent_features(accent_data.get("features", []))
     else:
         _print_compare_table(res)
+        _print_feedback(res.get("feedback", []))
+        if show_accent:
+            accent_data = res.get("accent", {})
+            _print_accent_ranking(accent_data.get("ranking", []))
+            _print_accent_features(accent_data.get("features", []))
 
 
 @config_app.command("show")
@@ -166,7 +363,7 @@ from ipa_core.plugins import registry, discovery
 @plugin_app.command("list")
 def plugin_list():
     """Lista los plugins instalados y su metadata básica."""
-    table = Table(title="Plugins Instalados")
+    table = Table(title="Plugins Registrados")
     table.add_column("Categoría", style="bold magenta")
     table.add_column("Nombre", style="cyan")
     table.add_column("Versión", style="green")
@@ -337,25 +534,34 @@ def cli_transcribe(audio: Optional[str], lang: str = "es", use_mic: bool = False
     """Wrapper para compatibilidad con tests antiguos."""
     if not use_mic and not audio:
         raise ValueError("Debes especificar audio o mic")
-        
+
     kernel = _get_kernel()
     # Si se especificó un textref por parámetro, sobreescribir el del kernel para el test
     if textref:
         from ipa_core.plugins import registry
         kernel.textref = registry.resolve_textref(textref, {"default_lang": lang})
-        
-    audio_in: AudioInput = {"path": audio or "microphone", "sample_rate": 16000, "channels": 1}
-    
+
+    wav_path = ""
+    tmp_audio = False
+    if use_mic:
+        wav_path, _ = record(seconds=seconds)
+        tmp_audio = True
+    else:
+        wav_path, tmp_audio = ensure_wav(audio)
+    audio_in = to_audio_input(wav_path)
+
     async def _run():
         await kernel.setup()
         try:
-            processed = await kernel.pre.process_audio(audio_in)
-            res = await kernel.asr.transcribe(processed, lang=lang)
-            return res["tokens"]
+            return await transcribe_pipeline(kernel.pre, kernel.asr, kernel.textref, audio=audio_in, lang=lang)
         finally:
             await kernel.teardown()
-            
-    return asyncio.run(_run())
+
+    try:
+        return asyncio.run(_run())
+    finally:
+        if tmp_audio and wav_path:
+            cleanup_temp(wav_path)
 
 
 if __name__ == "__main__":

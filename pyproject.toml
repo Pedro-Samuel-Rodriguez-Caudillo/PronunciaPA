@@ -30,6 +30,12 @@ speech = [
     "pydub>=0.25.1,<1",
     "epitran>=1.24,<2",
 ]
+onnx = [
+    "onnxruntime>=1.16,<2",
+    "librosa>=0.10,<1",
+    "soundfile>=0.12,<1",
+    "numpy>=1.26,<3",
+]
 
 [project.scripts]
 pronunciapa = "ipa_core.interfaces.cli:main"
@@ -48,4 +54,7 @@ warn_unused_ignores = true
 [project.entry-points."pronunciapa.plugins"]
 "asr.stub_ep" = "ipa_core.backends.asr_stub:StubASR"
 "asr.allosaurus" = "ipa_plugin_allosaurus.backend:AllosaurusASR"
+"asr.onnx" = "ipa_core.plugins.asr_onnx:ONNXASRPlugin"
+"asr.whisper_onnx" = "ipa_core.plugins.asr_onnx:ONNXASRPlugin"
+"asr.whisper" = "ipa_core.plugins.asr_onnx:ONNXASRPlugin"
 

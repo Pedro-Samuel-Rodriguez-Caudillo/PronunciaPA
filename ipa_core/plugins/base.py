@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ipa_core.plugins.models import ModelManager
+    from ipa_core.plugins.model_manager import ModelManager
 
 
 class BasePlugin:
@@ -21,7 +21,7 @@ class BasePlugin:
     def model_manager(self) -> ModelManager:
         """Retorna el gestor de modelos, inicializándolo si es necesario."""
         if self._model_manager is None:
-            from ipa_core.plugins.models import ModelManager
+            from ipa_core.plugins.model_manager import ModelManager
             self._model_manager = ModelManager()
         return self._model_manager
 

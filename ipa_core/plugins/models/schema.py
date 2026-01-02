@@ -13,6 +13,7 @@ class ModelConfig(BaseModel):
     sample_rate: int
     labels: List[str]
     architecture: Optional[str] = "unknown"
+    blank_id: Optional[int] = 0
 
     @field_validator("sample_rate")
     @classmethod

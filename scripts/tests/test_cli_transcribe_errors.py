@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import pytest
+from tests.utils.audio import write_sine_wave
 
 from ipa_core.interfaces import cli
 
@@ -35,10 +36,9 @@ def test_cli_transcribe_passes_textref_to_service(monkeypatch, tmp_path):
 
     monkeypatch.setattr(registry, "resolve_asr", lambda *a, **k: FakeASR())
 
-    audio = tmp_path / "dummy.wav"
-    audio.write_bytes(b"\x00")
+    wav_path = write_sine_wave(tmp_path / "dummy.wav")
 
-    tokens = cli.cli_transcribe(str(audio), lang="es", textref="espeak")
+    tokens = cli.cli_transcribe(str(wav_path), lang="es", textref="espeak")
 
     assert tokens == ["i", "p", "a"]
     assert called["textref"] == "espeak"

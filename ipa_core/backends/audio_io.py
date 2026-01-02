@@ -35,7 +35,7 @@ def sniff_wav(path: str) -> WavInfo:
             sr = w.getframerate()
             ch = w.getnchannels()
             return WavInfo(path=path, sample_rate=sr, channels=ch)
-    except wave.Error as e:  # type: ignore[no-redef]
+    except (wave.Error, EOFError) as e:  # type: ignore[no-redef]
         raise UnsupportedFormat(f"Formato no soportado o WAV inválido: {path}") from e
 
 

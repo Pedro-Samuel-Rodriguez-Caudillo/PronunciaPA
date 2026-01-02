@@ -1,8 +1,7 @@
 """Tests para el gestor de modelos."""
 from __future__ import annotations
 import pytest
-from pathlib import Path
-from ipa_core.plugins.models import ModelManager
+from ipa_core.plugins.model_manager import ModelManager
 
 @pytest.mark.asyncio
 async def test_model_manager_ensure_model_exists(tmp_path) -> None:
@@ -17,14 +16,17 @@ async def test_model_manager_ensure_model_exists(tmp_path) -> None:
 
 @pytest.mark.asyncio
 async def test_model_manager_download_simulation(tmp_path) -> None:
-    """Verifica la simulación de descarga."""
+    """Verifica la descarga desde archivo local."""
     manager = ModelManager()
     model_file = tmp_path / "subdir" / "new_model.bin"
-    
-    await manager.ensure_model("test", model_file, download_url="http://example.com")
-    
+
+    source = tmp_path / "source.bin"
+    source.write_bytes(b"data")
+    await manager.ensure_model("test", model_file, download_url=source.as_uri())
+
     assert model_file.exists()
     assert model_file.parent.name == "subdir"
+    assert model_file.read_bytes() == b"data"
 
 @pytest.mark.asyncio
 async def test_model_manager_fails_no_url(tmp_path) -> None:

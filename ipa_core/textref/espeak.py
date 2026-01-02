@@ -8,6 +8,7 @@ from typing import Any, Optional
 
 from ipa_core.errors import NotReadyError, ValidationError
 from ipa_core.plugins.base import BasePlugin
+from ipa_core.textref.tokenize import tokenize_ipa
 from ipa_core.types import TextRefResult
 
 
@@ -72,8 +73,8 @@ class EspeakTextRef(BasePlugin):
                 raise
             raise ValidationError(f"Error al ejecutar eSpeak: {exc}") from exc
             
-        tokens = [tok for tok in output.replace("\n", " ").split() if tok]
-        return {"tokens": tokens, "meta": {"method": "espeak", "voice": voice}}
+        tokens = tokenize_ipa(output)
+        return {"tokens": tokens, "meta": {"method": "espeak", "voice": voice}} 
 
 
 __all__ = ["EspeakTextRef"]

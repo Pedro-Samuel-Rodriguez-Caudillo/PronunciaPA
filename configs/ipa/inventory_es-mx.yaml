@@ -1,0 +1,56 @@
+version: 1
+language: es
+accent: es-mx
+description: "Inventario IPA base para ES-MX (optimización opcional)."
+inventory:
+  consonants:
+    - p
+    - b
+    - t
+    - d
+    - k
+    - g
+    - m
+    - n
+    - ɲ
+    - f
+    - s
+    - x
+    - ʝ
+    - tʃ
+    - r
+    - ɾ
+    - l
+    - j
+    - w
+    - β
+    - ð
+    - ɣ
+  vowels:
+    - i
+    - e
+    - a
+    - o
+    - u
+  diphthongs:
+    - ai
+    - ei
+    - oi
+    - au
+    - eu
+    - iu
+  diacritics:
+    - ː
+    - ˑ
+    - ˈ
+    - ˌ
+    - ̃
+    - ̥
+    - ̩
+    - ̚
+  suprasegmentals:
+    - ˈ
+    - ˌ
+    - .
+    - "|"
+    - ‖

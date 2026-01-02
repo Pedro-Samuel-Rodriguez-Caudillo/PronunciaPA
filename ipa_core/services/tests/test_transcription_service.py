@@ -33,20 +33,21 @@ async def test_transcription_service_falls_back_to_espeak_when_epitran_missing(m
                 class FakeEspeak:
                     async def setup(self): pass
                     async def teardown(self): pass
-                    async def to_ipa(self, text: str, *, lang: str, **kw):
+                    async def to_ipa(self, text: str, *, lang: str, **kw):      
                         return {"tokens": ["f", "a", "k", "e"]}
                 return FakeEspeak()
         return registry.resolve(category, name, params)
 
     monkeypatch.setattr(registry, "resolve", mock_resolve)
 
-    class RawOnlyASR:
+    class TokenASR:
         async def setup(self): pass
         async def teardown(self): pass
         async def transcribe(self, audio, *, lang=None, **kw):
-            return {"raw_text": "hola"}
+            return {"tokens": ["h", "o", "l", "a"]}
 
-    service = TranscriptionService(default_lang="es", asr=RawOnlyASR(), textref_name="epitran")
+    service = TranscriptionService(default_lang="es", asr=TokenASR(), textref_name="epitran")
+    assert service.textref.__class__.__name__ == "FakeEspeak"
     payload = await service.transcribe_file(wav_path)
 
-    assert payload.tokens == ["f", "a", "k", "e"]
+    assert payload.tokens == ["h", "o", "l", "a"]
