@@ -24,8 +24,9 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-## [~] Track: Quality & Benchmarks
-*Link: [./conductor/tracks/quality_benchmarks_20260102/](./conductor/tracks/quality_benchmarks_20260102/)*
+## [ ] Track: Real ONNX Model Integration
+*Link: [./conductor/tracks/real_onnx_model_20260102/](./conductor/tracks/real_onnx_model_20260102/)*
+
 
 
 
