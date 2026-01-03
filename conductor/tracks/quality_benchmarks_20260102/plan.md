@@ -13,11 +13,9 @@ Create the tools necessary to run reproducible performance tests.
 ## Phase 2: CLI Benchmark Command [checkpoint: b5de80b]
 Expose the benchmarking tools to the user.
 
-- [ ] **Task: TDD - CLI 'benchmark' Command**
-    - Implement `pronunciapa benchmark --dataset <path> --model <name>`.
-    - Output a rich table with PER (min/max/avg), RTF, and total duration.
+- [x] **Task: TDD - CLI 'benchmark' Command** [2318299]
 
-## Phase 3: Baseline Report
+## Phase 3: Baseline Report [checkpoint: 2318299]
 Run the benchmark on a standard sample and document the results.
 
 - [ ] **Task: Run & Document Baseline**
