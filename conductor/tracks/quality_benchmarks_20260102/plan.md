@@ -5,7 +5,7 @@ Objective: Establish a baseline for system performance by measuring accuracy (Ph
 ## Phase 1: Benchmark Infrastructure
 Create the tools necessary to run reproducible performance tests.
 
-- [ ] **Task: TDD - Dataset Loader**
+- [x] **Task: TDD - Dataset Loader** [c3722f0]
     - Implement a utility to load a "golden set" of audio/transcript pairs (e.g., from Common Voice or a local folder).
     - Support standard formats (CSV/JSON manifest).
 - [ ] **Task: TDD - Metrics Calculator**
