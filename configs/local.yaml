@@ -1,11 +1,30 @@
+# Configuración local para PronunciaPA
 version: 1
+
+# Preprocesamiento
 preprocessor:
-  name: default
+  name: basic
+
+# Backend ASR (Wav2Vec2 ONNX)
 backend:
-  name: stub
+  name: onnx
+  params:
+    model_name: wav2vec2-xls-r-300m
+    # Si el modelo no existe, intentar descargarlo de esta ubicación (ejemplo):
+    # En producción, esto debería ser un link estable a un bucket S3 o release de GitHub
+    download_url: https://huggingface.co/optimum/wav2vec2-xls-r-300m-quantized/resolve/main/model.onnx
+    config_url: https://huggingface.co/optimum/wav2vec2-xls-r-300m-quantized/resolve/main/config.json
+    # Wav2Vec2 specific
+    input_name: audio
+    output_name: logits
+
+# Conversión Grapheme-to-IPA (por defecto, o usar espeak/epitran si se instalan)
 textref:
-  name: default
+  name: grapheme
+
+# Comparador
 comparator:
-  name: default
+  name: levenshtein
+
 options:
   lang: es
