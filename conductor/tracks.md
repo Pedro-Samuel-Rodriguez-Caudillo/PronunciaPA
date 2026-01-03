@@ -24,8 +24,9 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-## [ ] Track: Real ONNX Model Integration
-*Link: [./conductor/tracks/real_onnx_model_20260102/](./conductor/tracks/real_onnx_model_20260102/)*
+## [ ] Track: Cross-Platform Client (Flutter)
+*Link: [./conductor/tracks/flutter_client_20260103/](./conductor/tracks/flutter_client_20260103/)*
+
 
 
 
