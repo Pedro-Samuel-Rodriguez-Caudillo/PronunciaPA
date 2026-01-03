@@ -12,7 +12,7 @@ Upgrade the plugin to support standard HuggingFace/Wav2Vec2 vocabulary formats.
 ## Phase 2: Model Configuration & Assets
 Configure the system to download and use a real pre-trained model.
 
-- [ ] **Task: Select & Configure Model**
+- [~] **Task: Select & Configure Model**
     - Choose a lightweight, open-license ONNX model (e.g., a quantized Wav2Vec2-XLS-R or Silero model).
     - Create the corresponding `config.json` defining its input shapes and sample rates.
     - Update `configs/local.yaml` to point to this model by default.
