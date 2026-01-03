@@ -21,6 +21,7 @@ PronunciaPA is an open-source, community-driven platform designed to help langua
 *   **ASR to IPA Pipeline:** Efficiently convert recorded audio or files into precise IPA phonetic transcriptions.
 *   **Pronunciation Comparison:** Align and compare user-generated IPA tokens against reference transcriptions using algorithms like Levenshtein distance.
 *   **Detailed Error Highlighting:** Visually pinpoint specific phonetic discrepancies to guide the user's improvement.
+*   **Offline First Operation:** Manage and execute downloaded phonetic models locally using ONNX, ensuring privacy and reliability without an internet connection.
 *   **Plugin System:** A robust mechanism for adding new languages, ASR backends (like Allosaurus), and Text-to-IPA providers (like Epitran or eSpeak).
 
 ## Future Roadmap

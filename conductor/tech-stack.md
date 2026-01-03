@@ -14,7 +14,8 @@
     *   **ASR:** Allosaurus (as primary backend)
     *   **Text-to-IPA:** Epitran, eSpeak-ng
     *   **Comparison:** Custom Levenshtein-based alignment logic
-*   **Audio Handling:** Sounddevice, NumPy, Pydub, ffmpeg
+    *   **Offline Inference:** ONNX Runtime
+*   **Audio Handling:** Sounddevice, NumPy, Pydub, librosa, ffmpeg
 
 ## Frontend
 *   **Environment:** Node.js (Vite)
