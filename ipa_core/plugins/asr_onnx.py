@@ -77,7 +77,18 @@ class ONNXASRPlugin(BasePlugin):
 
         data = json.loads(config_path.read_text(encoding="utf-8"))
         self._config = ModelConfig(**data)
-        self._labels = list(self._config.labels)
+        
+        # Load labels: try vocab.json first, then config.labels
+        vocab_path = model_path.parent / "vocab.json"
+        if vocab_path.exists():
+            vocab = json.loads(vocab_path.read_text(encoding="utf-8"))
+            # Wav2Vec2 vocab is "char": id. Sort by ID to create list.
+            sorted_items = sorted(vocab.items(), key=lambda item: item[1])
+            # Ensure continuity? Assuming 0..N for now
+            self._labels = [char for char, _ in sorted_items]
+        else:
+            self._labels = list(self._config.labels)
+            
         blank_id = self._blank_id if self._blank_id is not None else getattr(self._config, "blank_id", 0)
         self._blank_id = int(blank_id)
 
