@@ -15,11 +15,7 @@ Expose the benchmarking tools to the user.
 
 - [x] **Task: TDD - CLI 'benchmark' Command** [2318299]
 
-## Phase 3: Baseline Report [checkpoint: 2318299]
-Run the benchmark on a standard sample and document the results.
+- [x] **Task: Run & Document Baseline** [3911927]
+- [~] **Task: Conductor - User Manual Verification 'Quality & Benchmarks' (Protocol in workflow.md)**
 
-- [ ] **Task: Run & Document Baseline**
-    - Create a small sample dataset (or download one).
-    - Run the benchmark.
-    - Commit a `BENCHMARKS.md` file with the results.
-- [ ] **Task: Conductor - User Manual Verification 'Quality & Benchmarks' (Protocol in workflow.md)**
+## Phase 3: Baseline Report [checkpoint: 3911927]
