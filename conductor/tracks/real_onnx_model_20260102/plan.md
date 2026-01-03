@@ -5,7 +5,7 @@ Objective: Integrate a functional, production-grade ONNX model (Wav2Vec2/Silero)
 ## Phase 1: Enhanced Tokenization
 Upgrade the plugin to support standard HuggingFace/Wav2Vec2 vocabulary formats.
 
-- [ ] **Task: TDD - Vocab.json Support**
+- [x] **Task: TDD - Vocab.json Support** [cd30d74]
     - Update `ONNXASRPlugin` to load labels from a `vocab.json` (dict of "token": id) file, not just a simple list.
     - Handle special tokens (pad/blank/unk) more robustly.
 
