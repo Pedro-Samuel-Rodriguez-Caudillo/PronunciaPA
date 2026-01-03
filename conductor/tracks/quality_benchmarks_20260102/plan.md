@@ -8,11 +8,9 @@ Create the tools necessary to run reproducible performance tests.
 - [x] **Task: TDD - Dataset Loader** [c3722f0]
     - Implement a utility to load a "golden set" of audio/transcript pairs (e.g., from Common Voice or a local folder).
     - Support standard formats (CSV/JSON manifest).
-- [ ] **Task: TDD - Metrics Calculator**
-    - Refine existing Levenshtein comparator to ensure it provides thread-safe, high-performance PER calculations.
-    - Implement an RTF (Real-Time Factor) timer utility.
+- [x] **Task: TDD - Metrics Calculator** [b5de80b]
 
-## Phase 2: CLI Benchmark Command
+## Phase 2: CLI Benchmark Command [checkpoint: b5de80b]
 Expose the benchmarking tools to the user.
 
 - [ ] **Task: TDD - CLI 'benchmark' Command**
