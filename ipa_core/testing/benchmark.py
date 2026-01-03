@@ -43,4 +43,39 @@ class DatasetLoader:
                     
         return samples
 
-__all__ = ["DatasetLoader"]
+class MetricsCalculator:
+    """Calcula métricas agregadas (PER, RTF) a partir de resultados individuales."""
+
+    def calculate_summary(self, results: List[dict[str, Any]]) -> dict[str, float]:
+        """Calcula promedios y extremos de PER y RTF.
+        
+        Parámetros
+        ----------
+        results : List[dict]
+            Lista de diccionarios con 'per', 'proc_time' y 'audio_duration'.
+            
+        Retorna
+        -------
+        dict[str, float]
+            Resumen con avg_per, min_per, max_per y avg_rtf.
+        """
+        if not results:
+            return {"avg_per": 0.0, "min_per": 0.0, "max_per": 0.0, "avg_rtf": 0.0}
+
+        pers = [r["per"] for r in results if "per" in r]
+        
+        rtfs = []
+        for r in results:
+            proc = r.get("proc_time")
+            dur = r.get("audio_duration")
+            if proc is not None and dur and dur > 0:
+                rtfs.append(proc / dur)
+
+        return {
+            "avg_per": sum(pers) / len(pers) if pers else 0.0,
+            "min_per": min(pers) if pers else 0.0,
+            "max_per": max(pers) if pers else 0.0,
+            "avg_rtf": sum(rtfs) / len(rtfs) if rtfs else 0.0
+        }
+
+__all__ = ["DatasetLoader", "MetricsCalculator"]
