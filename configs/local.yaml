@@ -5,22 +5,30 @@ version: 1
 preprocessor:
   name: basic
 
-# Backend ASR (Wav2Vec2 ONNX)
+# Backend ASR (Allosaurus IPA)
 backend:
-  name: onnx
+  name: allosaurus
   params:
-    model_name: wav2vec2-xls-r-300m
-    # Si el modelo no existe, intentar descargarlo de esta ubicación (ejemplo):
-    # En producción, esto debería ser un link estable a un bucket S3 o release de GitHub
-    download_url: https://huggingface.co/optimum/wav2vec2-xls-r-300m-quantized/resolve/main/model.onnx
-    config_url: https://huggingface.co/optimum/wav2vec2-xls-r-300m-quantized/resolve/main/config.json
+    lang: es
+
+# Backend ASR (Wav2Vec2 ONNX) - DISABLED
+# backend:
+#   name: onnx
+  params:
+    model_name: wav2vec2-base-960h
+    # Modelo público de onnx-community (Inglés, pero sirve para validar pipeline)
+    download_url: https://huggingface.co/onnx-community/wav2vec2-base-960h/resolve/main/onnx/model.onnx
+    config_url: https://huggingface.co/onnx-community/wav2vec2-base-960h/resolve/main/config.json
+    vocab_url: https://huggingface.co/onnx-community/wav2vec2-base-960h/resolve/main/vocab.json
     # Wav2Vec2 specific
-    input_name: audio
+    input_name: input_values
     output_name: logits
 
-# Conversión Grapheme-to-IPA (por defecto, o usar espeak/epitran si se instalan)
+# Conversión texto -> IPA (eSpeak/eSpeak-NG)
 textref:
-  name: grapheme
+  name: espeak
+  params:
+    default_lang: es
 
 # Comparador
 comparator:

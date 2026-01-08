@@ -54,7 +54,11 @@ class ModelManager:
                 ModelManager._verify_sha256(dest, sha256)
             return
 
-        with urllib.request.urlopen(url) as response:
+        req = urllib.request.Request(
+            url,
+            headers={"User-Agent": "PronunciaPA/0.1 (http://github.com/pronunciapa)"}
+        )
+        with urllib.request.urlopen(req) as response:
             fd, tmp_path = tempfile.mkstemp(prefix="pronunciapa_model_", suffix=dest.suffix)
             with os.fdopen(fd, "wb") as tmp:
                 hasher = hashlib.sha256() if sha256 else None

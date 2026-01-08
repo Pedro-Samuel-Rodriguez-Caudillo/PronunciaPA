@@ -125,8 +125,28 @@ def get_app() -> FastAPI:
         try:
             await kernel.setup()
             audio_in: AudioInput = {"path": str(tmp_path), "sample_rate": 16000, "channels": 1}
-            res = await kernel.run(audio=audio_in, text=text, lang=lang)
-            return res
+            pre_audio_res = await kernel.pre.process_audio(audio_in)
+            processed_audio = pre_audio_res.get("audio", audio_in)
+            asr_result = await kernel.asr.transcribe(processed_audio, lang=lang)
+            hyp_tokens = asr_result.get("tokens")
+            if not hyp_tokens:
+                raise ValidationError("ASR no devolvió tokens IPA")
+            hyp_pre_res = await kernel.pre.normalize_tokens(hyp_tokens)
+            hyp_tokens = hyp_pre_res.get("tokens", [])
+            tr_result = await kernel.textref.to_ipa(text, lang=lang)
+            ref_pre_res = await kernel.pre.normalize_tokens(tr_result.get("tokens", []))
+            ref_tokens = ref_pre_res.get("tokens", [])
+            res = await kernel.comp.compare(ref_tokens, hyp_tokens)
+            meta = {
+                "asr": asr_result.get("meta", {}),
+                "compare": res.get("meta", {}),
+            }
+            return {
+                **res,
+                "ipa": " ".join(hyp_tokens),
+                "tokens": hyp_tokens,
+                "meta": meta,
+            }
         finally:
             await kernel.teardown()
             if tmp_path.exists():

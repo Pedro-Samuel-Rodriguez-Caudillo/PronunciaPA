@@ -29,6 +29,7 @@ class ONNXASRPlugin(BasePlugin):
         self._config_path = Path(params["config_path"]) if params.get("config_path") else None
         self._download_url = params.get("download_url")
         self._config_url = params.get("config_url")
+        self._vocab_url = params.get("vocab_url")
         self._sha256 = params.get("sha256")
         self._blank_id = params.get("blank_id")
         self._providers = params.get("providers")
@@ -72,6 +73,15 @@ class ONNXASRPlugin(BasePlugin):
                 name=f"{self._model_name or 'onnx_model'}-config",
                 url=self._config_url,
                 dest=config_path,
+                sha256=None,
+            )
+            
+        vocab_path = model_path.parent / "vocab.json"
+        if not vocab_path.exists() and self._vocab_url:
+            await self.model_manager.download_model(
+                name=f"{self._model_name or 'onnx_model'}-vocab",
+                url=self._vocab_url,
+                dest=vocab_path,
                 sha256=None,
             )
 

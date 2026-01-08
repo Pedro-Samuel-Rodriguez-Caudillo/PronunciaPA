@@ -17,9 +17,19 @@ class EditOp(BaseModel):
 class CompareResponse(BaseModel):
     """Respuesta exitosa de comparación."""
     per: float = Field(..., description="Phone Error Rate (0.0 a 1.0)", json_schema_extra={"example": 0.15})
+    ipa: Optional[str] = Field(
+        default=None,
+        description="Transcripción IPA detectada (hipótesis)",
+        json_schema_extra={"example": "o l a"},
+    )
+    tokens: List[str] = Field(
+        default_factory=list,
+        description="Tokens IPA detectados (hipótesis)",
+        json_schema_extra={"example": ["o", "l", "a"]},
+    )
     ops: List[EditOp] = Field(..., description="Lista de operaciones de edición realizadas")
     alignment: List[List[Optional[str]]] = Field(
-        ..., 
+        ...,
         description="Pares de tokens alineados [ref, hyp]",
         json_schema_extra={"example": [["h", "h"], ["o", "u"]]}
     )

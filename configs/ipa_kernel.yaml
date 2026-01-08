@@ -8,7 +8,7 @@ backend:
   params:
     lang: es
 textref:
-  name: epitran
+  name: espeak
   params:
     default_lang: es
 comparator:

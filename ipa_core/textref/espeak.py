@@ -35,6 +35,15 @@ class EspeakTextRef(BasePlugin):
         for candidate in (os.getenv("ESPEAK_BIN"), "espeak-ng", "espeak"):
             if candidate and shutil.which(candidate):
                 return candidate
+        windows_candidates = [
+            r"C:\Program Files\eSpeak NG\espeak-ng.exe",
+            r"C:\Program Files\eSpeak NG\espeak.exe",
+            r"C:\Program Files (x86)\eSpeak NG\espeak-ng.exe",
+            r"C:\Program Files (x86)\eSpeak NG\espeak.exe",
+        ]
+        for path in windows_candidates:
+            if os.path.exists(path):
+                return path
         raise NotReadyError(
             "No se encontró 'espeak' ni 'espeak-ng'. Instálalo o exporta PRONUNCIAPA_ESPEAK_BIN."
         )

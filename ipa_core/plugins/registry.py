@@ -76,21 +76,29 @@ def _register_defaults() -> None:
     """Registra las implementaciones por defecto incluidas en el core."""
     # ASR
     from ipa_core.backends.asr_stub import StubASR
-    from ipa_core.plugins.asr_onnx import ONNXASRPlugin
     register("asr", "stub", StubASR)
     register("asr", "fake", StubASR)
     register("asr", "default", StubASR)  # En el core ligero, el default es el stub
-    register("asr", "onnx", lambda p: ONNXASRPlugin(p))
-    register("asr", "whisper_onnx", lambda p: ONNXASRPlugin(p))
-    register("asr", "whisper", lambda p: ONNXASRPlugin(p))
+    try:
+        from ipa_core.plugins.asr_onnx import ONNXASRPlugin
+    except Exception as exc:
+        logger.warning("ONNX ASR plugin unavailable: %s", exc)
+    else:
+        register("asr", "onnx", lambda p: ONNXASRPlugin(p))
+        register("asr", "whisper_onnx", lambda p: ONNXASRPlugin(p))
+        register("asr", "whisper", lambda p: ONNXASRPlugin(p))
 
     # TextRef
-    from ipa_core.textref.epitran import EpitranTextRef
     from ipa_core.textref.espeak import EspeakTextRef
     from ipa_core.textref.simple import GraphemeTextRef
     register("textref", "grapheme", lambda _: GraphemeTextRef())
     register("textref", "default", lambda _: GraphemeTextRef())
-    register("textref", "epitran", lambda p: EpitranTextRef(default_lang=p.get("default_lang", "es")))
+    try:
+        from ipa_core.textref.epitran import EpitranTextRef
+    except Exception as exc:
+        logger.warning("Epitran TextRef unavailable: %s", exc)
+    else:
+        register("textref", "epitran", lambda p: EpitranTextRef(default_lang=p.get("default_lang", "es")))
     register("textref", "espeak", lambda p: EspeakTextRef(default_lang=p.get("default_lang", "es")))
 
     # Comparator

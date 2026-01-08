@@ -12,7 +12,7 @@ from ipa_core.types import TextRefResult
 
 try:  # Carga diferida: solo se necesita cuando se usa este proveedor.
     import epitran
-except ImportError:  # pragma: no cover
+except Exception:  # pragma: no cover
     epitran = None  # type: ignore[assignment]
 
 
