@@ -57,7 +57,7 @@ Variables útiles:
 
 Si seleccionas `epitran` y la librería no está instalada, el servicio cambia automáticamente a `espeak` para mantener la experiencia del usuario.
 
-## API HTTP `/pronunciapa/transcribe`
+## API HTTP `/v1/transcribe`
 
 ```bash
 uvicorn ipa_server.main:get_app --reload --port 8000
@@ -66,7 +66,7 @@ uvicorn ipa_server.main:get_app --reload --port 8000
 Enviar archivos:
 
 ```bash
-curl -X POST http://localhost:8000/pronunciapa/transcribe \
+curl -X POST http://localhost:8000/v1/transcribe \
   -F "lang=es" \
   -F "audio=@inputs/ejemplo.wav"
 ```
@@ -74,7 +74,7 @@ curl -X POST http://localhost:8000/pronunciapa/transcribe \
 Streaming de bytes crudos:
 
 ```bash
-curl -X POST http://localhost:8000/pronunciapa/transcribe \
+curl -X POST http://localhost:8000/v1/transcribe \
   -H "Content-Type: application/octet-stream" \
   --data-binary @inputs/ejemplo.wav
 ```
@@ -150,7 +150,7 @@ docker run --rm -p 8000:8000 -e PRONUNCIAPA_TEXTREF=epitran pronunciapa-api
 Prueba rápida en Docker:
 
 ```bash
-curl -X POST http://localhost:8000/pronunciapa/transcribe \
+curl -X POST http://localhost:8000/v1/transcribe \
   -F "lang=es" \
   -F "audio=@inputs/ejemplo.wav"
 ```
