@@ -71,6 +71,17 @@ class TextRefResult(TypedDict, total=False):
     meta: dict[str, Any]
 
 
+class TTSResult(TypedDict, total=False):
+    """Resultado producido por un backend TTS.
+
+    - audio: descriptor del archivo de audio generado.
+    - meta: información adicional útil para depurar.
+    """
+
+    audio: AudioInput
+    meta: dict[str, Any]
+
+
 class PreprocessorResult(TypedDict, total=False):
     """Resultado producido por un preprocesador.
 

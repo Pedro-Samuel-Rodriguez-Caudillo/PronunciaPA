@@ -57,4 +57,7 @@ warn_unused_ignores = true
 "asr.onnx" = "ipa_core.plugins.asr_onnx:ONNXASRPlugin"
 "asr.whisper_onnx" = "ipa_core.plugins.asr_onnx:ONNXASRPlugin"
 "asr.whisper" = "ipa_core.plugins.asr_onnx:ONNXASRPlugin"
+"tts.default" = "ipa_core.tts.adapter:TTSAdapter"
+"tts.piper" = "ipa_core.tts.piper:PiperTTS"
+"tts.system" = "ipa_core.tts.system:SystemTTS"
 

@@ -1,7 +1,7 @@
 """Registro y resolución de plugins.
 
 Este módulo permite registrar y obtener implementaciones de los puertos
-del sistema (ASR, TextRef, Comparator, Preprocessor).
+del sistema (ASR, TextRef, Comparator, Preprocessor, TTS).
 """
 from __future__ import annotations
 import logging
@@ -16,6 +16,7 @@ _REGISTRY: Dict[str, Dict[str, Callable[[Any], Any]]] = {
     "textref": {},
     "comparator": {},
     "preprocessor": {},
+    "tts": {},
 }
 
 _DISCOVERY_DONE = False
@@ -112,7 +113,19 @@ def _register_defaults() -> None:
     from ipa_core.preprocessor_basic import BasicPreprocessor
     register("preprocessor", "basic", lambda _: BasicPreprocessor())
     register("preprocessor", "default", lambda _: BasicPreprocessor())
-    
+
+    # TTS
+    try:
+        from ipa_core.tts.adapter import TTSAdapter
+        from ipa_core.tts.piper import PiperTTS
+        from ipa_core.tts.system import SystemTTS
+    except Exception as exc:
+        logger.warning("TTS adapters unavailable: %s", exc)
+    else:
+        register("tts", "default", lambda p: TTSAdapter(p))
+        register("tts", "piper", lambda p: PiperTTS(p))
+        register("tts", "system", lambda p: SystemTTS(p))
+
     # También ejecutar descubrimiento inicial
     register_discovered_plugins()
 
@@ -134,6 +147,10 @@ def resolve_preprocessor(name: str, params: dict | None = None) -> Any:
 
 
     return resolve("preprocessor", name, params)
+
+
+def resolve_tts(name: str, params: dict | None = None) -> Any:
+    return resolve("tts", name, params)
 
 
 
@@ -176,6 +193,7 @@ def validate_plugin(category: str, plugin_cls: type) -> tuple[bool, list[str]]:
 
 
     from ipa_core.ports.preprocess import Preprocessor
+    from ipa_core.ports.tts import TTSProvider
 
 
 
@@ -193,8 +211,8 @@ def validate_plugin(category: str, plugin_cls: type) -> tuple[bool, list[str]]:
         "comparator": Comparator,
 
 
-        "preprocessor": Preprocessor
-
+        "preprocessor": Preprocessor,
+        "tts": TTSProvider,
 
     }
 
