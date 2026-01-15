@@ -13,6 +13,7 @@ from ipa_core.ports.compare import Comparator
 from ipa_core.ports.preprocess import Preprocessor
 from ipa_core.ports.textref import TextRefProvider
 from ipa_core.ports.tts import TTSProvider
+from ipa_core.ports.llm import LLMAdapter
 
 
 def _assert_async_method(cls: Any, method_name: str) -> None:
@@ -59,6 +60,12 @@ def test_tts_provider_contract() -> None:
     _assert_async_method(TTSProvider, "synthesize")
 
 
+def test_llm_adapter_contract() -> None:
+    """Valida el contrato de LLMAdapter."""
+    _assert_lifecycle(LLMAdapter)
+    _assert_async_method(LLMAdapter, "complete")
+
+
 def test_protocols_are_runtime_checkable() -> None:
     """Valida que los protocolos permitan comprobación en tiempo de ejecución."""
     class Dummy:
@@ -70,6 +77,7 @@ def test_protocols_are_runtime_checkable() -> None:
         async def process_audio(self, audio, **kw): pass
         async def normalize_tokens(self, tokens, **kw): pass
         async def synthesize(self, text, **kw): pass
+        async def complete(self, prompt, **kw): pass
 
     d = Dummy()
     # Nota: isinstance con Protocol requiere que coincidan las firmas o al menos los nombres.
@@ -80,3 +88,4 @@ def test_protocols_are_runtime_checkable() -> None:
     assert isinstance(d, Comparator)
     assert isinstance(d, Preprocessor)
     assert isinstance(d, TTSProvider)
+    assert isinstance(d, LLMAdapter)

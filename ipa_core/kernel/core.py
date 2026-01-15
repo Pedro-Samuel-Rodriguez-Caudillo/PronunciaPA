@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Optional, Tuple
 
 from ipa_core.config.schema import AppConfig
-from ipa_core.packs.loader import load_language_pack
-from ipa_core.packs.schema import LanguagePack, TTSConfig
+from ipa_core.packs.loader import load_language_pack, load_model_pack, resolve_manifest_path
+from ipa_core.packs.schema import LanguagePack, ModelPack, TTSConfig
 from ipa_core.pipeline.runner import run_pipeline
 from ipa_core.plugins import registry
 from ipa_core.ports.asr import ASRBackend
@@ -15,6 +16,7 @@ from ipa_core.ports.compare import Comparator
 from ipa_core.ports.preprocess import Preprocessor
 from ipa_core.ports.textref import TextRefProvider
 from ipa_core.ports.tts import TTSProvider
+from ipa_core.ports.llm import LLMAdapter
 from ipa_core.types import AudioInput, CompareResult, CompareWeights
 
 
@@ -28,6 +30,9 @@ class Kernel:
     comp: Comparator
     tts: Optional[TTSProvider] = None
     language_pack: Optional[LanguagePack] = None
+    llm: Optional[LLMAdapter] = None
+    model_pack: Optional[ModelPack] = None
+    model_pack_dir: Optional[Path] = None
 
     async def setup(self) -> None:
         """Inicializar todos los componentes."""
@@ -37,11 +42,15 @@ class Kernel:
         await self.comp.setup()
         if self.tts:
             await self.tts.setup()
+        if self.llm:
+            await self.llm.setup()
 
     async def teardown(self) -> None:
         """Limpiar todos los componentes."""
         if self.tts:
             await self.tts.teardown()
+        if self.llm:
+            await self.llm.teardown()
         await self.comp.teardown()
         await self.textref.teardown()
         await self.asr.teardown()
@@ -75,7 +84,9 @@ def create_kernel(cfg: AppConfig) -> Kernel:
     textref = registry.resolve_textref(cfg.textref.name, cfg.textref.params)
     comp = registry.resolve_comparator(cfg.comparator.name, cfg.comparator.params)
     language_pack = _load_language_pack(cfg)
+    model_pack, model_pack_dir = _load_model_pack(cfg)
     tts = _resolve_tts(cfg, language_pack)
+    llm = _resolve_llm(cfg, model_pack, model_pack_dir)
     return Kernel(
         pre=pre,
         asr=asr,
@@ -83,6 +94,9 @@ def create_kernel(cfg: AppConfig) -> Kernel:
         comp=comp,
         tts=tts,
         language_pack=language_pack,
+        llm=llm,
+        model_pack=model_pack,
+        model_pack_dir=model_pack_dir,
     )
 
 
@@ -90,6 +104,13 @@ def _load_language_pack(cfg: AppConfig) -> Optional[LanguagePack]:
     if not cfg.language_pack:
         return None
     return load_language_pack(cfg.language_pack)
+
+
+def _load_model_pack(cfg: AppConfig) -> tuple[Optional[ModelPack], Optional[Path]]:
+    if not cfg.model_pack:
+        return None, None
+    manifest_path = resolve_manifest_path(cfg.model_pack)
+    return load_model_pack(manifest_path), manifest_path.parent
 
 
 def _resolve_tts(cfg: AppConfig, language_pack: Optional[LanguagePack]) -> Optional[TTSProvider]:
@@ -100,6 +121,30 @@ def _resolve_tts(cfg: AppConfig, language_pack: Optional[LanguagePack]) -> Optio
     if language_pack and language_pack.tts:
         name, params = _merge_pack_tts(name, params, language_pack.tts)
     return registry.resolve_tts(name, params)
+
+
+def _resolve_llm(
+    cfg: AppConfig,
+    model_pack: Optional[ModelPack],
+    model_pack_dir: Optional[Path],
+) -> Optional[LLMAdapter]:
+    if not model_pack:
+        return None
+    runtime_kind = (model_pack.runtime.kind or "").lower()
+    name = (cfg.llm.name or "auto").lower()
+    if name == "auto":
+        name = runtime_kind
+    name = _normalize_llm_name(name)
+    params = dict(model_pack.runtime.params or {})
+    params.update(model_pack.params or {})
+    params.update(cfg.llm.params or {})
+    if model_pack_dir:
+        params["model_pack_dir"] = str(model_pack_dir)
+    if "prompt_path" not in params and model_pack.prompt:
+        params["prompt_path"] = str(model_pack.prompt.resolve_path(model_pack_dir or Path(".")))
+    if "output_schema_path" not in params and model_pack.output_schema:
+        params["output_schema_path"] = str(model_pack.output_schema.resolve_path(model_pack_dir or Path(".")))
+    return registry.resolve_llm(name, params)
 
 
 def _merge_pack_tts(name: str, params: dict, pack_tts: TTSConfig) -> Tuple[str, dict]:
@@ -125,3 +170,9 @@ def _merge_pack_tts(name: str, params: dict, pack_tts: TTSConfig) -> Tuple[str, 
     for key, value in pack_params.items():
         params.setdefault(key, value)
     return name, params
+
+
+def _normalize_llm_name(name: str) -> str:
+    if name in ("llama.cpp", "llama-cpp", "llamacpp"):
+        return "llama_cpp"
+    return name

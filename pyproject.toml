@@ -60,4 +60,6 @@ warn_unused_ignores = true
 "tts.default" = "ipa_core.tts.adapter:TTSAdapter"
 "tts.piper" = "ipa_core.tts.piper:PiperTTS"
 "tts.system" = "ipa_core.tts.system:SystemTTS"
+"llm.llama_cpp" = "ipa_core.llm.llama_cpp:LlamaCppAdapter"
+"llm.onnx" = "ipa_core.llm.onnx:OnnxLLMAdapter"
 

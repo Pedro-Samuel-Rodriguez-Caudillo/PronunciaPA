@@ -17,6 +17,7 @@ _REGISTRY: Dict[str, Dict[str, Callable[[Any], Any]]] = {
     "comparator": {},
     "preprocessor": {},
     "tts": {},
+    "llm": {},
 }
 
 _DISCOVERY_DONE = False
@@ -126,6 +127,16 @@ def _register_defaults() -> None:
         register("tts", "piper", lambda p: PiperTTS(p))
         register("tts", "system", lambda p: SystemTTS(p))
 
+    # LLM
+    try:
+        from ipa_core.llm.llama_cpp import LlamaCppAdapter
+        from ipa_core.llm.onnx import OnnxLLMAdapter
+    except Exception as exc:
+        logger.warning("LLM adapters unavailable: %s", exc)
+    else:
+        register("llm", "llama_cpp", lambda p: LlamaCppAdapter(p))
+        register("llm", "onnx", lambda p: OnnxLLMAdapter(p))
+
     # También ejecutar descubrimiento inicial
     register_discovered_plugins()
 
@@ -151,6 +162,10 @@ def resolve_preprocessor(name: str, params: dict | None = None) -> Any:
 
 def resolve_tts(name: str, params: dict | None = None) -> Any:
     return resolve("tts", name, params)
+
+
+def resolve_llm(name: str, params: dict | None = None) -> Any:
+    return resolve("llm", name, params)
 
 
 
@@ -194,6 +209,7 @@ def validate_plugin(category: str, plugin_cls: type) -> tuple[bool, list[str]]:
 
     from ipa_core.ports.preprocess import Preprocessor
     from ipa_core.ports.tts import TTSProvider
+    from ipa_core.ports.llm import LLMAdapter
 
 
 
@@ -213,6 +229,7 @@ def validate_plugin(category: str, plugin_cls: type) -> tuple[bool, list[str]]:
 
         "preprocessor": Preprocessor,
         "tts": TTSProvider,
+        "llm": LLMAdapter,
 
     }
 

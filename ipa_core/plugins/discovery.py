@@ -28,7 +28,7 @@ def iter_plugin_entry_points():
 def available_plugins() -> Mapping[str, list[str]]:
     """Retorna un índice por tipo -> lista de nombres.
 
-    Tipos: "asr", "textref", "comparator", "preprocessor", "tts".
+    Tipos: "asr", "textref", "comparator", "preprocessor", "tts", "llm".
     Busca entry points en el grupo 'pronunciapa.plugins'.
     Formato esperado del nombre: 'categoria.nombre_plugin'.
     """
@@ -38,6 +38,7 @@ def available_plugins() -> Mapping[str, list[str]]:
         "comparator": [],
         "preprocessor": [],
         "tts": [],
+        "llm": [],
     }
 
     for category, name, _ in iter_plugin_entry_points():
