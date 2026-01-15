@@ -1,5 +1,6 @@
 # Configuración local para PronunciaPA
 version: 1
+language_pack: en-us
 
 # Preprocesamiento
 preprocessor:
@@ -9,7 +10,7 @@ preprocessor:
 backend:
   name: allosaurus
   params:
-    lang: es
+    lang: en
 
 # Backend ASR (Wav2Vec2 ONNX) - DISABLED
 # backend:
@@ -28,11 +29,21 @@ backend:
 textref:
   name: espeak
   params:
-    default_lang: es
+    default_lang: en
 
 # Comparador
 comparator:
   name: levenshtein
 
+# Text-to-speech (Piper con fallback al sistema)
+tts:
+  name: default
+  params:
+    prefer: piper
+    piper:
+      # Ajusta estas rutas a tu instalacion de Piper.
+      model_path: data/models/piper/en-us.onnx
+      config_path: data/models/piper/en-us.json
+
 options:
-  lang: es
+  lang: en
