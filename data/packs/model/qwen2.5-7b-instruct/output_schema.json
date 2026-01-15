@@ -1,0 +1,20 @@
+{
+  "type": "object",
+  "required": ["advice_short", "advice_long", "drills", "summary"],
+  "properties": {
+    "advice_short": { "type": "string" },
+    "advice_long": { "type": "string" },
+    "drills": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["type", "text"],
+        "properties": {
+          "type": { "type": "string" },
+          "text": { "type": "string" }
+        }
+      }
+    },
+    "summary": { "type": "string" }
+  }
+}
