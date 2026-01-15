@@ -1,0 +1,65 @@
+version: 1
+language: en
+accent: en-us
+description: "Inventario IPA base para EN-US."
+inventory:
+  consonants:
+    - p
+    - b
+    - t
+    - d
+    - k
+    - g
+    - m
+    - n
+    - ŋ
+    - f
+    - v
+    - θ
+    - ð
+    - s
+    - z
+    - ʃ
+    - ʒ
+    - h
+    - tʃ
+    - dʒ
+    - ɹ
+    - l
+    - j
+    - w
+  vowels:
+    - i
+    - ɪ
+    - e
+    - ɛ
+    - æ
+    - ɑ
+    - ɔ
+    - o
+    - ʊ
+    - u
+    - ə
+    - ɚ
+    - ɝ
+  diphthongs:
+    - aɪ
+    - aʊ
+    - ɔɪ
+    - oʊ
+    - eɪ
+  diacritics:
+    - ː
+    - ˑ
+    - ˈ
+    - ˌ
+    - ̃
+    - ̥
+    - ̩
+    - ̚
+  suprasegmentals:
+    - ˈ
+    - ˌ
+    - .
+    - "|"
+    - ‖
