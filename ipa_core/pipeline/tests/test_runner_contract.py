@@ -40,4 +40,3 @@ async def test_run_pipeline_orchestration() -> None:
     textref.to_ipa.assert_called_once()
     comp.compare.assert_called_once()
     assert res["per"] == 0.0
-
