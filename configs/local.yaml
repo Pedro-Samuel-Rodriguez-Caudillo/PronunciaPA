@@ -1,6 +1,7 @@
 # Configuración local para PronunciaPA
 version: 1
 language_pack: en-us
+model_pack: model/qwen2.5-7b-instruct
 
 # Preprocesamiento
 preprocessor:

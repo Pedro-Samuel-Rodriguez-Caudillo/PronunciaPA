@@ -1,7 +1,7 @@
 """Tests for loading language packs."""
 from __future__ import annotations
 
-from ipa_core.packs.loader import load_language_pack
+from ipa_core.packs.loader import load_language_pack, load_model_pack
 
 
 def test_load_language_pack_en_us() -> None:
@@ -12,3 +12,11 @@ def test_load_language_pack_en_us() -> None:
     assert pack.lexicon.path == "lexicon.tsv"
     assert pack.tts is not None
     assert pack.tts.provider == "piper"
+
+
+def test_load_model_pack_qwen() -> None:
+    pack = load_model_pack("model/qwen2.5-7b-instruct")
+    assert pack.id == "qwen2.5-7b-instruct"
+    assert pack.runtime.kind == "llama.cpp"
+    assert pack.prompt is not None
+    assert pack.output_schema is not None
