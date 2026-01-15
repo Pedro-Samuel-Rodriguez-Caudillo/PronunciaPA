@@ -41,4 +41,7 @@ class AppConfig(BaseModel):
     backend: PluginCfg = Field(default_factory=lambda: PluginCfg(name="allosaurus"))
     textref: PluginCfg = Field(default_factory=lambda: PluginCfg(name="grapheme"))
     comparator: PluginCfg = Field(default_factory=lambda: PluginCfg(name="levenshtein"))
+    tts: PluginCfg = Field(default_factory=lambda: PluginCfg(name="default"))
     options: OptionsCfg = Field(default_factory=OptionsCfg)
+    language_pack: Optional[str] = None
+    model_pack: Optional[str] = None

@@ -12,3 +12,6 @@ def test_app_config_empty_defaults() -> None:
     assert config.backend.name == "allosaurus"
     assert config.textref.name == "grapheme"
     assert config.comparator.name == "levenshtein"
+    assert config.tts.name == "default"
+    assert config.language_pack is None
+    assert config.model_pack is None
