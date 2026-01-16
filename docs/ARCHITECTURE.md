@@ -36,6 +36,29 @@ flowchart TD
     Pipeline --> Comp[Comparator]
 ```
 
+## Flujo end-to-end (CLI/API + Packs)
+
+1. **Configuracion**: `ipa_core.config.loader` carga `configs/local.yaml` y aplica overrides (CLI/API).
+2. **Packs**: `ipa_core.packs.loader` resuelve `LanguagePack` (inventario/lexicon) y `ModelPack` (prompt/schema/runtime).
+3. **Entrada**: el usuario llama `ipa feedback` o `POST /v1/feedback` con audio + texto.
+4. **Pipeline**: `Preprocessor` -> `ASRBackend` -> `TextRefProvider` -> `Comparator`.
+5. **Error Report**: `FeedbackService` construye el JSON canonico para el LLM.
+6. **LLM local**: `LLMAdapter` genera feedback y se valida contra schema.
+7. **Persistencia**: `FeedbackStore` guarda JSONL + index y permite exportar.
+
+```mermaid
+flowchart LR
+    CLI[CLI: ipa feedback] --> API[FastAPI: /v1/feedback]
+    API --> Config[Config + Overrides]
+    Config --> Packs[LanguagePack + ModelPack]
+    Packs --> Kernel[Kernel]
+    Kernel --> Pipeline[Pre -> ASR -> TextRef -> Compare]
+    Pipeline --> Report[Error Report JSON]
+    Report --> LLM[LLMAdapter local]
+    LLM --> Feedback[Feedback JSON]
+    Feedback --> Store[FeedbackStore]
+```
+
 ## Ventajas de esta Estructura
 - **Portabilidad:** El paquete `ipa_core` es extremadamente ligero y puede ser portado a dispositivos móviles o compilado a WASM.
 - **Extensibilidad:** Se pueden añadir nuevos idiomas o motores de ASR simplemente instalando un nuevo paquete de Python que registre el entry point adecuado.
