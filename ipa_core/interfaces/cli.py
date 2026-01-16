@@ -602,6 +602,21 @@ def feedback(
             console.print(f"Saved to: {persisted_to}")
 
 
+@app.command("feedback-export")
+def feedback_export(
+    out: Optional[Path] = typer.Option(None, "--out", help="Ruta de salida para el export"),
+    persist_dir: Optional[Path] = typer.Option(None, "--dir", help="Directorio base de feedback"),
+):
+    """Exporta el indice de feedback a JSON."""
+    store = FeedbackStore(persist_dir)
+    try:
+        export_path = store.export(out)
+    except Exception as exc:
+        console.print(f"Error: {exc}", style="red")
+        raise typer.Exit(code=1)
+    console.print(f"Exported to: {export_path}")
+
+
 @config_app.command("show")
 def config_show():
     """Muestra la configuración actual."""
