@@ -128,6 +128,8 @@ def _register_defaults() -> None:
         register("tts", "system", lambda p: SystemTTS(p))
 
     # LLM
+    from ipa_core.llm.stub import StubLLMAdapter
+    register("llm", "stub", lambda p: StubLLMAdapter(p))
     try:
         from ipa_core.llm.llama_cpp import LlamaCppAdapter
         from ipa_core.llm.onnx import OnnxLLMAdapter

@@ -34,6 +34,52 @@ export interface CompareResponse {
   meta: Record<string, any>;
 }
 
+export interface ErrorReport {
+  /** Texto objetivo */
+  target_text: string;
+  /** IPA objetivo */
+  target_ipa: string;
+  /** IPA observado */
+  observed_ipa: string;
+  /** Metricas de comparacion */
+  metrics: Record<string, any>;
+  /** Operaciones de edicion */
+  ops: EditOp[];
+  /** Pares de tokens alineados [ref, hyp] */
+  alignment: Array<[string | null, string | null]>;
+  /** Codigo de idioma */
+  lang: string;
+  /** Metadatos adicionales */
+  meta: Record<string, any>;
+}
+
+export interface FeedbackDrill {
+  /** Tipo de ejercicio */
+  type: string;
+  /** Texto del ejercicio */
+  text: string;
+}
+
+export interface FeedbackPayload {
+  /** Resumen corto */
+  summary: string;
+  /** Consejo breve */
+  advice_short: string;
+  /** Consejo detallado */
+  advice_long: string;
+  /** Ejercicios recomendados */
+  drills: FeedbackDrill[];
+}
+
+export interface FeedbackResponse {
+  /** Reporte canonico de errores */
+  report: ErrorReport;
+  /** Resultado de comparacion */
+  compare: CompareResponse;
+  /** Salida del modelo LLM */
+  feedback: FeedbackPayload;
+}
+
 export interface ErrorResponse {
   /** Descripción detallada del error */
   detail: string;

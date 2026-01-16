@@ -161,6 +161,85 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
             </svg>
           </div>
+          <div class="bg-white border border-gray-200 rounded-2xl shadow-xl p-8">
+            <div class="flex items-start justify-between gap-4">
+              <div>
+                <h3 class="text-2xl font-semibold text-gray-800">Feedback local</h3>
+                <p class="text-gray-600">Genera feedback con el LLM local y tu texto objetivo.</p>
+              </div>
+              <span class="px-3 py-1 rounded-full text-xs font-semibold bg-purple-100 text-purple-700">/v1/feedback</span>
+            </div>
+            <form id="feedbackForm" class="mt-6 space-y-5" enctype="multipart/form-data">
+              <div>
+                <label for="feedbackFile" class="block text-sm font-medium text-gray-700 mb-2">Archivo de audio</label>
+                <input id="feedbackFile" name="audio" type="file" accept="audio/*" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-400">
+              </div>
+              <div>
+                <label for="feedbackText" class="block text-sm font-medium text-gray-700 mb-2">Texto de referencia</label>
+                <input id="feedbackText" name="text" type="text" placeholder="Escribe el texto objetivo" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-400">
+              </div>
+              <div>
+                <label for="feedbackLang" class="block text-sm font-medium text-gray-700 mb-2">Idioma objetivo</label>
+                <select id="feedbackLang" name="lang" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-400">
+                  <option value="es">Espa�ol (es)</option>
+                  <option value="en">Ingl�s (en)</option>
+                  <option value="fr">Franc�s (fr)</option>
+                  <option value="pt">Portugu�s (pt)</option>
+                </select>
+              </div>
+              <label class="inline-flex items-center gap-2 text-sm text-gray-600">
+                <input id="feedbackPersist" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500">
+                Guardar resultado localmente
+              </label>
+              <button type="submit" class="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1">Generar feedback</button>
+            </form>
+            <div class="mt-4 flex flex-wrap items-center gap-3">
+              <button id="feedbackUseRecordingBtn" class="flex-1 bg-white border border-purple-300 text-purple-700 px-4 py-2 rounded-xl font-semibold hover:bg-purple-50 transition-colors">Usar ultima grabacion</button>
+              <span id="feedbackRecordingHint" class="text-xs text-gray-500">Sin grabacion disponible.</span>
+            </div>
+            <div id="feedbackStatus" class="hidden mt-6 text-sm text-purple-600 font-medium">Generando feedback...</div>
+            <div id="feedbackError" class="hidden mt-6 text-sm text-red-600"></div>
+            <div id="feedbackResult" class="hidden mt-8 border border-gray-200 rounded-xl p-6 bg-gradient-to-br from-white to-purple-50">
+              <div class="flex items-start justify-between gap-4">
+                <div>
+                  <h4 class="text-xl font-semibold text-gray-800">Resultado de feedback</h4>
+                  <p class="text-sm text-gray-500">Resumen y drills sugeridos.</p>
+                </div>
+              </div>
+              <dl class="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm text-gray-700">
+                <div>
+                  <dt class="font-semibold text-gray-600">PER</dt>
+                  <dd id="feedbackPer" class="mt-1">-</dd>
+                </div>
+                <div>
+                  <dt class="font-semibold text-gray-600">Target IPA</dt>
+                  <dd id="feedbackTargetIpa" class="mt-1 font-mono text-purple-800">-</dd>
+                </div>
+                <div>
+                  <dt class="font-semibold text-gray-600">Observed IPA</dt>
+                  <dd id="feedbackObservedIpa" class="mt-1 font-mono text-purple-800">-</dd>
+                </div>
+              </dl>
+              <div class="mt-6 space-y-4">
+                <div>
+                  <p class="text-xs uppercase tracking-wide text-gray-500">Summary</p>
+                  <p id="feedbackSummary" class="text-gray-700"></p>
+                </div>
+                <div>
+                  <p class="text-xs uppercase tracking-wide text-gray-500">Advice</p>
+                  <p id="feedbackAdviceShort" class="text-gray-700"></p>
+                </div>
+                <div>
+                  <p class="text-xs uppercase tracking-wide text-gray-500">Details</p>
+                  <p id="feedbackAdviceLong" class="text-gray-700"></p>
+                </div>
+              </div>
+              <div class="mt-6">
+                <h5 class="text-sm font-semibold text-gray-700">Drills</h5>
+                <div id="feedbackDrills" class="mt-2 flex flex-wrap gap-2"></div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -196,14 +275,15 @@
             </li>
           </ol>
           <div class="mt-8 p-4 rounded-xl bg-white shadow-inner border border-purple-100">
-            <p class="text-sm text-gray-600 mb-1">Endpoint activo</p>
-            <code id="apiBaseHint" class="text-sm font-mono text-purple-700 break-all">http://localhost:8000/v1/transcribe</code>
+            <p class="text-sm text-gray-600 mb-1">Endpoints activos</p>
+            <code id="apiBaseHint" class="text-sm font-mono text-purple-700 break-all">http://localhost:8000/v1/transcribe | /v1/feedback</code>
           </div>
           <p class="mt-6 text-sm text-gray-500">
             Si usas otra URL expórtala como <code class="bg-white/70 px-1 rounded">window.PRONUNCIAPA_API_BASE</code> antes de cargar la página.
           </p>
         </div>
-        <div class="bg-white border border-gray-200 rounded-2xl shadow-xl p-8">
+        <div class="space-y-8">
+          <div class="bg-white border border-gray-200 rounded-2xl shadow-xl p-8">
           <h3 class="text-2xl font-semibold text-gray-800 mb-4">Sube o graba tu audio</h3>
           <p class="text-gray-600 mb-6">Aceptamos WAV/MP3 y también puedes usar el micrófono para generar un clip rápido.</p>
           <form id="ipaForm" class="space-y-5" enctype="multipart/form-data">
@@ -591,6 +671,7 @@
     const configuredBase = window.PRONUNCIAPA_API_BASE || fallbackBase;
     const API_BASE_URL = configuredBase.replace(/\/$/, '');
     const TRANSCRIBE_ENDPOINT = `${API_BASE_URL}/v1/transcribe`;
+    const FEEDBACK_ENDPOINT = `${API_BASE_URL}/v1/feedback`;
 
     const apiStatusBadge = document.getElementById('apiStatusBadge');
     const apiBaseHint = document.getElementById('apiBaseHint');
@@ -608,13 +689,33 @@
     const recordBtn = document.getElementById('recordBtn');
     const stopRecordBtn = document.getElementById('stopRecordBtn');
     const recordingBadge = document.getElementById('recordingBadge');
+    const feedbackForm = document.getElementById('feedbackForm');
+    const feedbackFileInput = document.getElementById('feedbackFile');
+    const feedbackTextInput = document.getElementById('feedbackText');
+    const feedbackLangSelect = document.getElementById('feedbackLang');
+    const feedbackPersist = document.getElementById('feedbackPersist');
+    const feedbackUseRecordingBtn = document.getElementById('feedbackUseRecordingBtn');
+    const feedbackRecordingHint = document.getElementById('feedbackRecordingHint');
+    const feedbackStatus = document.getElementById('feedbackStatus');
+    const feedbackError = document.getElementById('feedbackError');
+    const feedbackResult = document.getElementById('feedbackResult');
+    const feedbackPer = document.getElementById('feedbackPer');
+    const feedbackTargetIpa = document.getElementById('feedbackTargetIpa');
+    const feedbackObservedIpa = document.getElementById('feedbackObservedIpa');
+    const feedbackSummary = document.getElementById('feedbackSummary');
+    const feedbackAdviceShort = document.getElementById('feedbackAdviceShort');
+    const feedbackAdviceLong = document.getElementById('feedbackAdviceLong');
+    const feedbackDrills = document.getElementById('feedbackDrills');
 
     let mediaRecorder = null;
     let recordedChunks = [];
     let activeStream = null;
+    let lastRecordingBlob = null;
+    let lastRecordingName = null;
+    let lastRecordingAt = null;
 
     if (apiBaseHint) {
-      apiBaseHint.textContent = TRANSCRIBE_ENDPOINT;
+      apiBaseHint.textContent = `${TRANSCRIBE_ENDPOINT} | ${FEEDBACK_ENDPOINT}`;
     }
 
     function setApiStatus(state, message) {
@@ -699,11 +800,94 @@
     function renderResult(payload) {
       if (!ipaResult || !ipaText || !ipaLangValue || !ipaBackend) return;
       const tokens = payload.tokens || [];
-      ipaText.textContent = payload.ipa || tokens.join(' ') || '—';
-      ipaLangValue.textContent = payload.lang || '—';
-      ipaBackend.textContent = payload.meta?.backend || '—';
+      ipaText.textContent = payload.ipa || tokens.join(' ') || '-';
+      ipaLangValue.textContent = payload.lang || '-';
+      ipaBackend.textContent = payload.meta?.backend || '-';
       renderTokens(tokens);
       ipaResult.classList.remove('hidden');
+    }
+
+    function resetFeedbackResult() {
+      if (feedbackResult) feedbackResult.classList.add('hidden');
+      if (feedbackError) feedbackError.classList.add('hidden');
+    }
+
+    function setFeedbackStatus(message) {
+      if (!feedbackStatus) return;
+      if (message) {
+        feedbackStatus.textContent = message;
+        feedbackStatus.classList.remove('hidden');
+      } else {
+        feedbackStatus.classList.add('hidden');
+      }
+    }
+
+    function setFeedbackError(message) {
+      if (!feedbackError) return;
+      if (message) {
+        feedbackError.textContent = message;
+        feedbackError.classList.remove('hidden');
+      } else {
+        feedbackError.classList.add('hidden');
+      }
+    }
+
+    function renderDrills(drills = []) {
+      if (!feedbackDrills) return;
+      feedbackDrills.innerHTML = '';
+      if (!drills.length) {
+        const empty = document.createElement('span');
+        empty.className = 'text-xs text-gray-500';
+        empty.textContent = 'Sin drills disponibles.';
+        feedbackDrills.appendChild(empty);
+        return;
+      }
+      drills.forEach((drill) => {
+        const badge = document.createElement('span');
+        badge.className = 'px-3 py-1 rounded-full bg-white text-purple-700 border border-purple-200 text-xs font-semibold';
+        const label = drill?.type ? `${drill.type}: ${drill.text || ''}` : drill?.text || '';
+        badge.textContent = label || '-';
+        feedbackDrills.appendChild(badge);
+      });
+    }
+
+    function renderFeedback(payload) {
+      if (!feedbackResult) return;
+      const report = payload.report || {};
+      const compare = payload.compare || {};
+      const feedback = payload.feedback || {};
+      const perValue = compare.per ?? report.metrics?.per;
+      if (feedbackPer) {
+        feedbackPer.textContent = typeof perValue === 'number' ? `${(perValue * 100).toFixed(1)}%` : '-';
+      }
+      if (feedbackTargetIpa) {
+        feedbackTargetIpa.textContent = report.target_ipa || '-';
+      }
+      if (feedbackObservedIpa) {
+        feedbackObservedIpa.textContent = report.observed_ipa || '-';
+      }
+      if (feedbackSummary) {
+        feedbackSummary.textContent = feedback.summary || '-';
+      }
+      if (feedbackAdviceShort) {
+        feedbackAdviceShort.textContent = feedback.advice_short || '-';
+      }
+      if (feedbackAdviceLong) {
+        feedbackAdviceLong.textContent = feedback.advice_long || '-';
+      }
+      renderDrills(feedback.drills || []);
+      feedbackResult.classList.remove('hidden');
+    }
+
+    function updateFeedbackRecordingHint() {
+      if (!feedbackRecordingHint) return;
+      if (lastRecordingBlob) {
+        const stamp = lastRecordingAt ? lastRecordingAt.toLocaleTimeString() : '';
+        const suffix = stamp ? ` (${stamp})` : '';
+        feedbackRecordingHint.textContent = `Ultima grabacion lista${suffix}.`;
+      } else {
+        feedbackRecordingHint.textContent = 'Sin grabacion disponible.';
+      }
     }
 
     async function sendTranscription(blob, filename) {
@@ -735,6 +919,47 @@
         setError(err instanceof Error ? err.message : 'No pudimos interpretar la respuesta del backend.');
       } finally {
         setStatus(null);
+      }
+    }
+
+    async function sendFeedback(blob, filename) {
+      resetFeedbackResult();
+      setFeedbackError(null);
+      const lang = feedbackLangSelect?.value || 'es';
+      const textValue = feedbackTextInput?.value?.trim();
+      if (!textValue) {
+        setFeedbackError('Ingresa el texto de referencia.');
+        return;
+      }
+      setFeedbackStatus('Generando feedback...');
+      const formData = new FormData();
+      formData.append('lang', lang);
+      formData.append('text', textValue);
+      formData.append('audio', blob, filename);
+      if (feedbackPersist?.checked) {
+        formData.append('persist', 'true');
+      }
+      try {
+        const response = await fetch(FEEDBACK_ENDPOINT, { method: 'POST', body: formData });
+        if (!response.ok) {
+          let message = 'No se pudo generar feedback.';
+          try {
+            const errorPayload = await response.json();
+            if (errorPayload?.detail) {
+              message = errorPayload.detail;
+            }
+          } catch (_err) {
+            // noop
+          }
+          throw new Error(message);
+        }
+        const payload = await response.json();
+        renderFeedback(payload);
+      } catch (err) {
+        console.error('feedback error', err);
+        setFeedbackError(err instanceof Error ? err.message : 'No pudimos interpretar la respuesta del backend.');
+      } finally {
+        setFeedbackStatus(null);
       }
     }
 
@@ -825,6 +1050,30 @@
       });
     }
 
+    if (feedbackForm && feedbackFileInput) {
+      feedbackForm.addEventListener('submit', (event) => {
+        event.preventDefault();
+        if (!feedbackFileInput.files || feedbackFileInput.files.length === 0) {
+          setFeedbackError('Selecciona un archivo de audio antes de enviar.');
+          return;
+        }
+        const file = feedbackFileInput.files[0];
+        sendFeedback(file, file.name || 'audio.wav');
+      });
+    }
+
+    if (feedbackUseRecordingBtn) {
+      feedbackUseRecordingBtn.addEventListener('click', () => {
+        if (!lastRecordingBlob) {
+          setFeedbackError('No hay grabacion disponible.');
+          return;
+        }
+        sendFeedback(lastRecordingBlob, lastRecordingName || 'mic-input.wav');
+      });
+    }
+
+    updateFeedbackRecordingHint();
+
     if (copyIpaBtn && ipaText) {
       copyIpaBtn.addEventListener('click', async () => {
         try {
@@ -861,6 +1110,10 @@
             try {
               const webmBlob = new Blob(recordedChunks, { type: mediaRecorder?.mimeType || 'audio/webm' });
               const wavBlob = await convertBlobToWav(webmBlob);
+              lastRecordingBlob = wavBlob;
+              lastRecordingName = 'mic-input.wav';
+              lastRecordingAt = new Date();
+              updateFeedbackRecordingHint();
               await sendTranscription(wavBlob, 'mic-input.wav');
             } catch (err) {
               console.error('convert error', err);

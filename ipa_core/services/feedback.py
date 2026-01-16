@@ -41,10 +41,16 @@ async def generate_feedback(
     model_pack: ModelPack,
     model_pack_dir: Path,
     retry: bool = True,
+    prompt_path: Optional[Path] = None,
+    output_schema_path: Optional[Path] = None,
 ) -> dict[str, Any]:
     """Generate LLM feedback from an Error Report."""
-    prompt = _build_prompt(report, model_pack, model_pack_dir)
-    output_schema = _load_output_schema(model_pack, model_pack_dir)
+    prompt = _build_prompt(report, model_pack, model_pack_dir, prompt_path=prompt_path)
+    output_schema = _load_output_schema(
+        model_pack,
+        model_pack_dir,
+        output_schema_path=output_schema_path,
+    )
     raw = await llm.complete(prompt, params=model_pack.params)
     try:
         payload = extract_json_object(raw)
@@ -76,6 +82,8 @@ class FeedbackService:
         audio: AudioInput,
         text: str,
         lang: str,
+        prompt_path: Optional[Path] = None,
+        output_schema_path: Optional[Path] = None,
     ) -> dict[str, Any]:
         if not self._kernel.llm or not self._kernel.model_pack or not self._kernel.model_pack_dir:
             raise NotReadyError("LLM/model pack not configured.")
@@ -107,6 +115,8 @@ class FeedbackService:
             llm=self._kernel.llm,
             model_pack=self._kernel.model_pack,
             model_pack_dir=self._kernel.model_pack_dir,
+            prompt_path=prompt_path,
+            output_schema_path=output_schema_path,
         )
         return {
             "report": report,
@@ -115,16 +125,31 @@ class FeedbackService:
         }
 
 
-def _build_prompt(report: dict[str, Any], model_pack: ModelPack, base_dir: Path) -> str:
+def _build_prompt(
+    report: dict[str, Any],
+    model_pack: ModelPack,
+    base_dir: Path,
+    *,
+    prompt_path: Optional[Path] = None,
+) -> str:
     prompt_text = ""
-    if model_pack.prompt:
+    if prompt_path:
+        prompt_text = load_text(prompt_path)
+    elif model_pack.prompt:
         prompt_path = model_pack.prompt.resolve_path(base_dir)
         prompt_text = load_text(prompt_path)
     payload = json.dumps(report, ensure_ascii=True)
     return f"{prompt_text}\n\nINPUT_JSON:\n{payload}\nOUTPUT_JSON:\n"
 
 
-def _load_output_schema(model_pack: ModelPack, base_dir: Path) -> dict[str, Any]:
+def _load_output_schema(
+    model_pack: ModelPack,
+    base_dir: Path,
+    *,
+    output_schema_path: Optional[Path] = None,
+) -> dict[str, Any]:
+    if output_schema_path:
+        return load_json(output_schema_path)
     if not model_pack.output_schema:
         raise ValidationError("Model pack is missing output_schema.")
     schema_path = model_pack.output_schema.resolve_path(base_dir)

@@ -14,10 +14,13 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from ipa_core.config import loader
+from ipa_core.config.overrides import apply_overrides
 from ipa_core.kernel.core import create_kernel, Kernel
 from ipa_core.errors import KernelError, ValidationError, NotReadyError
+from ipa_core.services.feedback import FeedbackService
+from ipa_core.services.feedback_store import FeedbackStore
 from ipa_core.types import AudioInput
-from ipa_server.models import TranscriptionResponse, CompareResponse, EditOp
+from ipa_server.models import TranscriptionResponse, CompareResponse, FeedbackResponse, EditOp
 
 
 def _get_kernel() -> Kernel:
@@ -28,6 +31,16 @@ def _get_kernel() -> Kernel:
     except KernelError as e:
         # Fallback para errores de inicialización pesados
         raise e
+
+
+def _build_kernel(
+    *,
+    model_pack: Optional[str] = None,
+    llm_name: Optional[str] = None,
+) -> Kernel:
+    cfg = loader.load_config()
+    cfg = apply_overrides(cfg, model_pack=model_pack, llm_name=llm_name)
+    return create_kernel(cfg)
 
 
 def get_app() -> FastAPI:
@@ -147,6 +160,46 @@ def get_app() -> FastAPI:
                 "tokens": hyp_tokens,
                 "meta": meta,
             }
+        finally:
+            await kernel.teardown()
+            if tmp_path.exists():
+                tmp_path.unlink()
+
+    @app.post("/v1/feedback", response_model=FeedbackResponse)
+    async def feedback(
+        audio: UploadFile = File(..., description="Archivo de audio a analizar"),
+        text: str = Form(..., description="Texto de referencia"),
+        lang: str = Form("es", description="Idioma del audio"),
+        model_pack: Optional[str] = Form(None, description="Model pack a usar (opcional)"),
+        llm: Optional[str] = Form(None, description="Adapter LLM a usar (opcional)"),
+        prompt_path: Optional[str] = Form(None, description="Ruta a prompt override (opcional)"),
+        output_schema_path: Optional[str] = Form(None, description="Ruta a schema override (opcional)"),
+        persist: bool = Form(False, description="Guardar resultado localmente"),
+    ) -> dict[str, Any]:
+        """Analiza la pronunciacion y genera feedback con LLM local."""
+        tmp_path = await _process_upload(audio)
+        kernel = _build_kernel(model_pack=model_pack, llm_name=llm)
+        try:
+            await kernel.setup()
+            audio_in: AudioInput = {"path": str(tmp_path), "sample_rate": 16000, "channels": 1}
+            service = FeedbackService(kernel)
+            prompt_file = Path(prompt_path) if prompt_path else None
+            schema_file = Path(output_schema_path) if output_schema_path else None
+            if prompt_file and not prompt_file.exists():
+                raise ValidationError(f"Prompt file not found: {prompt_file}")
+            if schema_file and not schema_file.exists():
+                raise ValidationError(f"Output schema not found: {schema_file}")
+            result = await service.analyze(
+                audio=audio_in,
+                text=text,
+                lang=lang,
+                prompt_path=prompt_file,
+                output_schema_path=schema_file,
+            )
+            if persist:
+                store = FeedbackStore()
+                store.append(result, audio=audio_in, meta={"text": text, "lang": lang})
+            return result
         finally:
             await kernel.teardown()
             if tmp_path.exists():

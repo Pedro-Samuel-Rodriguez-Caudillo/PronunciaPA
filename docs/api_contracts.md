@@ -23,6 +23,19 @@ The OpenAPI schema is automatically generated at `/openapi.json` when the server
     *   `lang`: String
 *   **Response:** `CompareResponse`
 
+### 3. Feedback (LLM Local)
+*   **Path:** `POST /v1/feedback`
+*   **Request:** `multipart/form-data`
+    *   `audio`: Audio file (Binary)
+    *   `text`: Reference text string
+    *   `lang`: String
+    *   `model_pack`: Optional model pack id/path
+    *   `llm`: Optional LLM adapter override
+    *   `prompt_path`: Optional prompt override path
+    *   `output_schema_path`: Optional schema override path
+    *   `persist`: Optional boolean to save locally
+*   **Response:** `FeedbackResponse`
+
 ## Data Structures (TypeScript)
 Located in `frontend/src/types/api.ts`.
 
@@ -46,6 +59,39 @@ export interface CompareResponse {
 }
 ```
 
+### FeedbackResponse
+```typescript
+export interface FeedbackResponse {
+  report: ErrorReport;
+  compare: CompareResponse;
+  feedback: FeedbackPayload;
+}
+```
+
+### ErrorReport
+```typescript
+export interface ErrorReport {
+  target_text: string;
+  target_ipa: string;
+  observed_ipa: string;
+  metrics: Record<string, any>;
+  ops: EditOp[];
+  alignment: Array<[string | null, string | null]>;
+  lang: string;
+  meta: Record<string, any>;
+}
+```
+
+### FeedbackPayload
+```typescript
+export interface FeedbackPayload {
+  summary: string;
+  advice_short: string;
+  advice_long: string;
+  drills: Array<{ type: string; text: string }>;
+}
+```
+
 ## How to Update Contracts
 
 When a change is needed in the data structures:
@@ -62,4 +108,5 @@ When a change is needed in the data structures:
 Example JSONs for development are located in `frontend/src/mocks/`:
 *   `success_transcription.json`
 *   `comparison_result.json`
+*   `feedback_result.json`
 *   `error_invalid_audio.json`

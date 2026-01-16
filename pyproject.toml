@@ -62,4 +62,5 @@ warn_unused_ignores = true
 "tts.system" = "ipa_core.tts.system:SystemTTS"
 "llm.llama_cpp" = "ipa_core.llm.llama_cpp:LlamaCppAdapter"
 "llm.onnx" = "ipa_core.llm.onnx:OnnxLLMAdapter"
+"llm.stub" = "ipa_core.llm.stub:StubLLMAdapter"
 

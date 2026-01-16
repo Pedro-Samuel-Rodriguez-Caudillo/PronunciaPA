@@ -1,0 +1,51 @@
+{
+  "report": {
+    "target_text": "hola",
+    "target_ipa": "o l a",
+    "observed_ipa": "o r a",
+    "metrics": {
+      "per": 0.33
+    },
+    "ops": [
+      { "op": "eq", "ref": "o", "hyp": "o" },
+      { "op": "sub", "ref": "l", "hyp": "r" },
+      { "op": "eq", "ref": "a", "hyp": "a" }
+    ],
+    "alignment": [
+      ["o", "o"],
+      ["l", "r"],
+      ["a", "a"]
+    ],
+    "lang": "es",
+    "meta": {
+      "asr": {
+        "backend": "dummy"
+      }
+    }
+  },
+  "compare": {
+    "per": 0.33,
+    "ops": [
+      { "op": "eq", "ref": "o", "hyp": "o" },
+      { "op": "sub", "ref": "l", "hyp": "r" },
+      { "op": "eq", "ref": "a", "hyp": "a" }
+    ],
+    "alignment": [
+      ["o", "o"],
+      ["l", "r"],
+      ["a", "a"]
+    ],
+    "meta": {
+      "algorithm": "levenshtein"
+    }
+  },
+  "feedback": {
+    "summary": "Good attempt. Focus on /l/ vs /r/.",
+    "advice_short": "Keep the tongue on the ridge for /l/.",
+    "advice_long": "Slow down and let air flow along the sides of the tongue.",
+    "drills": [
+      { "type": "minimal_pair", "text": "la ra" },
+      { "type": "syllables", "text": "la le li lo lu" }
+    ]
+  }
+}

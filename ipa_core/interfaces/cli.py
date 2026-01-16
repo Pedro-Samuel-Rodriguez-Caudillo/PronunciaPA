@@ -15,9 +15,12 @@ from ipa_core.audio.files import ensure_wav, cleanup_temp
 from ipa_core.audio.microphone import record
 from ipa_core.backends.audio_io import to_audio_input
 from ipa_core.config import loader
+from ipa_core.config.overrides import apply_overrides
 from ipa_core.errors import FileNotFound, NotReadyError, UnsupportedFormat, ValidationError
 from ipa_core.kernel.core import create_kernel, Kernel
 from ipa_core.pipeline.transcribe import transcribe as transcribe_pipeline
+from ipa_core.services.feedback import FeedbackService
+from ipa_core.services.feedback_store import FeedbackStore
 from ipa_core.types import AudioInput
 from ipa_core.plugins.models import storage
 from ipa_core.plugins.model_manager import ModelManager
@@ -78,6 +81,34 @@ def models_download(
     asyncio.run(_download())
 
 
+def _print_feedback_payload(payload: dict) -> None:
+    feedback = payload.get("feedback", {})
+    if not feedback:
+        console.print("No feedback available.", style="yellow")
+        return
+
+    summary = feedback.get("summary")
+    if summary:
+        console.print(f"Summary: {summary}")
+
+    advice_short = feedback.get("advice_short")
+    if advice_short:
+        console.print(f"Advice: {advice_short}")
+
+    advice_long = feedback.get("advice_long")
+    if advice_long:
+        console.print(f"Details: {advice_long}")
+
+    drills = feedback.get("drills", [])
+    if drills:
+        table = Table(title="Drills")
+        table.add_column("Type", style="cyan")
+        table.add_column("Text", style="green")
+        for drill in drills:
+            table.add_row(str(drill.get("type", "")), str(drill.get("text", "")))
+        console.print(table)
+
+
 @app.command()
 def benchmark(
     dataset: Path = typer.Option(..., "--dataset", help="Ruta al archivo manifest.jsonl"),
@@ -91,7 +122,13 @@ def benchmark(
 
     loader = DatasetLoader()
     calc = MetricsCalculator()
-    kernel = _get_kernel()
+    kernel = _get_kernel(model_pack=model_pack, llm_name=llm_name)
+    if prompt_path and not prompt_path.exists():
+        console.print(f"Error: prompt not found: {prompt_path}", style="red")
+        raise typer.Exit(code=1)
+    if output_schema_path and not output_schema_path.exists():
+        console.print(f"Error: schema not found: {output_schema_path}", style="red")
+        raise typer.Exit(code=1)
     
     try:
         samples = loader.load_manifest(dataset)
@@ -179,11 +216,16 @@ class OutputFormat(str, Enum):
     aligned = "aligned"
 
 
-def _get_kernel() -> Kernel:
+def _get_kernel(
+    *,
+    model_pack: Optional[str] = None,
+    llm_name: Optional[str] = None,
+) -> Kernel:
     """Carga la configuración y crea el kernel."""
     from ipa_core.errors import NotReadyError
     try:
         cfg = loader.load_config()
+        cfg = apply_overrides(cfg, model_pack=model_pack, llm_name=llm_name)
         return create_kernel(cfg)
     except loader.ValidationError as e:
         console.print(loader.format_validation_error(e), style="red")
@@ -488,6 +530,76 @@ def compare(
             accent_data = res.get("accent", {})
             _print_accent_ranking(accent_data.get("ranking", []))
             _print_accent_features(accent_data.get("features", []))
+
+
+@app.command()
+def feedback(
+    audio: str = typer.Option(..., "--audio", "-a", help="Path to the audio file"),
+    text: str = typer.Option(..., "--text", "-t", help="Reference text"),
+    lang: str = typer.Option("es", "--lang", "-l", help="Target language"),
+    model_pack: Optional[str] = typer.Option(None, "--model-pack", help="Model pack override"),
+    llm_name: Optional[str] = typer.Option(None, "--llm", help="LLM adapter override"),
+    prompt_path: Optional[Path] = typer.Option(None, "--prompt-path", help="Prompt override path"),
+    output_schema_path: Optional[Path] = typer.Option(None, "--schema-path", help="Output schema override path"),
+    persist: bool = typer.Option(False, "--save/--no-save", help="Save feedback locally"),
+    persist_dir: Optional[Path] = typer.Option(None, "--save-dir", help="Directory for saved feedback"),
+    json_output: bool = typer.Option(False, "--json/--no-json", help="Output JSON"),
+):
+    """Generate LLM feedback for a pronunciation attempt."""
+    kernel = _get_kernel()
+    wav_path = ""
+    tmp_audio = False
+
+    try:
+        wav_path, tmp_audio = ensure_wav(audio)
+        audio_in = to_audio_input(wav_path)
+    except (ValidationError, UnsupportedFormat, FileNotFound, FileNotFoundError, NotReadyError) as e:
+        console.print(f"Error: {e}", style="red")
+        raise typer.Exit(code=1)
+
+    service = FeedbackService(kernel)
+
+    async def _run_feedback():
+        await kernel.setup()
+        try:
+            return await service.analyze(
+                audio=audio_in,
+                text=text,
+                lang=lang,
+                prompt_path=prompt_path,
+                output_schema_path=output_schema_path,
+            )
+        finally:
+            await kernel.teardown()
+
+    try:
+        with console.status("[bold green]Generating feedback..."):
+            res = asyncio.run(_run_feedback())
+    except (ValidationError, UnsupportedFormat, FileNotFound, FileNotFoundError, NotReadyError) as e:
+        console.print(f"Error: {e}", style="red")
+        raise typer.Exit(code=1)
+    finally:
+        if tmp_audio and wav_path:
+            cleanup_temp(wav_path)
+
+    persisted_to = None
+    if persist:
+        store = FeedbackStore(persist_dir)
+        persisted_to = store.append(res, audio=audio_in, meta={"text": text, "lang": lang})
+
+    if json_output:
+        payload = dict(res)
+        if persisted_to:
+            payload["persisted_to"] = str(persisted_to)
+        console.print_json(data=payload)
+    else:
+        compare = res.get("compare", {})
+        per = compare.get("per")
+        if per is not None:
+            console.print(f"PER: {per:.2%}")
+        _print_feedback_payload(res)
+        if persisted_to:
+            console.print(f"Saved to: {persisted_to}")
 
 
 @config_app.command("show")

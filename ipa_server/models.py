@@ -35,6 +35,26 @@ class CompareResponse(BaseModel):
     )
     meta: dict[str, Any] = Field(default_factory=dict, description="Metadatos adicionales de la comparación")
 
+class ErrorReport(BaseModel):
+    """Reporte canonico de errores usado como input para el LLM."""
+    target_text: str = Field(..., description="Texto objetivo")
+    target_ipa: str = Field(..., description="IPA objetivo")
+    observed_ipa: str = Field(..., description="IPA observado")
+    metrics: dict[str, Any] = Field(default_factory=dict, description="Metricas de comparacion")
+    ops: List[EditOp] = Field(default_factory=list, description="Operaciones de edicion")
+    alignment: List[List[Optional[str]]] = Field(
+        default_factory=list,
+        description="Pares de tokens alineados [ref, hyp]",
+    )
+    lang: str = Field(..., description="Codigo de idioma")
+    meta: dict[str, Any] = Field(default_factory=dict, description="Metadatos adicionales")
+
+class FeedbackResponse(BaseModel):
+    """Respuesta con analisis y feedback generado."""
+    report: ErrorReport = Field(..., description="Reporte canonico de errores")
+    compare: CompareResponse = Field(..., description="Resultado de comparacion")
+    feedback: dict[str, Any] = Field(..., description="Salida del modelo LLM")
+
 class ErrorResponse(BaseModel):
     """Estructura estandarizada para respuestas de error."""
     detail: str = Field(..., description="Descripción detallada del error", json_schema_extra={"example": "El formato de audio no es compatible."})
