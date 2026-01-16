@@ -16,15 +16,15 @@ backend:
 # Backend ASR (Wav2Vec2 ONNX) - DISABLED
 # backend:
 #   name: onnx
-  params:
-    model_name: wav2vec2-base-960h
-    # Modelo público de onnx-community (Inglés, pero sirve para validar pipeline)
-    download_url: https://huggingface.co/onnx-community/wav2vec2-base-960h/resolve/main/onnx/model.onnx
-    config_url: https://huggingface.co/onnx-community/wav2vec2-base-960h/resolve/main/config.json
-    vocab_url: https://huggingface.co/onnx-community/wav2vec2-base-960h/resolve/main/vocab.json
-    # Wav2Vec2 specific
-    input_name: input_values
-    output_name: logits
+#   params:
+#     model_name: wav2vec2-base-960h
+#     # Modelo publico de onnx-community (Ingles, pero sirve para validar pipeline)
+#     download_url: https://huggingface.co/onnx-community/wav2vec2-base-960h/resolve/main/onnx/model.onnx
+#     config_url: https://huggingface.co/onnx-community/wav2vec2-base-960h/resolve/main/config.json
+#     vocab_url: https://huggingface.co/onnx-community/wav2vec2-base-960h/resolve/main/vocab.json
+#     # Wav2Vec2 specific
+#     input_name: input_values
+#     output_name: logits
 
 # Conversión texto -> IPA (eSpeak/eSpeak-NG)
 textref:
@@ -35,6 +35,17 @@ textref:
 # Comparador
 comparator:
   name: levenshtein
+
+# LLM runtime (llama.cpp)
+llm:
+  name: llama_cpp
+  params:
+    # Ajusta la ruta del binario si no esta en PATH.
+    binary: llama-cli
+    # Override del modelo si necesitas otra ruta.
+    model_path: data/models/llm/qwen2.5-7b-instruct.gguf
+    n_ctx: 4096
+    n_gpu_layers: 0
 
 # Text-to-speech (Piper con fallback al sistema)
 tts:
