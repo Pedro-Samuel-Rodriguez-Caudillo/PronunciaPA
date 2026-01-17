@@ -23,6 +23,9 @@ class TestPluginManager:
         }
         
         manager = PluginManager()
+        from ipa_core.config.schema import AppConfig, PluginCfg
+        manager._config = AppConfig(backend=PluginCfg(name="test_plugin"))
+        
         plugins = manager.get_installed_plugins()
         
         assert len(plugins) == 1
@@ -33,7 +36,7 @@ class TestPluginManager:
         assert p.version == "1.0.0"
         assert p.author == "Tester"
         assert p.description == "A test plugin"
-        assert p.enabled is True  # Default should be true? or managed?
+        assert p.enabled is True
 
     def test_plugin_metadata_structure(self):
         """Verify PluginMetadata dataclass structure."""
@@ -48,3 +51,20 @@ class TestPluginManager:
         )
         assert p.name == "demo"
         assert p.enabled is False
+
+    def test_is_enabled(self):
+        """Should correctly identify enabled plugins from config."""
+        from ipa_core.config.schema import AppConfig, PluginCfg
+        
+        config = AppConfig(
+            backend=PluginCfg(name="active_asr"),
+            textref=PluginCfg(name="active_tr")
+        )
+        
+        manager = PluginManager()
+        manager._config = config # Inject mock config
+        
+        assert manager._is_enabled("asr", "active_asr") is True
+        assert manager._is_enabled("asr", "other") is False
+        assert manager._is_enabled("textref", "active_tr") is True
+        assert manager._is_enabled("textref", "grapheme") is False

@@ -680,41 +680,49 @@ def config_show():
 
 
 from ipa_core.plugins import registry, discovery
+from ipa_core.plugins.manager import PluginManager
 
 
 @plugin_app.command("list")
 def plugin_list():
     """Lista los plugins instalados y su metadata básica."""
+    manager = PluginManager()
+    plugins = manager.get_installed_plugins()
+
+    if not plugins:
+        console.print("No se encontraron plugins instalados.", style="yellow")
+        return
+
     table = Table(title="Plugins Registrados")
     table.add_column("Categoría", style="bold magenta")
     table.add_column("Nombre", style="cyan")
     table.add_column("Versión", style="green")
     table.add_column("Autor", style="yellow")
+    table.add_column("Estado", justify="center")
     
-    for category, name, ep in discovery.iter_plugin_entry_points():
-        # Deducir paquete para metadatos
-        package_name = ep.value.split(".")[0].split(":")[0]
-        meta = discovery.get_package_metadata(package_name)
-        
+    for p in plugins:
+        status = "[green]Enabled[/green]" if p.enabled else "[white]Installed[/white]"
         table.add_row(
-            category.upper(),
-            name,
-            meta["version"],
-            meta["author"]
+            p.category.upper(),
+            p.name,
+            p.version,
+            p.author,
+            status
         )
         
     console.print(table)
 
 
-@plugin_app.command("inspect")
-def plugin_inspect(
+@plugin_app.command("info")
+def plugin_info(
     category: str = typer.Argument(..., help="Categoría del plugin (asr, textref, etc.)"),
     name: str = typer.Argument(..., help="Nombre del plugin"),
 ):
     """Muestra información detallada de un plugin específico."""
-    details = discovery.get_plugin_details(category.lower(), name)
+    manager = PluginManager()
+    p = manager.get_plugin_info(category.lower(), name)
     
-    if not details:
+    if not p:
         console.print(f"[red]Error:[/red] No se encontró el plugin '{category}.{name}'")
         raise typer.Exit(code=1)
         
@@ -722,12 +730,12 @@ def plugin_inspect(
     table.add_column("Propiedad", style="bold")
     table.add_column("Valor")
     
-    table.add_row("Nombre", details["name"])
-    table.add_row("Categoría", details["category"].upper())
-    table.add_row("Versión", details["version"])
-    table.add_row("Autor", details["author"])
-    table.add_row("Descripción", details["description"])
-    table.add_row("Entry Point", details["entry_point"])
+    table.add_row("Nombre", p.name)
+    table.add_row("Categoría", p.category.upper())
+    table.add_row("Versión", p.version)
+    table.add_row("Autor", p.author)
+    table.add_row("Descripción", p.description)
+    table.add_row("Entry Point", p.entry_point)
     
     console.print(table)
 

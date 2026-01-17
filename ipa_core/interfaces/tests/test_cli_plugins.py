@@ -29,16 +29,17 @@ def test_plugin_list_enhanced():
         assert "test_asr" in result.stdout
         assert "1.2.3" in result.stdout
         assert "Test Author" in result.stdout
+        assert "Enabled" in result.stdout or "Installed" in result.stdout
 
-def test_plugin_inspect_not_found():
+def test_plugin_info_not_found():
     """Should show error when plugin not found."""
     with patch("ipa_core.plugins.discovery.get_plugin_details") as mock_details:
         mock_details.return_value = {}
-        result = runner.invoke(app, ["plugin", "inspect", "asr", "ghost"])
+        result = runner.invoke(app, ["plugin", "info", "asr", "ghost"])
         assert result.exit_code != 0
         assert "Error" in result.stdout
 
-def test_plugin_inspect_success():
+def test_plugin_info_success():
     """Should show detailed info for a plugin."""
     with patch("ipa_core.plugins.discovery.get_plugin_details") as mock_details:
         mock_details.return_value = {
@@ -49,7 +50,7 @@ def test_plugin_inspect_success():
             "description": "My special plugin",
             "entry_point": "pkg.mod:Class"
         }
-        result = runner.invoke(app, ["plugin", "inspect", "asr", "my_plugin"])
+        result = runner.invoke(app, ["plugin", "info", "asr", "my_plugin"])
         assert result.exit_code == 0
         assert "my_plugin" in result.stdout
         assert "ASR" in result.stdout
