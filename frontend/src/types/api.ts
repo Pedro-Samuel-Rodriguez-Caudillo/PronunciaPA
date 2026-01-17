@@ -14,6 +14,17 @@ export interface TranscriptionResponse {
   meta: Record<string, any>;
 }
 
+export interface TextRefResponse {
+  /** Transcripción en formato IPA */
+  ipa: string;
+  /** Lista de tokens IPA generados */
+  tokens: string[];
+  /** Código de idioma utilizado */
+  lang: string;
+  /** Metadatos adicionales del proveedor */
+  meta: Record<string, any>;
+}
+
 export interface EditOp {
   /** Tipo de operación (eq, sub, ins, del) */
   op: 'eq' | 'sub' | 'ins' | 'del';

@@ -1,0 +1,9 @@
+{
+  "ipa": "h o l a",
+  "tokens": ["h", "o", "l", "a"],
+  "lang": "es",
+  "meta": {
+    "method": "grapheme",
+    "lang": "es"
+  }
+}

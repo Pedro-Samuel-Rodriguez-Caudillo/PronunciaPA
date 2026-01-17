@@ -15,7 +15,15 @@ The OpenAPI schema is automatically generated at `/openapi.json` when the server
     *   `lang`: String (e.g., "es", "en")
 *   **Response:** `TranscriptionResponse`
 
-### 2. Compare Audio
+### 2. Convert Text to IPA
+*   **Path:** `POST /v1/textref`
+*   **Request:** `multipart/form-data`
+    *   `text`: String (texto a convertir)
+    *   `lang`: String (e.g., "es", "en")
+    *   `textref`: Optional string (nombre del proveedor texto→IPA)
+*   **Response:** `TextRefResponse`
+
+### 3. Compare Audio
 *   **Path:** `POST /v1/compare`
 *   **Request:** `multipart/form-data`
     *   `audio`: Audio file (Binary)
@@ -23,7 +31,7 @@ The OpenAPI schema is automatically generated at `/openapi.json` when the server
     *   `lang`: String
 *   **Response:** `CompareResponse`
 
-### 3. Feedback (LLM Local)
+### 4. Feedback (LLM Local)
 *   **Path:** `POST /v1/feedback`
 *   **Request:** `multipart/form-data`
     *   `audio`: Audio file (Binary)
@@ -42,6 +50,16 @@ Located in `frontend/src/types/api.ts`.
 ### TranscriptionResponse
 ```typescript
 export interface TranscriptionResponse {
+  ipa: string;
+  tokens: string[];
+  lang: string;
+  meta: Record<string, any>;
+}
+```
+
+### TextRefResponse
+```typescript
+export interface TextRefResponse {
   ipa: string;
   tokens: string[];
   lang: string;

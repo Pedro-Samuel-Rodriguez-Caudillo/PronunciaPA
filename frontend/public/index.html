@@ -276,7 +276,7 @@
           </ol>
           <div class="mt-8 p-4 rounded-xl bg-white shadow-inner border border-purple-100">
             <p class="text-sm text-gray-600 mb-1">Endpoints activos</p>
-            <code id="apiBaseHint" class="text-sm font-mono text-purple-700 break-all">http://localhost:8000/v1/transcribe | /v1/feedback</code>
+            <code id="apiBaseHint" class="text-sm font-mono text-purple-700 break-all">http://localhost:8000/v1/transcribe | /v1/textref | /v1/feedback</code>
           </div>
           <p class="mt-6 text-sm text-gray-500">
             Si usas otra URL expórtala como <code class="bg-white/70 px-1 rounded">window.PRONUNCIAPA_API_BASE</code> antes de cargar la página.
@@ -328,6 +328,64 @@
               <div>
                 <dt class="font-semibold text-gray-600">Backend</dt>
                 <dd id="ipaBackend" class="mt-1">—</dd>
+              </div>
+            </dl>
+          </div>
+        </div>
+        <div class="bg-white border border-gray-200 rounded-2xl shadow-xl p-8">
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <h3 class="text-2xl font-semibold text-gray-800">Texto a IPA</h3>
+              <p class="text-gray-600">Convierte texto plano en IPA usando el proveedor disponible.</p>
+            </div>
+            <span class="px-3 py-1 rounded-full text-xs font-semibold bg-purple-100 text-purple-700">/v1/textref</span>
+          </div>
+          <form id="textrefForm" class="mt-6 space-y-5" enctype="multipart/form-data">
+            <div>
+              <label for="textrefText" class="block text-sm font-medium text-gray-700 mb-2">Texto</label>
+              <input id="textrefText" name="text" type="text" placeholder="Escribe una frase corta" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-400">
+            </div>
+            <div>
+              <label for="textrefLang" class="block text-sm font-medium text-gray-700 mb-2">Idioma</label>
+              <select id="textrefLang" name="lang" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-400">
+                <option value="es">Espanol (es)</option>
+                <option value="en">Ingles (en)</option>
+                <option value="fr">Frances (fr)</option>
+                <option value="pt">Portugues (pt)</option>
+              </select>
+            </div>
+            <div>
+              <label for="textrefProvider" class="block text-sm font-medium text-gray-700 mb-2">Proveedor</label>
+              <select id="textrefProvider" name="textref" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-400">
+                <option value="">Auto (config)</option>
+                <option value="grapheme">Grapheme</option>
+                <option value="espeak">Espeak</option>
+                <option value="epitran">Epitran</option>
+              </select>
+              <p class="text-xs text-gray-500 mt-1">Si no esta instalado, se usara el fallback disponible.</p>
+            </div>
+            <button type="submit" class="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1">Convertir texto</button>
+          </form>
+          <div id="textrefStatus" class="hidden mt-6 text-sm text-purple-600 font-medium">Procesando texto...</div>
+          <div id="textrefError" class="hidden mt-6 text-sm text-red-600"></div>
+          <div id="textrefResult" class="hidden mt-8 border border-gray-200 rounded-xl p-6 bg-gradient-to-br from-white to-purple-50">
+            <div class="flex items-start justify-between gap-4">
+              <div>
+                <h4 class="text-xl font-semibold text-gray-800">Resultado IPA</h4>
+                <p class="text-sm text-gray-500">Tokens listos para practicar.</p>
+              </div>
+              <button id="copyTextrefBtn" class="text-sm font-semibold text-purple-700 border border-purple-300 rounded-lg px-3 py-1 hover:bg-purple-50 transition-colors">Copiar IPA</button>
+            </div>
+            <p id="textrefIpaText" class="mt-4 font-mono text-lg text-purple-800 break-words"></p>
+            <div id="textrefTokens" class="mt-4 flex flex-wrap gap-2"></div>
+            <dl class="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm text-gray-700">
+              <div>
+                <dt class="font-semibold text-gray-600">Idioma</dt>
+                <dd id="textrefLangValue" class="mt-1">—</dd>
+              </div>
+              <div>
+                <dt class="font-semibold text-gray-600">Proveedor</dt>
+                <dd id="textrefProviderValue" class="mt-1">—</dd>
               </div>
             </dl>
           </div>
@@ -671,6 +729,7 @@
     const configuredBase = window.PRONUNCIAPA_API_BASE || fallbackBase;
     const API_BASE_URL = configuredBase.replace(/\/$/, '');
     const TRANSCRIBE_ENDPOINT = `${API_BASE_URL}/v1/transcribe`;
+    const TEXTREF_ENDPOINT = `${API_BASE_URL}/v1/textref`;
     const FEEDBACK_ENDPOINT = `${API_BASE_URL}/v1/feedback`;
 
     const apiStatusBadge = document.getElementById('apiStatusBadge');
@@ -686,6 +745,18 @@
     const ipaLangValue = document.getElementById('ipaLangValue');
     const ipaBackend = document.getElementById('ipaBackend');
     const copyIpaBtn = document.getElementById('copyIpaBtn');
+    const textrefForm = document.getElementById('textrefForm');
+    const textrefTextInput = document.getElementById('textrefText');
+    const textrefLangSelect = document.getElementById('textrefLang');
+    const textrefProviderSelect = document.getElementById('textrefProvider');
+    const textrefStatus = document.getElementById('textrefStatus');
+    const textrefError = document.getElementById('textrefError');
+    const textrefResult = document.getElementById('textrefResult');
+    const textrefIpaText = document.getElementById('textrefIpaText');
+    const textrefTokens = document.getElementById('textrefTokens');
+    const textrefLangValue = document.getElementById('textrefLangValue');
+    const textrefProviderValue = document.getElementById('textrefProviderValue');
+    const copyTextrefBtn = document.getElementById('copyTextrefBtn');
     const recordBtn = document.getElementById('recordBtn');
     const stopRecordBtn = document.getElementById('stopRecordBtn');
     const recordingBadge = document.getElementById('recordingBadge');
@@ -715,7 +786,7 @@
     let lastRecordingAt = null;
 
     if (apiBaseHint) {
-      apiBaseHint.textContent = `${TRANSCRIBE_ENDPOINT} | ${FEEDBACK_ENDPOINT}`;
+      apiBaseHint.textContent = `${TRANSCRIBE_ENDPOINT} | ${TEXTREF_ENDPOINT} | ${FEEDBACK_ENDPOINT}`;
     }
 
     function setApiStatus(state, message) {
@@ -805,6 +876,60 @@
       ipaBackend.textContent = payload.meta?.backend || '-';
       renderTokens(tokens);
       ipaResult.classList.remove('hidden');
+    }
+
+    function resetTextrefResult() {
+      if (textrefResult) textrefResult.classList.add('hidden');
+      if (textrefError) textrefError.classList.add('hidden');
+    }
+
+    function setTextrefStatus(message) {
+      if (!textrefStatus) return;
+      if (message) {
+        textrefStatus.textContent = message;
+        textrefStatus.classList.remove('hidden');
+      } else {
+        textrefStatus.classList.add('hidden');
+      }
+    }
+
+    function setTextrefError(message) {
+      if (!textrefError) return;
+      if (message) {
+        textrefError.textContent = message;
+        textrefError.classList.remove('hidden');
+      } else {
+        textrefError.classList.add('hidden');
+      }
+    }
+
+    function renderTextrefTokens(tokens = []) {
+      if (!textrefTokens) return;
+      textrefTokens.innerHTML = '';
+      if (!tokens.length) {
+        const empty = document.createElement('span');
+        empty.className = 'text-sm text-gray-500';
+        empty.textContent = 'Sin tokens disponibles.';
+        textrefTokens.appendChild(empty);
+        return;
+      }
+      tokens.forEach((token) => {
+        const badge = document.createElement('span');
+        badge.className = 'px-3 py-1 rounded-full bg-white text-purple-700 border border-purple-200 text-sm font-semibold';
+        badge.textContent = token;
+        textrefTokens.appendChild(badge);
+      });
+    }
+
+    function renderTextrefResult(payload) {
+      if (!textrefResult || !textrefIpaText || !textrefLangValue || !textrefProviderValue) return;
+      const tokens = payload.tokens || [];
+      const provider = payload.meta?.method || payload.meta?.provider || payload.meta?.backend || '-';
+      textrefIpaText.textContent = payload.ipa || tokens.join(' ') || '-';
+      textrefLangValue.textContent = payload.lang || '-';
+      textrefProviderValue.textContent = provider;
+      renderTextrefTokens(tokens);
+      textrefResult.classList.remove('hidden');
     }
 
     function resetFeedbackResult() {
@@ -919,6 +1044,47 @@
         setError(err instanceof Error ? err.message : 'No pudimos interpretar la respuesta del backend.');
       } finally {
         setStatus(null);
+      }
+    }
+
+    async function sendTextref() {
+      resetTextrefResult();
+      setTextrefError(null);
+      const textValue = textrefTextInput?.value?.trim();
+      if (!textValue) {
+        setTextrefError('Ingresa un texto para convertir.');
+        return;
+      }
+      setTextrefStatus('Procesando texto...');
+      const lang = textrefLangSelect?.value || 'es';
+      const provider = textrefProviderSelect?.value?.trim();
+      const formData = new FormData();
+      formData.append('text', textValue);
+      formData.append('lang', lang);
+      if (provider) {
+        formData.append('textref', provider);
+      }
+      try {
+        const response = await fetch(TEXTREF_ENDPOINT, { method: 'POST', body: formData });
+        if (!response.ok) {
+          let message = 'No se pudo convertir el texto.';
+          try {
+            const errorPayload = await response.json();
+            if (errorPayload?.detail) {
+              message = errorPayload.detail;
+            }
+          } catch (_err) {
+            // noop
+          }
+          throw new Error(message);
+        }
+        const payload = await response.json();
+        renderTextrefResult(payload);
+      } catch (err) {
+        console.error('textref error', err);
+        setTextrefError(err instanceof Error ? err.message : 'No pudimos interpretar la respuesta del backend.');
+      } finally {
+        setTextrefStatus(null);
       }
     }
 
@@ -1050,6 +1216,13 @@
       });
     }
 
+    if (textrefForm) {
+      textrefForm.addEventListener('submit', (event) => {
+        event.preventDefault();
+        sendTextref();
+      });
+    }
+
     if (feedbackForm && feedbackFileInput) {
       feedbackForm.addEventListener('submit', (event) => {
         event.preventDefault();
@@ -1080,6 +1253,18 @@
           await navigator.clipboard.writeText(ipaText.textContent || '');
           copyIpaBtn.textContent = 'Copiado';
           setTimeout(() => { copyIpaBtn.textContent = 'Copiar IPA'; }, 2000);
+        } catch (err) {
+          console.warn('clipboard error', err);
+        }
+      });
+    }
+
+    if (copyTextrefBtn && textrefIpaText) {
+      copyTextrefBtn.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(textrefIpaText.textContent || '');
+          copyTextrefBtn.textContent = 'Copiado';
+          setTimeout(() => { copyTextrefBtn.textContent = 'Copiar IPA'; }, 2000);
         } catch (err) {
           console.warn('clipboard error', err);
         }

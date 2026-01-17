@@ -91,6 +91,25 @@ Respuesta tipo:
 }
 ```
 
+## API HTTP `/v1/textref`
+
+```bash
+curl -X POST http://localhost:8000/v1/textref \
+  -F "lang=es" \
+  -F "text=hola"
+```
+
+Respuesta tipo:
+
+```json
+{
+  "ipa": "h o l a",
+  "tokens": ["h", "o", "l", "a"],
+  "lang": "es",
+  "meta": {"method": "grapheme"}
+}
+```
+
 ## Frontend Web
 
 El sitio Vite (`frontend/`) consume la API y expone:
