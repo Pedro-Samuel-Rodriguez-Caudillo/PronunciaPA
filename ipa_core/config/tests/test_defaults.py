@@ -9,7 +9,7 @@ def test_app_config_empty_defaults() -> None:
     
     assert config.version == 1
     assert config.preprocessor.name == "basic"
-    assert config.backend.name == "allosaurus"
+    assert config.backend.name == "stub"
     assert config.textref.name == "grapheme"
     assert config.comparator.name == "levenshtein"
     assert config.tts.name == "default"

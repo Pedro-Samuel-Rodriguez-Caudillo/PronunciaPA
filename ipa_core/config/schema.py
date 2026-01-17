@@ -38,7 +38,7 @@ class AppConfig(BaseModel):
 
     version: int = 1
     preprocessor: PluginCfg = Field(default_factory=lambda: PluginCfg(name="basic"))
-    backend: PluginCfg = Field(default_factory=lambda: PluginCfg(name="allosaurus"))
+    backend: PluginCfg = Field(default_factory=lambda: PluginCfg(name="stub"))
     textref: PluginCfg = Field(default_factory=lambda: PluginCfg(name="grapheme"))
     comparator: PluginCfg = Field(default_factory=lambda: PluginCfg(name="levenshtein"))
     tts: PluginCfg = Field(default_factory=lambda: PluginCfg(name="default"))

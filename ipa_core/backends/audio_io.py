@@ -19,6 +19,8 @@ class WavInfo:
     path: str
     sample_rate: int
     channels: int
+    frames: int
+    duration: float
 
 
 def sniff_wav(path: str) -> WavInfo:
@@ -34,7 +36,9 @@ def sniff_wav(path: str) -> WavInfo:
         with wave.open(path, "rb") as w:
             sr = w.getframerate()
             ch = w.getnchannels()
-            return WavInfo(path=path, sample_rate=sr, channels=ch)
+            frames = w.getnframes()
+            duration = frames / sr if sr else 0.0
+            return WavInfo(path=path, sample_rate=sr, channels=ch, frames=frames, duration=duration)
     except (wave.Error, EOFError) as e:  # type: ignore[no-redef]
         raise UnsupportedFormat(f"Formato no soportado o WAV inválido: {path}") from e
 
@@ -43,3 +47,9 @@ def to_audio_input(path: str) -> AudioInput:
     """Construir `AudioInput` desde un WAV PCM."""
     info = sniff_wav(path)
     return {"path": info.path, "sample_rate": info.sample_rate, "channels": info.channels}
+
+
+def wav_duration(path: str) -> float:
+    """Duración de un WAV PCM en segundos."""
+    info = sniff_wav(path)
+    return info.duration

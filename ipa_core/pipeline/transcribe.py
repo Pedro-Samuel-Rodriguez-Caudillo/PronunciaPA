@@ -31,8 +31,13 @@ async def transcribe(
     # 2. ASR
     res = await asr.transcribe(processed_audio, lang=lang)
 
-    # 3. Extracción y normalización de tokens
+    # 3. Extracción y normalización de tokens (o fallback a TextRef)
     tokens = res.get("tokens")
+    if not tokens:
+        raw_text = res.get("raw_text", "")
+        if raw_text:
+            tr_res = await textref.to_ipa(raw_text, lang=lang or "")
+            tokens = tr_res.get("tokens", [])
     if tokens:
         norm_res = await pre.normalize_tokens(tokens)
         return norm_res.get("tokens", [])

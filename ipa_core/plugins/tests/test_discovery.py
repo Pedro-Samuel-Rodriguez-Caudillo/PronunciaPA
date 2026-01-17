@@ -7,7 +7,8 @@ class TestDiscovery(unittest.TestCase):
         """Ensure it returns the expected dictionary structure."""
         result = discovery.available_plugins()
         self.assertIsInstance(result, dict)
-        self.assertEqual(sorted(result.keys()), ["asr", "comparator", "preprocessor", "textref"])
+        for key in ("asr", "comparator", "preprocessor", "textref", "tts", "llm"):
+            self.assertIn(key, result)
         for val in result.values():
             self.assertIsInstance(val, list)
 

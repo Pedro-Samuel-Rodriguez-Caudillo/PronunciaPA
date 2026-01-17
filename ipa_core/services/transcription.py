@@ -8,13 +8,11 @@ from typing import Optional
 
 from ipa_core.audio.files import cleanup_temp, ensure_wav, persist_bytes
 from ipa_core.backends.audio_io import to_audio_input
-from ipa_core.errors import NotReadyError
+from ipa_core.errors import NotReadyError, ValidationError
 from ipa_core.ports.asr import ASRBackend
 from ipa_core.ports.preprocess import Preprocessor
 from ipa_core.ports.textref import TextRefProvider
-from ipa_core.pipeline.transcribe import transcribe
 from ipa_core.preprocessor_basic import BasicPreprocessor
-from ipa_core.textref.simple import GraphemeTextRef
 from ipa_core.types import AudioInput, Token
 from ipa_core.plugins import registry
 
@@ -86,12 +84,27 @@ class TranscriptionService:
 
     async def _run_pipeline(self, wav_path: str, *, lang: Optional[str]) -> TranscriptionPayload:
         audio = to_audio_input(wav_path)
-        tokens = await transcribe(self.pre, self.asr, self.textref, audio=audio, lang=lang or self._default_lang)
+        pre_audio_res = await self.pre.process_audio(audio)
+        processed_audio = pre_audio_res.get("audio", audio)
+        asr_result = await self.asr.transcribe(processed_audio, lang=lang or self._default_lang)
+        tokens = asr_result.get("tokens")
+        if not tokens:
+            raw_text = asr_result.get("raw_text", "")
+            if raw_text:
+                tr_res = await self.textref.to_ipa(raw_text, lang=lang or self._default_lang)
+                tokens = tr_res.get("tokens", [])
+        if not tokens:
+            raise ValidationError("ASR no devolvió tokens IPA")
+        norm_res = await self.pre.normalize_tokens(tokens)
+        tokens = norm_res.get("tokens", [])
         backend_name = self.asr.__class__.__name__.lower()
+        meta = dict(asr_result.get("meta", {}))
+        meta.setdefault("backend", backend_name)
+        meta.setdefault("tokens", len(tokens))
         return TranscriptionPayload(
             tokens=tokens,
             ipa=" ".join(tokens),
             lang=lang or self._default_lang,
             audio=audio,
-            meta={"backend": backend_name, "tokens": len(tokens)},
+            meta=meta,
         )

@@ -13,6 +13,34 @@ from pydantic import ValidationError
 from ipa_core.config.schema import AppConfig
 
 
+def _coerce_env_value(value: str) -> Any:
+    """Convierte strings simples a bool/int/float cuando aplica."""
+    raw = value.strip()
+    lowered = raw.lower()
+    if lowered in {"true", "false"}:
+        return lowered == "true"
+    try:
+        return int(raw)
+    except ValueError:
+        pass
+    try:
+        return float(raw)
+    except ValueError:
+        return value
+
+
+def _normalize_compare_weights(data: dict[str, Any]) -> None:
+    """Mapea `del` -> `del_` en params del comparador si aplica."""
+    comparator = data.get("comparator")
+    if not isinstance(comparator, dict):
+        return
+    params = comparator.get("params")
+    if not isinstance(params, dict):
+        return
+    if "del" in params and "del_" not in params:
+        params["del_"] = params.pop("del")
+
+
 def format_validation_error(exc: ValidationError) -> str:
     """Transforma un ValidationError de Pydantic en un mensaje amigable.
 
@@ -85,6 +113,18 @@ def load_config(path: str | None = None) -> AppConfig:
         with p.open("r", encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
 
+    # Alias de variables cortas (compatibilidad con CLI/README).
+    aliases = {
+        "PRONUNCIAPA_ASR": ("backend", "name"),
+        "PRONUNCIAPA_TEXTREF": ("textref", "name"),
+        "PRONUNCIAPA_COMPARATOR": ("comparator", "name"),
+        "PRONUNCIAPA_PREPROCESSOR": ("preprocessor", "name"),
+    }
+    for env_var, (section, key) in aliases.items():
+        if env_var in os.environ:
+            data.setdefault(section, {})
+            data[section][key] = _coerce_env_value(os.environ[env_var])
+
     # Aplicar sobrescrituras de variables de entorno (Simplificado)
     # PRONUNCIAPA_BACKEND_NAME -> data['backend']['name']
     for env_var, value in os.environ.items():
@@ -92,14 +132,22 @@ def load_config(path: str | None = None) -> AppConfig:
             parts = env_var[len("PRONUNCIAPA_") :].lower().split("_")
             # Manejo básico: SECTION_KEY o SECTION_SUB_KEY
             if len(parts) >= 2:
-                section = parts[0]
-                key = parts[-1]
+                if parts[1] == "params":
+                    section = parts[0]
+                    key = "_".join(parts[2:]) if len(parts) > 2 else parts[-1]
+                    path_parts = [section, "params"]
+                else:
+                    section = parts[0]
+                    key = parts[-1]
+                    path_parts = parts[:-1]
                 target = data
                 # Navegar por secciones
-                for part in parts[:-1]:
+                for part in path_parts:
                     if part not in target or not isinstance(target[part], dict):
                         target[part] = {}
                     target = target[part]
-                target[key] = value
+                target[key] = _coerce_env_value(value)
+
+    _normalize_compare_weights(data)
 
     return AppConfig(**data)

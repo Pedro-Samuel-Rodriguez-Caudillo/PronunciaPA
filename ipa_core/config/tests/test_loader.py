@@ -73,7 +73,7 @@ def test_load_config_default_fallback(monkeypatch) -> None:
     with pytest.MonkeyPatch().context() as mp:
         mp.setattr("pathlib.Path.exists", lambda _: False)
         config = loader.load_config()
-        assert config.backend.name == "allosaurus" # Default en schema.py
+        assert config.backend.name == "stub" # Default en schema.py
 
 def test_load_config_env_path_priority(tmp_path, monkeypatch) -> None:
     """Verifica que PRONUNCIAPA_CONFIG tiene prioridad."""
@@ -96,3 +96,38 @@ def test_load_config_cwd_fallback(tmp_path, monkeypatch) -> None:
     config = loader.load_config()
     assert config.backend.name == "cwd-backend"
 
+def test_load_config_maps_del_weight(tmp_path) -> None:
+    """Verifica que 'del' se mapea a 'del_' en params del comparador."""
+    content = (
+        "version: 1\n"
+        "backend: {name: 'stub'}\n"
+        "textref: {name: 'mock'}\n"
+        "comparator:\n"
+        "  name: levenshtein\n"
+        "  params:\n"
+        "    del: 2.0\n"
+        "preprocessor: {name: 'mock'}\n"
+    )
+    f = tmp_path / "weights_config.yaml"
+    f.write_text(content)
+    config = loader.load_config(str(f))
+    assert config.comparator.params["del_"] == 2.0
+    assert "del" not in config.comparator.params
+
+def test_load_config_env_coercion(tmp_path, monkeypatch) -> None:
+    """Verifica que las variables de entorno convierten números."""
+    content = "version: 1\nbackend: {name: 'stub'}\ntextref: {name: 'mock'}\ncomparator: {name: 'mock'}\npreprocessor: {name: 'mock'}"
+    f = tmp_path / "env_types.yaml"
+    f.write_text(content)
+    monkeypatch.setenv("PRONUNCIAPA_BACKEND_PARAMS_CHUNK_SEC", "30.5")
+    config = loader.load_config(str(f))
+    assert config.backend.params["chunk_sec"] == 30.5
+
+def test_load_config_env_aliases(tmp_path, monkeypatch) -> None:
+    """Verifica que PRONUNCIAPA_ASR mapea a backend.name."""
+    content = "version: 1\nbackend: {name: 'stub'}\ntextref: {name: 'mock'}\ncomparator: {name: 'mock'}\npreprocessor: {name: 'mock'}"
+    f = tmp_path / "alias_config.yaml"
+    f.write_text(content)
+    monkeypatch.setenv("PRONUNCIAPA_ASR", "onnx")
+    config = loader.load_config(str(f))
+    assert config.backend.name == "onnx"

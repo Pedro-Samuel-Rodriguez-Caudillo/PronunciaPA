@@ -3,10 +3,11 @@ from __future__ import annotations
 
 import os
 import tempfile
+import wave
 from pathlib import Path
 from typing import Tuple
 
-from ipa_core.errors import UnsupportedFormat
+from ipa_core.errors import FileNotFound, UnsupportedFormat
 
 try:  # Carga perezosa para evitar dependencia obligatoria en tests unitarios.
     from pydub import AudioSegment
@@ -14,14 +15,39 @@ except ImportError:  # pragma: no cover - ejecutado solo cuando falta la depende
     AudioSegment = None  # type: ignore[assignment]
 
 
-def ensure_wav(path: str, *, target_sample_rate: int = 16000) -> Tuple[str, bool]:
+def ensure_wav(
+    path: str,
+    *,
+    target_sample_rate: int = 16000,
+    target_channels: int = 1,
+) -> Tuple[str, bool]:
     """Garantiza que `path` apunte a un WAV PCM compatible con Allosaurus.
 
     Retorna la ruta final y un flag indicando si es temporal.
     """
-    ext = Path(path).suffix.lower()
+    p = Path(path)
+    if not p.exists():
+        raise FileNotFound(f"Audio no encontrado: {path}")
+    ext = p.suffix.lower()
     if ext == ".wav":
-        return path, False
+        try:
+            with wave.open(str(p), "rb") as w:
+                sr = w.getframerate()
+                ch = w.getnchannels()
+        except (wave.Error, EOFError) as exc:
+            raise UnsupportedFormat(f"Formato no soportado o WAV inválido: {path}") from exc
+
+        if sr == target_sample_rate and ch == target_channels:
+            return path, False
+
+        if AudioSegment is None:
+            raise UnsupportedFormat("pydub/ffmpeg necesarios para resamplear WAV")
+
+        audio = AudioSegment.from_file(path)
+        audio = audio.set_frame_rate(target_sample_rate).set_channels(target_channels).set_sample_width(2)
+        tmp = tempfile.NamedTemporaryFile(prefix="pronunciapa_", suffix=".wav", delete=False)
+        audio.export(tmp.name, format="wav")
+        return tmp.name, True
 
     if ext not in {".mp3", ".ogg", ".m4a"}:
         raise UnsupportedFormat(f"Formato de audio no soportado: {ext}")
@@ -30,7 +56,7 @@ def ensure_wav(path: str, *, target_sample_rate: int = 16000) -> Tuple[str, bool
         raise UnsupportedFormat("pydub/ffmpeg necesarios para convertir MP3/OGG a WAV")
 
     audio = AudioSegment.from_file(path)
-    audio = audio.set_frame_rate(target_sample_rate).set_channels(1).set_sample_width(2)
+    audio = audio.set_frame_rate(target_sample_rate).set_channels(target_channels).set_sample_width(2)
     tmp = tempfile.NamedTemporaryFile(prefix="pronunciapa_", suffix=".wav", delete=False)
     audio.export(tmp.name, format="wav")
     return tmp.name, True

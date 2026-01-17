@@ -51,3 +51,24 @@ async def test_transcription_service_falls_back_to_espeak_when_epitran_missing(m
     payload = await service.transcribe_file(wav_path)
 
     assert payload.tokens == ["h", "o", "l", "a"]
+
+
+@pytest.mark.asyncio
+async def test_transcription_service_fallbacks_to_textref(tmp_path):
+    wav_path = write_sine_wave(tmp_path / "service-raw.wav")
+
+    class RawTextASR:
+        async def setup(self): pass
+        async def teardown(self): pass
+        async def transcribe(self, audio, *, lang=None, **kw):
+            return {"raw_text": "hola"}
+
+    class FakeTextRef:
+        async def setup(self): pass
+        async def teardown(self): pass
+        async def to_ipa(self, text: str, *, lang: str, **kw):
+            return {"tokens": ["h", "o", "l", "a"]}
+
+    service = TranscriptionService(default_lang="es", asr=RawTextASR(), textref=FakeTextRef())
+    payload = await service.transcribe_file(wav_path)
+    assert payload.tokens == ["h", "o", "l", "a"]
