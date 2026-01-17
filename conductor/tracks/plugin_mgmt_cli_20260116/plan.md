@@ -11,7 +11,7 @@ Focus on the core logic for finding and identifying installed plugins.
 - [x] Task: Write tests for plugin discovery using a mock entry point. 835ed1f
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Foundation & Discovery' (Protocol in workflow.md) 572e644
 
-## Phase 2: CLI Integration [checkpoint: 822bae7]
+## Phase 2: CLI Integration [checkpoint: 1c4aad5]
 Integrate the management logic into the command-line interface.
 
 - [x] Task: Identify the current CLI entry point (checking `ipa_core/interfaces/cli.py`). 822bae7
@@ -19,7 +19,7 @@ Integrate the management logic into the command-line interface.
 - [x] Task: Implement `pronunciapa plugins info <name>` command to show detailed metadata. 822bae7
 - [x] Task: Implement logic to check "Enabled" status against `configs/local.yaml`. 822bae7
 - [x] Task: Write tests for the CLI subcommands using a CLI runner (e.g., Click's CliRunner). 822bae7
-- [~] Task: Conductor - User Manual Verification 'Phase 2: CLI Integration' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 2: CLI Integration' (Protocol in workflow.md) 1c4aad5
 
 ## Phase 3: Lifecycle Management
 Implement the ability to install and remove plugins.
