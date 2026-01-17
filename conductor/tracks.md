@@ -27,8 +27,7 @@ This file tracks all major tracks for the project. Each track has its own detail
 ## [ ] Track: Cross-Platform Client (Flutter)
 *Link: [./conductor/tracks/flutter_client_20260103/](./conductor/tracks/flutter_client_20260103/)*
 
+---
 
-
-
-
-
+## [~] Track: Plugin Management CLI
+*Link: [./conductor/tracks/plugin_mgmt_cli_20260116/](./conductor/tracks/plugin_mgmt_cli_20260116/)*
