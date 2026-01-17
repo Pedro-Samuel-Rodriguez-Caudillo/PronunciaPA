@@ -8,6 +8,13 @@ class TranscriptionResponse(BaseModel):
     lang: str = Field(..., description="Código de idioma utilizado", json_schema_extra={"example": "es"})
     meta: dict[str, Any] = Field(default_factory=dict, description="Metadatos adicionales del backend")
 
+class TextRefResponse(BaseModel):
+    """Respuesta de conversion texto a IPA."""
+    ipa: str = Field(..., description="Transcripción en formato IPA", json_schema_extra={"example": "o l a"})
+    tokens: List[str] = Field(..., description="Lista de tokens IPA generados", json_schema_extra={"example": ["o", "l", "a"]})
+    lang: str = Field(..., description="Código de idioma utilizado", json_schema_extra={"example": "es"})
+    meta: dict[str, Any] = Field(default_factory=dict, description="Metadatos adicionales del proveedor")
+
 class EditOp(BaseModel):
     """Operación de edición individual."""
     op: str = Field(..., description="Tipo de operación (eq, sub, ins, del)", json_schema_extra={"example": "sub"})

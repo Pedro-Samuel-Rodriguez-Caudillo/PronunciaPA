@@ -4,16 +4,18 @@ import os
 import pytest
 from fastapi.testclient import TestClient
 from ipa_server.main import get_app
+from tests.utils.audio import write_sine_wave
 
 @pytest.fixture
 def client():
     return TestClient(get_app())
 
-def test_http_transcribe_success(client, monkeypatch) -> None:
+def test_http_transcribe_success(client, monkeypatch, tmp_path) -> None:
     """Verifica que /v1/transcribe funciona con el stub."""
     monkeypatch.setenv("PRONUNCIAPA_BACKEND_NAME", "stub")
     
-    with open("manual_test.wav", "rb") as f:
+    wav_path = write_sine_wave(tmp_path / "http_transcribe.wav")
+    with open(wav_path, "rb") as f:
         response = client.post(
             "/v1/transcribe",
             files={"audio": ("test.wav", f, "audio/wav")},
@@ -26,11 +28,24 @@ def test_http_transcribe_success(client, monkeypatch) -> None:
     assert data["tokens"] == ["h", "o", "l", "a"]
     assert data["meta"]["backend"] == "stub"
 
-def test_http_compare_success(client, monkeypatch) -> None:
+def test_http_textref_success(client) -> None:
+    """Verifica que /v1/textref convierte texto a IPA."""
+    response = client.post(
+        "/v1/textref",
+        data={"text": "Hola", "lang": "es", "textref": "grapheme"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["tokens"] == ["h", "o", "l", "a"]
+    assert data["ipa"] == "h o l a"
+    assert data["meta"]["method"] == "grapheme"
+
+def test_http_compare_success(client, monkeypatch, tmp_path) -> None:
     """Verifica que /v1/compare funciona con el stub."""
     monkeypatch.setenv("PRONUNCIAPA_BACKEND_NAME", "stub")
     
-    with open("manual_test.wav", "rb") as f:
+    wav_path = write_sine_wave(tmp_path / "http_compare.wav")
+    with open(wav_path, "rb") as f:
         response = client.post(
             "/v1/compare",
             files={"audio": ("test.wav", f, "audio/wav")},
@@ -56,3 +71,15 @@ def test_http_validation_error(client, monkeypatch) -> None:
         data={"lang": "es"} # Missing 'text'
     )
     assert response.status_code == 422 # FastAPI default for missing form fields
+
+def test_http_transcribe_unsupported_audio(client, monkeypatch) -> None:
+    """Verifica el manejo de audio inválido con error 415."""
+    monkeypatch.setenv("PRONUNCIAPA_BACKEND_NAME", "stub")
+    response = client.post(
+        "/v1/transcribe",
+        files={"audio": ("bad.wav", b"not a wav", "audio/wav")},
+        data={"lang": "es"},
+    )
+    assert response.status_code == 415
+    data = response.json()
+    assert data["type"] == "unsupported_format"

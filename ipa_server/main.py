@@ -16,11 +16,14 @@ from pydantic import BaseModel, Field
 from ipa_core.config import loader
 from ipa_core.config.overrides import apply_overrides
 from ipa_core.kernel.core import create_kernel, Kernel
-from ipa_core.errors import KernelError, ValidationError, NotReadyError
+from ipa_core.errors import FileNotFound, KernelError, NotReadyError, UnsupportedFormat, ValidationError
+from ipa_core.plugins import registry
+from ipa_core.services.comparison import ComparisonService
 from ipa_core.services.feedback import FeedbackService
 from ipa_core.services.feedback_store import FeedbackStore
+from ipa_core.services.transcription import TranscriptionService
 from ipa_core.types import AudioInput
-from ipa_server.models import TranscriptionResponse, CompareResponse, FeedbackResponse, EditOp
+from ipa_server.models import TranscriptionResponse, TextRefResponse, CompareResponse, FeedbackResponse, EditOp
 
 
 def _get_kernel() -> Kernel:
@@ -74,6 +77,27 @@ def get_app() -> FastAPI:
             content={"detail": str(exc), "type": "validation_error"},
         )
 
+    @app.exception_handler(UnsupportedFormat)
+    async def unsupported_exception_handler(request: Request, exc: UnsupportedFormat):
+        return JSONResponse(
+            status_code=415,
+            content={"detail": str(exc), "type": "unsupported_format"},
+        )
+
+    @app.exception_handler(FileNotFound)
+    async def file_not_found_handler(request: Request, exc: FileNotFound):
+        return JSONResponse(
+            status_code=400,
+            content={"detail": str(exc), "type": "file_not_found"},
+        )
+
+    @app.exception_handler(KeyError)
+    async def plugin_not_found_handler(request: Request, exc: KeyError):
+        return JSONResponse(
+            status_code=400,
+            content={"detail": str(exc), "type": "plugin_not_found"},
+        )
+
     @app.exception_handler(NotReadyError)
     async def not_ready_exception_handler(request: Request, exc: NotReadyError):
         return JSONResponse(
@@ -105,55 +129,91 @@ def get_app() -> FastAPI:
     async def transcribe(
         audio: UploadFile = File(..., description="Archivo de audio a transcribir"),
         lang: str = Form("es", description="Idioma del audio"),
+        backend: Optional[str] = Form(None, description="Nombre del backend ASR"),
+        textref: Optional[str] = Form(None, description="Nombre del proveedor texto→IPA"),
         kernel: Kernel = Depends(_get_kernel)
     ) -> dict[str, Any]:
         """Transcripción de audio a IPA usando el microkernel."""
         tmp_path = await _process_upload(audio)
         try:
+            if backend:
+                kernel.asr = registry.resolve_asr(backend.lower(), {"lang": lang})
+            if textref:
+                kernel.textref = registry.resolve_textref(textref.lower(), {"default_lang": lang})
             await kernel.setup()
-            audio_in: AudioInput = {"path": str(tmp_path), "sample_rate": 16000, "channels": 1}
-            # El kernel no tiene transcribe directo, orquestamos pre + asr como en el CLI
-            processed = await kernel.pre.process_audio(audio_in)
-            res = await kernel.asr.transcribe(processed, lang=lang)
+            service = TranscriptionService(
+                preprocessor=kernel.pre,
+                asr=kernel.asr,
+                textref=kernel.textref,
+                default_lang=lang,
+            )
+            payload = await service.transcribe_file(str(tmp_path), lang=lang)
             return {
-                "ipa": " ".join(res["tokens"]),
-                "tokens": res["tokens"],
+                "ipa": payload.ipa,
+                "tokens": payload.tokens,
                 "lang": lang,
-                "meta": res.get("meta", {})
+                "meta": payload.meta,
             }
         finally:
             await kernel.teardown()
             if tmp_path.exists():
                 tmp_path.unlink()
 
+    @app.post("/v1/textref", response_model=TextRefResponse)
+    async def textref(
+        text: str = Form(..., description="Texto a convertir a IPA"),
+        lang: str = Form("es", description="Idioma del texto"),
+        textref: Optional[str] = Form(None, description="Nombre del proveedor texto→IPA"),
+        kernel: Kernel = Depends(_get_kernel)
+    ) -> dict[str, Any]:
+        """Convierte texto a IPA usando el proveedor TextRef."""
+        try:
+            if textref:
+                kernel.textref = registry.resolve_textref(textref.lower(), {"default_lang": lang})
+            await kernel.setup()
+            tr_res = await kernel.textref.to_ipa(text, lang=lang)
+            tokens = tr_res.get("tokens", [])
+            meta = tr_res.get("meta", {})
+            return {
+                "ipa": " ".join(tokens),
+                "tokens": tokens,
+                "lang": lang,
+                "meta": meta,
+            }
+        finally:
+            await kernel.teardown()
+
     @app.post("/v1/compare", response_model=CompareResponse)
     async def compare(
         audio: UploadFile = File(..., description="Archivo de audio a comparar"),
         text: str = Form(..., description="Texto de referencia"),
         lang: str = Form("es", description="Idioma del audio"),
+        backend: Optional[str] = Form(None, description="Nombre del backend ASR"),
+        textref: Optional[str] = Form(None, description="Nombre del proveedor texto→IPA"),
+        comparator: Optional[str] = Form(None, description="Nombre del comparador"),
         kernel: Kernel = Depends(_get_kernel)
     ) -> dict[str, Any]:
         """Comparación de audio contra texto de referencia usando el microkernel."""
         tmp_path = await _process_upload(audio)
         try:
+            if backend:
+                kernel.asr = registry.resolve_asr(backend.lower(), {"lang": lang})
+            if textref:
+                kernel.textref = registry.resolve_textref(textref.lower(), {"default_lang": lang})
+            if comparator:
+                kernel.comp = registry.resolve_comparator(comparator.lower(), {})
             await kernel.setup()
-            audio_in: AudioInput = {"path": str(tmp_path), "sample_rate": 16000, "channels": 1}
-            pre_audio_res = await kernel.pre.process_audio(audio_in)
-            processed_audio = pre_audio_res.get("audio", audio_in)
-            asr_result = await kernel.asr.transcribe(processed_audio, lang=lang)
-            hyp_tokens = asr_result.get("tokens")
-            if not hyp_tokens:
-                raise ValidationError("ASR no devolvió tokens IPA")
-            hyp_pre_res = await kernel.pre.normalize_tokens(hyp_tokens)
-            hyp_tokens = hyp_pre_res.get("tokens", [])
-            tr_result = await kernel.textref.to_ipa(text, lang=lang)
-            ref_pre_res = await kernel.pre.normalize_tokens(tr_result.get("tokens", []))
-            ref_tokens = ref_pre_res.get("tokens", [])
-            res = await kernel.comp.compare(ref_tokens, hyp_tokens)
-            meta = {
-                "asr": asr_result.get("meta", {}),
-                "compare": res.get("meta", {}),
-            }
+            service = ComparisonService(
+                preprocessor=kernel.pre,
+                asr=kernel.asr,
+                textref=kernel.textref,
+                comparator=kernel.comp,
+                default_lang=lang,
+            )
+            payload = await service.compare_file_detail(str(tmp_path), text, lang=lang)
+            res = payload.result
+            hyp_tokens = payload.hyp_tokens
+            meta = payload.meta
             return {
                 **res,
                 "ipa": " ".join(hyp_tokens),

@@ -6,6 +6,7 @@ from pydantic import ValidationError
 try:
     from ipa_server.models import (
         TranscriptionResponse,
+        TextRefResponse,
         CompareResponse,
         EditOp,
         ErrorResponse,
@@ -51,6 +52,19 @@ def test_compare_response_schema():
     assert len(resp.ops) == 2
     assert resp.ops[0].op == "eq"
     assert resp.alignment[0] == ["a", "a"]
+
+def test_textref_response_schema():
+    """Verify TextRefResponse model structure."""
+    resp = TextRefResponse(
+        ipa="h o l a",
+        tokens=["h", "o", "l", "a"],
+        lang="es",
+        meta={"method": "grapheme"}
+    )
+    assert resp.ipa == "h o l a"
+    assert resp.tokens == ["h", "o", "l", "a"]
+    assert resp.lang == "es"
+    assert resp.meta["method"] == "grapheme"
 
 
 def test_error_response_schema():
