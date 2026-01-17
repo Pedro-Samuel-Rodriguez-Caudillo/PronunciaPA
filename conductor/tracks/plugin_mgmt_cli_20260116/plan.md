@@ -24,9 +24,9 @@ Integrate the management logic into the command-line interface.
 ## Phase 3: Lifecycle Management
 Implement the ability to install and remove plugins.
 
-- [ ] Task: Implement `pronunciapa plugins install <source>` using `subprocess` to call `pip`.
-- [ ] Task: Implement `pronunciapa plugins uninstall <name>` using `subprocess` to call `pip`.
-- [ ] Task: Add safety checks (e.g., preventing uninstallation of core system plugins).
+- [~] Task: Implement `pronunciapa plugins install <source>` using `subprocess` to call `pip`.
+- [~] Task: Implement `pronunciapa plugins uninstall <name>` using `subprocess` to call `pip`.
+- [~] Task: Add safety checks (e.g., preventing uninstallation of core system plugins).
 - [ ] Task: Write integration tests for install/uninstall using a temporary virtual environment or dummy package.
 - [ ] Task: Conductor - User Manual Verification 'Phase 3: Lifecycle Management' (Protocol in workflow.md)
 

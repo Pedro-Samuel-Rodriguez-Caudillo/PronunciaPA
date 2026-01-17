@@ -3,8 +3,11 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from typing import List
+import sys
+import subprocess
 from ipa_core.plugins import discovery
 from ipa_core.config import loader
+
 
 @dataclass
 class PluginMetadata:
@@ -21,6 +24,8 @@ class PluginMetadata:
 class PluginManager:
     """Gestor central para descubrimiento y configuración de plugins."""
     
+    PROTECTED_PACKAGES = {"ipa-core", "pronunciapa", "ipa_core"}
+
     def __init__(self, config_path: str | None = None) -> None:
         self.config_path = config_path
         self._config = None
@@ -84,3 +89,31 @@ class PluginManager:
             entry_point=details["entry_point"],
             enabled=self._is_enabled(category, name)
         )
+
+    def install_plugin(self, source: str) -> None:
+        """Instala un plugin desde un paquete o fuente."""
+        try:
+            result = subprocess.run(
+                [sys.executable, "-m", "pip", "install", source],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+        except subprocess.CalledProcessError as e:
+            raise RuntimeError(f"Error installing plugin: {e.stderr}") from e
+
+    def uninstall_plugin(self, package_name: str) -> None:
+        """Desinstala un plugin por su nombre de paquete."""
+        if package_name in self.PROTECTED_PACKAGES:
+            raise ValueError(f"Cannot uninstall protected package: {package_name}")
+
+        try:
+            result = subprocess.run(
+                [sys.executable, "-m", "pip", "uninstall", "-y", package_name],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+        except subprocess.CalledProcessError as e:
+            raise RuntimeError(f"Error uninstalling plugin: {e.stderr}") from e
+

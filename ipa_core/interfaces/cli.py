@@ -778,23 +778,13 @@ def plugin_install(
     package: str = typer.Argument(..., help="Nombre del paquete (o URL de git) a instalar"),
 ):
     """Instala un nuevo plugin usando pip."""
-    import subprocess
-    import sys
     import importlib
-
+    
+    manager = PluginManager()
     console.print(f"Instalando [bold cyan]{package}[/bold cyan]...")
     
     try:
-        # Ejecutar pip install
-        result = subprocess.run(
-            [sys.executable, "-m", "pip", "install", package],
-            capture_output=True,
-            text=True
-        )
-        
-        if result.returncode != 0:
-            console.print(f"[red]Error al instalar:[/red]\n{result.stderr}")
-            raise typer.Exit(code=1)
+        manager.install_plugin(package)
             
         console.print(f"[green]✔[/green] Instalación de '[bold]{package}[/bold]' completada.")
         
@@ -806,8 +796,10 @@ def plugin_install(
         is_plugin = False
         for _, _, ep in discovery.iter_plugin_entry_points():
             # Comparar nombre de paquete (heurística simple)
+            # ep.value suele ser 'package.module:attr'
             ep_package = ep.value.split(".")[0].split(":")[0]
-            if ep_package in package or package in ep_package:
+            # Normalizar nombres para comparación básica (pip suele usar guiones, importlib guiones bajos o viceversa)
+            if ep_package.replace("_", "-") in package.replace("_", "-"):
                 is_plugin = True
                 break
         
@@ -817,6 +809,9 @@ def plugin_install(
                 "ningún plugin para PronunciaPA (entry points)."
             )
             
+    except RuntimeError as e:
+        console.print(f"[red]Error al instalar:[/red]\n{e}")
+        raise typer.Exit(code=1)
     except Exception as e:
         console.print(f"[red]Error inesperado:[/red] {e}")
         raise typer.Exit(code=1)
@@ -827,8 +822,7 @@ def plugin_uninstall(
     package: str = typer.Argument(..., help="Nombre del paquete a desinstalar"),
 ):
     """Desinstala un plugin usando pip."""
-    import subprocess
-    import sys
+    manager = PluginManager()
 
     # Confirmación
     if not typer.confirm(f"¿Estás seguro de que deseas desinstalar '{package}'?"):
@@ -838,18 +832,14 @@ def plugin_uninstall(
     console.print(f"Desinstalando [bold cyan]{package}[/bold cyan]...")
     
     try:
-        result = subprocess.run(
-            [sys.executable, "-m", "pip", "uninstall", "-y", package],
-            capture_output=True,
-            text=True
-        )
-        
-        if result.returncode != 0:
-            console.print(f"[red]Error al desinstalar:[/red]\n{result.stderr}")
-            raise typer.Exit(code=1)
-            
+        manager.uninstall_plugin(package)
         console.print(f"[green]✔[/green] El paquete '[bold]{package}[/bold]' ha sido desinstalado.")
-            
+    except ValueError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(code=1)
+    except RuntimeError as e:
+        console.print(f"[red]Error al desinstalar:[/red]\n{e}")
+        raise typer.Exit(code=1)
     except Exception as e:
         console.print(f"[red]Error inesperado:[/red] {e}")
         raise typer.Exit(code=1)
