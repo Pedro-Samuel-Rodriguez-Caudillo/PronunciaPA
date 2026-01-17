@@ -5,10 +5,10 @@ This plan outlines the steps to integrate plugin management commands into the `p
 ## Phase 1: Foundation & Discovery
 Focus on the core logic for finding and identifying installed plugins.
 
-- [~] Task: Create `ipa_core/plugins/manager.py` to handle plugin discovery using `importlib.metadata`.
-- [ ] Task: Define a standard `PluginMetadata` dataclass/type to unify metadata extracted from packages.
-- [ ] Task: Implement `get_installed_plugins()` to filter entry points by the `pronunciapa.plugins` group.
-- [ ] Task: Write tests for plugin discovery using a mock entry point.
+- [x] Task: Create `ipa_core/plugins/manager.py` to handle plugin discovery using `importlib.metadata`. 835ed1f
+- [x] Task: Define a standard `PluginMetadata` dataclass/type to unify metadata extracted from packages. 835ed1f
+- [x] Task: Implement `get_installed_plugins()` to filter entry points by the `pronunciapa.plugins` group. 835ed1f
+- [x] Task: Write tests for plugin discovery using a mock entry point. 835ed1f
 - [ ] Task: Conductor - User Manual Verification 'Phase 1: Foundation & Discovery' (Protocol in workflow.md)
 
 ## Phase 2: CLI Integration
