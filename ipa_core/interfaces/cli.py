@@ -13,14 +13,16 @@ from rich.table import Table
 from ipa_core.analysis import accent as accent_analysis
 from ipa_core.audio.files import ensure_wav, cleanup_temp
 from ipa_core.audio.microphone import record
-from ipa_core.backends.audio_io import to_audio_input
+from ipa_core.backends.audio_io import to_audio_input, wav_duration
 from ipa_core.config import loader
 from ipa_core.config.overrides import apply_overrides
 from ipa_core.errors import FileNotFound, NotReadyError, UnsupportedFormat, ValidationError
 from ipa_core.kernel.core import create_kernel, Kernel
 from ipa_core.pipeline.transcribe import transcribe as transcribe_pipeline
+from ipa_core.services.comparison import ComparisonService
 from ipa_core.services.feedback import FeedbackService
 from ipa_core.services.feedback_store import FeedbackStore
+from ipa_core.services.transcription import TranscriptionService
 from ipa_core.types import AudioInput
 from ipa_core.plugins.models import storage
 from ipa_core.plugins.model_manager import ModelManager
@@ -113,7 +115,12 @@ def _print_feedback_payload(payload: dict) -> None:
 def benchmark(
     dataset: Path = typer.Option(..., "--dataset", help="Ruta al archivo manifest.jsonl"),
     limit: Optional[int] = typer.Option(None, "--limit", help="Límite de muestras"),
-    lang: str = typer.Option("es", "--lang", help="Idioma objetivo")
+    lang: str = typer.Option("es", "--lang", help="Idioma objetivo"),
+    config: Optional[Path] = typer.Option(None, "--config", help="Ruta al archivo de configuración"),
+    model_pack: Optional[str] = typer.Option(None, "--model-pack", help="Model pack override"),
+    llm_name: Optional[str] = typer.Option(None, "--llm", help="LLM adapter override"),
+    prompt_path: Optional[Path] = typer.Option(None, "--prompt-path", help="Prompt override path"),
+    output_schema_path: Optional[Path] = typer.Option(None, "--schema-path", help="Output schema override path"),
 ):
     """Ejecuta un benchmark de rendimiento (PER, RTF)."""
     if not dataset.exists():
@@ -122,7 +129,7 @@ def benchmark(
 
     loader = DatasetLoader()
     calc = MetricsCalculator()
-    kernel = _get_kernel(model_pack=model_pack, llm_name=llm_name)
+    kernel = _get_kernel(config, model_pack=model_pack, llm_name=llm_name)
     if prompt_path and not prompt_path.exists():
         console.print(f"Error: prompt not found: {prompt_path}", style="red")
         raise typer.Exit(code=1)
@@ -153,34 +160,28 @@ def benchmark(
                     # For now assume audio_path is actionable
                     
                     start_time = time.perf_counter()
-                    
-                    # Run full comparison
-                    # Note: We need to handle audio loading here or in kernel
-                    # Kernel.run expects AudioInput dict
-                    audio_in = to_audio_input(audio_path)
-                    
-                    # Hack: Read duration if not in AudioInput
-                    # Ideally audio_io should give us duration or we read it
-                    # For RTF we need audio duration. 
-                    # Use librosa/soundfile or just trust metadata if available?
-                    # Let's rely on kernel results having metadata or measure it roughly
-                    
-                    res = await kernel.run(audio=audio_in, text=ref_text, lang=lang)
-                    proc_time = time.perf_counter() - start_time
-                    
-                    # Try to guess audio duration for RTF
-                    # If using mocked kernel, this fails. Real implementation needs duration.
-                    # Let's try to inspect file if possible
-                    # For MVP, we skip RTF if duration unavailable
-                    
-                    audio_dur = 1.0 # Placeholder if not calculated
-                    # Real implementation: read from file header
-                    
-                    results.append({
-                        "per": res["per"],
-                        "proc_time": proc_time,
-                        "audio_duration": audio_dur
-                    })
+                    tmp_audio = False
+                    wav_path = ""
+                    try:
+                        wav_path, tmp_audio = ensure_wav(audio_path)
+                        # Run full comparison
+                        # Kernel.run expects AudioInput dict
+                        audio_in = to_audio_input(wav_path)
+
+                        # Duración de audio para calcular RTF
+                        res = await kernel.run(audio=audio_in, text=ref_text, lang=lang)
+                        proc_time = time.perf_counter() - start_time
+
+                        audio_dur = wav_duration(wav_path)
+
+                        results.append({
+                            "per": res["per"],
+                            "proc_time": proc_time,
+                            "audio_duration": audio_dur
+                        })
+                    finally:
+                        if tmp_audio and wav_path:
+                            cleanup_temp(wav_path)
                     
                     if i % 10 == 0:
                         console.print(f"Procesado {i+1}/{len(samples)}", end="\r")
@@ -210,6 +211,10 @@ def benchmark(
 
 console = Console()
 
+class TranscribeFormat(str, Enum):
+    json = "json"
+    text = "text"
+
 class OutputFormat(str, Enum):
     json = "json"
     table = "table"
@@ -217,6 +222,7 @@ class OutputFormat(str, Enum):
 
 
 def _get_kernel(
+    config_path: Optional[Path] = None,
     *,
     model_pack: Optional[str] = None,
     llm_name: Optional[str] = None,
@@ -224,7 +230,7 @@ def _get_kernel(
     """Carga la configuración y crea el kernel."""
     from ipa_core.errors import NotReadyError
     try:
-        cfg = loader.load_config()
+        cfg = loader.load_config(str(config_path) if config_path else None)
         cfg = apply_overrides(cfg, model_pack=model_pack, llm_name=llm_name)
         return create_kernel(cfg)
     except loader.ValidationError as e:
@@ -235,20 +241,30 @@ def _get_kernel(
         raise typer.Exit(code=1)
 
 
-async def _transcribe_async(kernel: Kernel, audio_in: AudioInput, lang: str) -> list[str]:
-    await kernel.setup()
-    try:
-        return await transcribe_pipeline(kernel.pre, kernel.asr, kernel.textref, audio=audio_in, lang=lang)
-    finally:
-        await kernel.teardown()
+def _exit_code_for_error(exc: Exception) -> int:
+    if isinstance(exc, (FileNotFound, FileNotFoundError)):
+        return 2
+    if isinstance(exc, UnsupportedFormat):
+        return 3
+    if isinstance(exc, ValidationError):
+        return 4
+    if isinstance(exc, NotReadyError):
+        return 5
+    if isinstance(exc, KeyError):
+        return 6
+    return 1
 
 
 @app.command()
 def transcribe(
     audio: Optional[str] = typer.Option(None, "--audio", "-a", help="Ruta al archivo de audio"),
+    config: Optional[Path] = typer.Option(None, "--config", help="Ruta al archivo de configuración"),
     lang: str = typer.Option("es", "--lang", "-l", help="Idioma objetivo"),
+    backend: Optional[str] = typer.Option(None, "--backend", help="Nombre del backend ASR"),
+    textref: Optional[str] = typer.Option(None, "--textref", help="Proveedor texto→IPA (fallback)"),
     mic: bool = typer.Option(False, "--mic", help="Capturar desde el micrófono"),
     seconds: float = typer.Option(3.0, "--seconds", help="Duración de la grabación en segundos"),
+    output_format: TranscribeFormat = typer.Option(TranscribeFormat.text, "--format", "-f", help="Formato de salida"),
     json_output: bool = typer.Option(False, "--json/--no-json", help="Salida en formato JSON"),
 ):
     """Transcribe audio a tokens IPA."""
@@ -256,27 +272,49 @@ def transcribe(
         console.print("Error: Debes especificar --audio o --mic", style="red")
         raise typer.Exit(code=1)
 
-    kernel = _get_kernel()
+    kernel = _get_kernel(config)
+    if backend:
+        kernel.asr = registry.resolve_asr(backend.lower(), {"lang": lang})
+    if textref:
+        kernel.textref = registry.resolve_textref(textref.lower(), {"default_lang": lang})
     wav_path = ""
     tmp_audio = False
+    payload = None
     try:
         if mic:
             wav_path, _ = record(seconds=seconds)
             tmp_audio = True
         else:
-            wav_path, tmp_audio = ensure_wav(audio)
-        audio_in = to_audio_input(wav_path)
+            wav_path = audio
+        service = TranscriptionService(
+            preprocessor=kernel.pre,
+            asr=kernel.asr,
+            textref=kernel.textref,
+            default_lang=lang,
+        )
+
+        async def _run_transcribe():
+            await kernel.setup()
+            try:
+                return await service.transcribe_file(wav_path, lang=lang)
+            finally:
+                await kernel.teardown()
 
         with console.status("[bold green]Transcribiendo..."):
-            tokens = asyncio.run(_transcribe_async(kernel, audio_in, lang))
-    except (ValidationError, UnsupportedFormat, FileNotFound, FileNotFoundError, NotReadyError) as e:
+            payload = asyncio.run(_run_transcribe())
+    except (ValidationError, UnsupportedFormat, FileNotFound, FileNotFoundError, NotReadyError, KeyError) as e:
         console.print(f"Error: {e}", style="red")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=_exit_code_for_error(e))
     finally:
         if tmp_audio and wav_path:
             cleanup_temp(wav_path)
 
+    tokens = payload.tokens if payload else []
+    audio_in = payload.audio if payload else {}
     if json_output:
+        output_format = TranscribeFormat.json
+
+    if output_format == TranscribeFormat.json:
         console.print_json(data={
             "ipa": " ".join(tokens),
             "tokens": tokens,
@@ -374,8 +412,15 @@ def _print_feedback(feedback: list[dict]) -> None:
 @app.command()
 def compare(
     audio: str = typer.Option(..., "--audio", "-a", help="Ruta al archivo de audio"),
+    config: Optional[Path] = typer.Option(None, "--config", help="Ruta al archivo de configuración"),
     text: str = typer.Option(..., "--text", "-t", help="Texto de referencia"),
     lang: str = typer.Option("es", "--lang", "-l", help="Idioma objetivo"),
+    backend: Optional[str] = typer.Option(None, "--backend", help="Nombre del backend ASR"),
+    textref: Optional[str] = typer.Option(None, "--textref", help="Proveedor texto→IPA"),
+    comparator: Optional[str] = typer.Option(None, "--comparator", help="Nombre del comparador"),
+    weight_sub: Optional[float] = typer.Option(None, "--weight-sub", help="Peso sustitución"),
+    weight_ins: Optional[float] = typer.Option(None, "--weight-ins", help="Peso inserción"),
+    weight_del: Optional[float] = typer.Option(None, "--weight-del", help="Peso eliminación"),
     output_format: OutputFormat = typer.Option(OutputFormat.table, "--format", "-f", help="Formato de salida"),
     accent_profile: Optional[str] = typer.Option(None, "--accent-profile", help="Ruta o nombre del perfil de acentos"),
     accent_target: Optional[str] = typer.Option(None, "--accent-target", help="ID del acento objetivo"),
@@ -383,9 +428,23 @@ def compare(
     strict_ipa: bool = typer.Option(True, "--strict-ipa/--allow-textref", help="Requerir IPA directa del ASR"),
 ):
     """Compara el audio contra un texto de referencia y evalúa la pronunciación."""
-    kernel = _get_kernel()
-    wav_path = ""
-    tmp_audio = False
+    kernel = _get_kernel(config)
+    if backend:
+        kernel.asr = registry.resolve_asr(backend.lower(), {"lang": lang})
+    if textref:
+        kernel.textref = registry.resolve_textref(textref.lower(), {"default_lang": lang})
+    if comparator:
+        kernel.comp = registry.resolve_comparator(comparator.lower(), {})
+
+    weights = {}
+    if weight_sub is not None:
+        weights["sub"] = weight_sub
+    if weight_ins is not None:
+        weights["ins"] = weight_ins
+    if weight_del is not None:
+        weights["del_"] = weight_del
+    weights_payload = weights or None
+
     lang_key = (lang or "").split("-")[0]
     language_profile: dict | None = None
     accents: list[dict] = []
@@ -417,30 +476,28 @@ def compare(
             if accent_id == target_accent_id:
                 target_ref_lang = accent.get("textref_lang", lang)
 
-    try:
-        wav_path, tmp_audio = ensure_wav(audio)
-        audio_in = to_audio_input(wav_path)
-    except (ValidationError, UnsupportedFormat, FileNotFound, FileNotFoundError, NotReadyError) as e:
-        console.print(f"Error: {e}", style="red")
-        raise typer.Exit(code=1)
+    service = ComparisonService(
+        preprocessor=kernel.pre,
+        asr=kernel.asr,
+        textref=kernel.textref,
+        comparator=kernel.comp,
+        default_lang=lang,
+    )
 
     async def _run_compare():
         await kernel.setup()
         try:
-            pre_audio_res = await kernel.pre.process_audio(audio_in)
-            processed_audio = pre_audio_res.get("audio", audio_in)
-            asr_result = await kernel.asr.transcribe(processed_audio, lang=lang)
-            hyp_tokens = asr_result.get("tokens")
-            if not hyp_tokens and not strict_ipa:
-                raw_text = asr_result.get("raw_text", "")
-                if raw_text:
-                    tr_res = await kernel.textref.to_ipa(raw_text, lang=lang or "")
-                    hyp_tokens = tr_res.get("tokens", [])
-            if not hyp_tokens:
-                raise ValidationError("ASR no devolvió tokens IPA")
-
-            hyp_pre_res = await kernel.pre.normalize_tokens(hyp_tokens)
-            hyp_tokens = hyp_pre_res.get("tokens", [])
+            payload = await service.compare_file_detail(
+                audio,
+                text,
+                lang=target_ref_lang,
+                weights=weights_payload,
+                allow_textref_fallback=not strict_ipa,
+                fallback_lang=lang,
+            )
+            hyp_tokens = payload.hyp_tokens
+            ref_tokens = payload.ref_tokens
+            compare_res = payload.result
 
             async def _ref_tokens(lang_code: str) -> list[str]:
                 try:
@@ -452,9 +509,6 @@ def compare(
                         raise
                 norm_res = await kernel.pre.normalize_tokens(tr_res.get("tokens", []))
                 return norm_res.get("tokens", [])
-
-            ref_tokens = await _ref_tokens(target_ref_lang)
-            compare_res = await kernel.comp.compare(ref_tokens, hyp_tokens)
 
             feedback = accent_analysis.build_feedback(compare_res.get("ops", []))
             accent_payload = None
@@ -468,7 +522,7 @@ def compare(
                         continue
                     accent_lang = accent.get("textref_lang", lang)
                     accent_ref = await _ref_tokens(accent_lang)
-                    accent_res = await kernel.comp.compare(accent_ref, hyp_tokens)
+                    accent_res = await kernel.comp.compare(accent_ref, hyp_tokens, weights=weights_payload)
                     accent_results[accent_id] = accent_res
                     per_by_accent[accent_id] = accent_res["per"]
                 ranking = accent_analysis.rank_accents(per_by_accent, accent_labels)
@@ -507,12 +561,9 @@ def compare(
     try:
         with console.status("[bold green]Procesando comparación..."):
             res = asyncio.run(_run_compare())
-    except (ValidationError, UnsupportedFormat, FileNotFound, FileNotFoundError, NotReadyError) as e:
+    except (ValidationError, UnsupportedFormat, FileNotFound, FileNotFoundError, NotReadyError, KeyError) as e:
         console.print(f"Error: {e}", style="red")
-        raise typer.Exit(code=1)
-    finally:
-        if tmp_audio and wav_path:
-            cleanup_temp(wav_path)
+        raise typer.Exit(code=_exit_code_for_error(e))
 
     if output_format == OutputFormat.json:
         console.print_json(data=res)

@@ -7,6 +7,13 @@ from ipa_core.interfaces.cli import app
 
 runner = CliRunner()
 
+@pytest.fixture(autouse=True)
+def _isolate_cli_config(monkeypatch, tmp_path) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("PRONUNCIAPA_CONFIG", raising=False)
+    monkeypatch.setenv("PRONUNCIAPA_BACKEND_NAME", "stub")
+    monkeypatch.setenv("PRONUNCIAPA_TEXTREF", "grapheme")
+
 def test_compare_table_output(monkeypatch, tmp_path) -> None:
     """Verifica que el comando compare genera una tabla por defecto."""
     monkeypatch.setenv("PRONUNCIAPA_BACKEND_NAME", "stub")

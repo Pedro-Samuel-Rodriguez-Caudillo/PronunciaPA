@@ -35,9 +35,13 @@ def test_benchmark_command_execution(tmp_path):
                 "meta": {"duration": 1.0} 
             }
             
-            # Need to mock to_audio_input since file won't exist
-            with patch("ipa_core.interfaces.cli.to_audio_input") as mock_audio:
+            # Need to mock audio helpers since file won't exist
+            with patch("ipa_core.interfaces.cli.ensure_wav") as mock_ensure, \
+                patch("ipa_core.interfaces.cli.to_audio_input") as mock_audio, \
+                patch("ipa_core.interfaces.cli.wav_duration") as mock_duration:
+                mock_ensure.return_value = ("a.wav", False)
                 mock_audio.return_value = {"path": "a.wav", "sample_rate": 16000, "channels": 1}
+                mock_duration.return_value = 1.0
 
                 result = runner.invoke(app, ["benchmark", "--dataset", str(manifest_path)])
             

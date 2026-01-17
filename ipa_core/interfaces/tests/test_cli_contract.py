@@ -1,10 +1,18 @@
 """Pruebas de contrato para el CLI."""
 from __future__ import annotations
+import pytest
 from typer.testing import CliRunner
 from tests.utils.audio import write_sine_wave
 from ipa_core.interfaces.cli import app
 
 runner = CliRunner()
+
+@pytest.fixture(autouse=True)
+def _isolate_cli_config(monkeypatch, tmp_path) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("PRONUNCIAPA_CONFIG", raising=False)
+    monkeypatch.setenv("PRONUNCIAPA_BACKEND_NAME", "stub")
+    monkeypatch.setenv("PRONUNCIAPA_TEXTREF", "grapheme")
 
 def test_cli_help() -> None:
     """Verifica que el comando help funciona."""
