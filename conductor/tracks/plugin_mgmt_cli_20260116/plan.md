@@ -21,14 +21,14 @@ Integrate the management logic into the command-line interface.
 - [x] Task: Write tests for the CLI subcommands using a CLI runner (e.g., Click's CliRunner). 822bae7
 - [x] Task: Conductor - User Manual Verification 'Phase 2: CLI Integration' (Protocol in workflow.md) 1c4aad5
 
-## Phase 3: Lifecycle Management
+## Phase 3: Lifecycle Management [checkpoint: b8d479b]
 Implement the ability to install and remove plugins.
 
 - [x] Task: Implement `pronunciapa plugins install <source>` using `subprocess` to call `pip`. 2413a9e
 - [x] Task: Implement `pronunciapa plugins uninstall <name>` using `subprocess` to call `pip`. 2413a9e
 - [x] Task: Add safety checks (e.g., preventing uninstallation of core system plugins). 2413a9e
 - [x] Task: Write integration tests for install/uninstall using a temporary virtual environment or dummy package. 2413a9e
-- [ ] Task: Conductor - User Manual Verification 'Phase 3: Lifecycle Management' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 3: Lifecycle Management' (Protocol in workflow.md) b8d479b
 
 ## Phase 4: Final Polish & Documentation
 Ensure the system is robust and well-documented.
