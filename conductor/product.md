@@ -23,7 +23,7 @@ PronunciaPA is an open-source, community-driven platform designed to help langua
 *   **Detailed Error Highlighting:** Visually pinpoint specific phonetic discrepancies to guide the user's improvement.
 *   **Offline First Operation:** Manage and execute downloaded phonetic models locally using ONNX, ensuring privacy and reliability without an internet connection.
 *   **Performance Benchmarking:** Built-in tools to measure transcription accuracy (PER) and processing speed (RTF) across different models and datasets.
-*   **Plugin System:** A robust mechanism for adding new languages, ASR backends (like Allosaurus), and Text-to-IPA providers (like Epitran or eSpeak).
+*   **Plugin System:** A robust mechanism for adding new languages, ASR backends (like Allosaurus), and Text-to-IPA providers (like Epitran or eSpeak). Includes a dedicated CLI for managing installations.
 
 ## Future Roadmap
 *   **Custom Deep Learning Models:** Research and implementation of proprietary Deep Learning models to improve accuracy and adaptability beyond existing third-party ASR backends.
