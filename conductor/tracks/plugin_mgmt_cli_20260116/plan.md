@@ -33,7 +33,7 @@ Implement the ability to install and remove plugins.
 ## Phase 4: Final Polish & Documentation
 Ensure the system is robust and well-documented.
 
-- [~] Task: Add error handling for common `pip` failures (no network, package not found).
-- [~] Task: Update the project's README or create a dedicated `PLUGINS.md` with usage instructions.
-- [~] Task: Verify overall code coverage for the new `plugins` module.
+- [x] Task: Add error handling for common `pip` failures (no network, package not found). 365fd99
+- [x] Task: Update the project's README or create a dedicated `PLUGINS.md` with usage instructions. 365fd99
+- [x] Task: Verify overall code coverage for the new `plugins` module. 365fd99
 - [ ] Task: Conductor - User Manual Verification 'Phase 4: Final Polish & Documentation' (Protocol in workflow.md)
