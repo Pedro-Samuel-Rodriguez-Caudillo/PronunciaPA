@@ -30,10 +30,10 @@ Implement the ability to install and remove plugins.
 - [x] Task: Write integration tests for install/uninstall using a temporary virtual environment or dummy package. 2413a9e
 - [x] Task: Conductor - User Manual Verification 'Phase 3: Lifecycle Management' (Protocol in workflow.md) b8d479b
 
-## Phase 4: Final Polish & Documentation
+## Phase 4: Final Polish & Documentation [checkpoint: 2e5aefe]
 Ensure the system is robust and well-documented.
 
 - [x] Task: Add error handling for common `pip` failures (no network, package not found). 365fd99
 - [x] Task: Update the project's README or create a dedicated `PLUGINS.md` with usage instructions. 365fd99
 - [x] Task: Verify overall code coverage for the new `plugins` module. 365fd99
-- [ ] Task: Conductor - User Manual Verification 'Phase 4: Final Polish & Documentation' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 4: Final Polish & Documentation' (Protocol in workflow.md) 2e5aefe
