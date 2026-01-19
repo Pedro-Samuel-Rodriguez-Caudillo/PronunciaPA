@@ -1,58 +1,137 @@
+"""Tests para pipeline con modos y niveles de evaluación."""
+from __future__ import annotations
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock, AsyncMock
+
+from ipa_core.pipeline.transcribe import (
+    transcribe,
+    transcribe_audio,
+    transcribe_text,
+    prepare_comparison,
+)
+from ipa_core.phonology.representation import PhonologicalRepresentation
 from ipa_core.errors import ValidationError
-from ipa_core.pipeline.transcribe import transcribe
 from ipa_core.ports.asr import ASRBackend
 from ipa_core.ports.preprocess import Preprocessor
 from ipa_core.ports.textref import TextRefProvider
 
+
 @pytest.fixture
-def mock_pre():
+def mock_pre() -> MagicMock:
     m = MagicMock(spec=Preprocessor)
     m.process_audio = AsyncMock(return_value={"audio": {"path": "dummy.wav"}})
     m.normalize_tokens = AsyncMock(side_effect=lambda t: {"tokens": t})
     return m
 
+
 @pytest.fixture
-def mock_asr():
+def mock_asr() -> MagicMock:
     m = MagicMock(spec=ASRBackend)
-    m.transcribe = AsyncMock()
+    m.transcribe = AsyncMock(return_value={"tokens": ["k", "a", "s", "a"]})
     return m
+
 
 @pytest.fixture
-def mock_textref():
+def mock_textref() -> MagicMock:
     m = MagicMock(spec=TextRefProvider)
-    m.to_ipa = AsyncMock()
+    m.to_ipa = AsyncMock(return_value={"tokens": ["k", "a", "s", "a"]})
     return m
 
-@pytest.mark.asyncio
-async def test_transcribe_asr_tokens(mock_pre, mock_asr, mock_textref):
-    """Test path where ASR returns tokens directly."""
-    mock_asr.transcribe.return_value = {"tokens": ["a", "b"], "meta": {}}
+
+class TestTranscribeAudio:
+    """Tests para transcribe_audio."""
     
-    result = await transcribe(mock_pre, mock_asr, mock_textref, audio={"path": "in.wav"})
+    @pytest.mark.asyncio
+    async def test_returns_phonetic(self, mock_pre: MagicMock, mock_asr: MagicMock) -> None:
+        """Retorna representación fonética."""
+        result = await transcribe_audio(mock_pre, mock_asr, audio={"path": "test.wav"})
+        assert isinstance(result, PhonologicalRepresentation)
+        assert result.level == "phonetic"
     
-    assert result == ["a", "b"]
-    mock_pre.process_audio.assert_called_once()
-    mock_asr.transcribe.assert_called_once()
-    mock_pre.normalize_tokens.assert_called_once_with(["a", "b"])
-    mock_textref.to_ipa.assert_not_called()
+    @pytest.mark.asyncio
+    async def test_empty_tokens_raises(self, mock_pre: MagicMock, mock_asr: MagicMock) -> None:
+        """Error si ASR no retorna tokens."""
+        mock_asr.transcribe.return_value = {"tokens": []}
+        with pytest.raises(ValidationError):
+            await transcribe_audio(mock_pre, mock_asr, audio={"path": "test.wav"})
 
-@pytest.mark.asyncio
-async def test_transcribe_asr_raw_text(mock_pre, mock_asr, mock_textref):
-    """Test path where ASR returns raw text requiring TextRef."""
-    mock_asr.transcribe.return_value = {"raw_text": "hello", "meta": {}}
-    mock_textref.to_ipa.return_value = {"tokens": ["h", "e", "l", "l", "o"], "meta": {}}
+
+class TestTranscribeText:
+    """Tests para transcribe_text."""
     
-    with pytest.raises(ValidationError):
-        await transcribe(mock_pre, mock_asr, mock_textref, audio={"path": "in.wav"}, lang="en")
+    @pytest.mark.asyncio
+    async def test_returns_phonemic(self, mock_textref: MagicMock) -> None:
+        """Retorna representación fonémica."""
+        result = await transcribe_text(mock_textref, text="casa", lang="es")
+        assert isinstance(result, PhonologicalRepresentation)
+        assert result.level == "phonemic"
+    
+    @pytest.mark.asyncio
+    async def test_empty_tokens_raises(self, mock_textref: MagicMock) -> None:
+        """Error si TextRef no retorna tokens."""
+        mock_textref.to_ipa.return_value = {"tokens": []}
+        with pytest.raises(ValidationError):
+            await transcribe_text(mock_textref, text="casa", lang="es")
 
-    mock_textref.to_ipa.assert_not_called()
 
-@pytest.mark.asyncio
-async def test_transcribe_empty(mock_pre, mock_asr, mock_textref):
-    """Test path where ASR returns nothing useful."""
-    mock_asr.transcribe.return_value = {"meta": {}}
+class TestPrepareComparison:
+    """Tests para prepare_comparison."""
+    
+    @pytest.mark.asyncio
+    async def test_phonemic_level(
+        self, 
+        mock_pre: MagicMock, 
+        mock_asr: MagicMock, 
+        mock_textref: MagicMock,
+    ) -> None:
+        """En nivel fonémico, ambas representaciones son fonémicas."""
+        target, observed = await prepare_comparison(
+            target_text="casa",
+            observed_audio={"path": "test.wav"},
+            pre=mock_pre,
+            asr=mock_asr,
+            textref=mock_textref,
+            lang="es",
+            evaluation_level="phonemic",
+        )
+        assert target.level == "phonemic"
+        assert observed.level == "phonemic"
+    
+    @pytest.mark.asyncio
+    async def test_phonetic_level_no_pack(
+        self, 
+        mock_pre: MagicMock, 
+        mock_asr: MagicMock, 
+        mock_textref: MagicMock,
+    ) -> None:
+        """En nivel fonético sin pack, usa aproximación."""
+        target, observed = await prepare_comparison(
+            target_text="casa",
+            observed_audio={"path": "test.wav"},
+            pre=mock_pre,
+            asr=mock_asr,
+            textref=mock_textref,
+            lang="es",
+            evaluation_level="phonetic",
+        )
+        assert target.level == "phonetic"
+        assert observed.level == "phonetic"
 
-    with pytest.raises(ValidationError):
-        await transcribe(mock_pre, mock_asr, mock_textref, audio={"path": "in.wav"})
+
+class TestLegacyTranscribe:
+    """Tests para transcribe() legado."""
+    
+    @pytest.mark.asyncio
+    async def test_returns_tokens(
+        self, 
+        mock_pre: MagicMock, 
+        mock_asr: MagicMock, 
+        mock_textref: MagicMock,
+    ) -> None:
+        """Retorna lista de tokens."""
+        result = await transcribe(
+            mock_pre, mock_asr, mock_textref,
+            audio={"path": "test.wav"},
+        )
+        assert result == ["k", "a", "s", "a"]

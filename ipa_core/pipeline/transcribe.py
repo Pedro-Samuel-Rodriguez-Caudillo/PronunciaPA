@@ -1,20 +1,143 @@
-"""Pipeline mínimo de transcripción a IPA (independiente del comparador).
+"""Pipeline de transcripción con modos y nivel de evaluación.
 
-Flujo:
-- pre.process_audio(audio) → asr.transcribe
-- Si ASRResult.tokens: pre.normalize_tokens(tokens) → salida
+Flujo soporta:
+- mode: casual, objective, phonetic (tolerancia/scoring)
+- evaluation_level: phonemic, phonetic (nivel de comparación)
 """
 from __future__ import annotations
 
-from typing import Optional
+from typing import Literal, Optional, TYPE_CHECKING
 
 from ipa_core.ports.asr import ASRBackend
 from ipa_core.ports.preprocess import Preprocessor
 from ipa_core.ports.textref import TextRefProvider
 from ipa_core.errors import ValidationError
 from ipa_core.types import AudioInput, Token
+from ipa_core.phonology.representation import (
+    PhonologicalRepresentation,
+    TranscriptionResult,
+    ComparisonResult,
+    RepresentationLevel,
+)
+
+if TYPE_CHECKING:
+    from ipa_core.plugins.language_pack import LanguagePackPlugin
 
 
+# Tipos para parámetros
+EvaluationMode = Literal["casual", "objective", "phonetic"]
+
+
+async def transcribe_audio(
+    pre: Preprocessor,
+    asr: ASRBackend,
+    *,
+    audio: AudioInput,
+    lang: Optional[str] = None,
+) -> PhonologicalRepresentation:
+    """Transcribir audio a IPA fonético.
+    
+    Retorna representación fonética (lo que ASR escucha).
+    """
+    # 1. Preproceso de audio
+    pre_audio_res = await pre.process_audio(audio)
+    processed_audio = pre_audio_res.get("audio", audio)
+
+    # 2. ASR
+    res = await asr.transcribe(processed_audio, lang=lang)
+
+    # 3. Extraer tokens
+    tokens = res.get("tokens", [])
+    if not tokens:
+        raise ValidationError("ASR no devolvió tokens IPA")
+    
+    # ASR produce representación fonética
+    ipa = "".join(tokens)
+    return PhonologicalRepresentation.phonetic(ipa)
+
+
+async def transcribe_text(
+    textref: TextRefProvider,
+    *,
+    text: str,
+    lang: str,
+) -> PhonologicalRepresentation:
+    """Transcribir texto a IPA fonémico.
+    
+    Retorna representación fonémica (subyacente).
+    """
+    res = await textref.to_ipa(text, lang=lang)
+    tokens = res.get("tokens", [])
+    if not tokens:
+        raise ValidationError("TextRef no devolvió tokens IPA")
+    
+    ipa = "".join(tokens)
+    return PhonologicalRepresentation.phonemic(ipa)
+
+
+async def prepare_comparison(
+    target_text: str,
+    observed_audio: AudioInput,
+    *,
+    pre: Preprocessor,
+    asr: ASRBackend,
+    textref: TextRefProvider,
+    pack: Optional["LanguagePackPlugin"] = None,
+    lang: str,
+    mode: EvaluationMode = "objective",
+    evaluation_level: RepresentationLevel = "phonemic",
+) -> tuple[PhonologicalRepresentation, PhonologicalRepresentation]:
+    """Preparar representaciones para comparación.
+    
+    Parámetros
+    ----------
+    target_text : str
+        Texto objetivo (lo que debería decir).
+    observed_audio : AudioInput
+        Audio del usuario.
+    pack : LanguagePackPlugin
+        Pack de idioma para derive/collapse.
+    mode : str
+        Modo de evaluación.
+    evaluation_level : str
+        Nivel de comparación: "phonemic" o "phonetic".
+        
+    Retorna
+    -------
+    tuple
+        (target_repr, observed_repr) al mismo nivel.
+    """
+    # 1. Obtener representaciones base
+    target_phonemic = await transcribe_text(textref, text=target_text, lang=lang)
+    observed_phonetic = await transcribe_audio(pre, asr, audio=observed_audio, lang=lang)
+    
+    # 2. Convertir al nivel de evaluación solicitado
+    if evaluation_level == "phonemic":
+        # Colapsar observed a fonémico
+        if pack is not None:
+            collapsed_ipa = pack.collapse(observed_phonetic.ipa, mode=mode)
+            observed_repr = PhonologicalRepresentation.phonemic(collapsed_ipa)
+        else:
+            # Sin pack, usar como está (aproximación)
+            observed_repr = PhonologicalRepresentation.phonemic(observed_phonetic.ipa)
+        
+        target_repr = target_phonemic
+        
+    else:  # phonetic
+        # Derivar target a fonético
+        if pack is not None:
+            derived_ipa = pack.derive(target_phonemic.ipa, mode=mode)
+            target_repr = PhonologicalRepresentation.phonetic(derived_ipa)
+        else:
+            # Sin pack, usar como está
+            target_repr = PhonologicalRepresentation.phonetic(target_phonemic.ipa)
+        
+        observed_repr = observed_phonetic
+    
+    return target_repr, observed_repr
+
+
+# Mantener compatibilidad con transcribe() original
 async def transcribe(
     pre: Preprocessor,
     asr: ASRBackend,
@@ -23,7 +146,10 @@ async def transcribe(
     audio: AudioInput,
     lang: Optional[str] = None,
 ) -> list[Token]:
-    """Transcribir audio a tokens IPA normalizados (Asíncrono)."""
+    """Transcribir audio a tokens IPA normalizados (legado).
+    
+    Mantiene compatibilidad con código existente.
+    """
     # 1. Preproceso de audio
     pre_audio_res = await pre.process_audio(audio)
     processed_audio = pre_audio_res.get("audio", audio)
@@ -43,3 +169,12 @@ async def transcribe(
         return norm_res.get("tokens", [])
 
     raise ValidationError("ASR no devolvió tokens IPA")
+
+
+__all__ = [
+    "transcribe",
+    "transcribe_audio",
+    "transcribe_text",
+    "prepare_comparison",
+    "EvaluationMode",
+]
