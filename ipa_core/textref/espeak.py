@@ -4,12 +4,15 @@ from __future__ import annotations
 import asyncio
 import os
 import shutil
-from typing import Any, Optional
+from typing import Any, Optional, TYPE_CHECKING
 
 from ipa_core.errors import NotReadyError, ValidationError
 from ipa_core.plugins.base import BasePlugin
 from ipa_core.textref.tokenize import tokenize_ipa
 from ipa_core.types import TextRefResult
+
+if TYPE_CHECKING:
+    from ipa_core.textref.cache import TextRefCache
 
 
 class EspeakTextRef(BasePlugin):
@@ -27,9 +30,11 @@ class EspeakTextRef(BasePlugin):
         *,
         default_lang: str = "es",
         binary: Optional[str] = None,
+        cache: Optional["TextRefCache"] = None,
     ) -> None:
         self._default_lang = default_lang
         self._binary = binary or os.getenv("PRONUNCIAPA_ESPEAK_BIN") or self._detect_binary()
+        self._cache = cache
 
     def _detect_binary(self) -> str:
         for candidate in (os.getenv("ESPEAK_BIN"), "espeak-ng", "espeak"):
@@ -57,9 +62,22 @@ class EspeakTextRef(BasePlugin):
         cleaned = text.strip()
         if not cleaned:
             return {"tokens": [], "meta": {"empty": True}}
-            
-        voice = self._resolve_voice(lang or self._default_lang)
-        cmd = [self._binary, "-q", "-v", voice, "--ipa=3", cleaned]
+        
+        resolved_lang = lang or self._default_lang
+        
+        # Usar cache si está disponible
+        if self._cache is not None:
+            return await self._cache.get_or_compute(
+                cleaned, resolved_lang, "espeak",
+                lambda: self._compute_ipa(cleaned, resolved_lang)
+            )
+        
+        return await self._compute_ipa(cleaned, resolved_lang)
+    
+    async def _compute_ipa(self, text: str, lang: str) -> TextRefResult:
+        """Ejecutar espeak para obtener transcripción IPA."""
+        voice = self._resolve_voice(lang)
+        cmd = [self._binary, "-q", "-v", voice, "--ipa=3", text]
         
         try:
             # Ejecución asíncrona del subproceso

@@ -2,12 +2,15 @@
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional, TYPE_CHECKING
 
 from ipa_core.errors import NotReadyError
 from ipa_core.plugins.base import BasePlugin
 from ipa_core.textref.tokenize import tokenize_ipa
 from ipa_core.types import TextRefResult
+
+if TYPE_CHECKING:
+    from ipa_core.textref.cache import TextRefCache
 
 
 try:  # Carga diferida: solo se necesita cuando se usa este proveedor.
@@ -34,9 +37,11 @@ class EpitranTextRef(BasePlugin):
         *,
         default_lang: str = "es",
         factory: Optional[LangFactory] = None,
+        cache: Optional["TextRefCache"] = None,
     ) -> None:
         self._default_lang = default_lang
         self._factory = factory or self._load_model
+        self._cache = cache
 
     def _load_model(self, code: str) -> Any:
         if epitran is None:
@@ -54,6 +59,23 @@ class EpitranTextRef(BasePlugin):
 
     async def to_ipa(self, text: str, *, lang: str, **kw: Any) -> TextRefResult:  # noqa: D401
         """Convertir texto de forma asíncrona."""
+        cleaned = text.strip()
+        if not cleaned:
+            return {"tokens": [], "meta": {"empty": True}}
+        
+        resolved_lang = lang or self._default_lang
+        
+        # Usar cache si está disponible
+        if self._cache is not None:
+            return await self._cache.get_or_compute(
+                cleaned, resolved_lang, "epitran",
+                lambda: self._compute_ipa(cleaned, resolved_lang)
+            )
+        
+        return await self._compute_ipa(cleaned, resolved_lang)
+    
+    async def _compute_ipa(self, text: str, lang: str) -> TextRefResult:
+        """Ejecutar Epitran para obtener transcripción IPA."""
         code = self._resolve_code(lang)
         model = self._get_model(code)
         tokens = self._transliterate(model, text)
@@ -75,3 +97,4 @@ class EpitranTextRef(BasePlugin):
 
 
 __all__ = ["EpitranTextRef"]
+

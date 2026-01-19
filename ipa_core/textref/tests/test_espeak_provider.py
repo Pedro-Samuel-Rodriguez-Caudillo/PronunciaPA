@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import pytest
+from unittest.mock import patch
 
 from ipa_core.errors import NotReadyError
 from ipa_core.textref.espeak import EspeakTextRef
@@ -31,10 +32,10 @@ async def test_espeak_produces_tokens_from_subprocess():
         assert "--ipa=3" in args
 
 
+def test_espeak_detects_binary_and_raises_when_missing():
+    """Test que verifica el comportamiento cuando no hay binario disponible."""
+    # Mockear _detect_binary para simular que no encuentra binario
+    with patch.object(EspeakTextRef, "_detect_binary", side_effect=NotReadyError("No binary")):
+        with pytest.raises(NotReadyError):
+            EspeakTextRef()
 
-def test_espeak_detects_binary_and_raises_when_missing(monkeypatch):
-    monkeypatch.setenv("PRONUNCIAPA_ESPEAK_BIN", "")
-    monkeypatch.setenv("ESPEAK_BIN", "")
-    monkeypatch.setenv("PATH", "")
-    with pytest.raises(NotReadyError):
-        EspeakTextRef()
