@@ -1,0 +1,210 @@
+"""Reglas fonológicas ordenadas (SPE-style).
+
+Una regla fonológica transforma segmentos en contextos específicos:
+  A → B / X_Y
+  (A se convierte en B cuando está entre X e Y)
+"""
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, Set
+
+
+@dataclass
+class PhonologicalRule:
+    """Regla fonológica sensible al contexto.
+    
+    Atributos
+    ---------
+    name : str
+        Nombre descriptivo de la regla.
+    input_segments : List[str]
+        Segmentos de entrada que la regla transforma.
+    output_segments : List[str]
+        Segmentos de salida correspondientes.
+    left_context : str
+        Regex para contexto izquierdo. Vacío = cualquiera.
+        Usar "_" para marcar la posición del segmento.
+    right_context : str
+        Regex para contexto derecho. Vacío = cualquiera.
+    order : int
+        Orden de aplicación (menor = antes).
+    optional : bool
+        Si es True, la regla puede no aplicarse (variación libre).
+    register : str
+        Registro donde aplica (formal, informal, all).
+    description : str
+        Descripción de la regla.
+    """
+    name: str
+    input_segments: List[str]
+    output_segments: List[str]
+    left_context: str = ""
+    right_context: str = ""
+    order: int = 0
+    optional: bool = False
+    register: str = "all"
+    description: str = ""
+    
+    def __post_init__(self) -> None:
+        if len(self.input_segments) != len(self.output_segments):
+            raise ValueError(
+                f"Input and output must have same length: "
+                f"{self.input_segments} → {self.output_segments}"
+            )
+        
+        # Crear mapeo de transformación
+        self._transform_map = dict(zip(self.input_segments, self.output_segments))
+        
+        # Compilar patrones de contexto
+        self._left_re = re.compile(f"({self.left_context})$") if self.left_context else None
+        self._right_re = re.compile(f"^({self.right_context})") if self.right_context else None
+    
+    def matches_context(self, left: str, right: str) -> bool:
+        """Verificar si el contexto coincide con la regla."""
+        if self._left_re:
+            if not self._left_re.search(left):
+                return False
+        if self._right_re:
+            if not self._right_re.match(right):
+                return False
+        return True
+    
+    def can_apply(self, segment: str) -> bool:
+        """Verificar si la regla puede aplicarse a un segmento."""
+        return segment in self._transform_map
+    
+    def transform(self, segment: str) -> str:
+        """Transformar un segmento según la regla."""
+        return self._transform_map.get(segment, segment)
+    
+    def apply(self, input_str: str) -> str:
+        """Aplicar la regla a una cadena completa.
+        
+        Parámetros
+        ----------
+        input_str : str
+            Cadena de segmentos (cada carácter es un segmento).
+            
+        Retorna
+        -------
+        str
+            Cadena con la regla aplicada.
+        """
+        if not input_str:
+            return input_str
+        
+        result = []
+        i = 0
+        
+        while i < len(input_str):
+            segment = input_str[i]
+            
+            if self.can_apply(segment):
+                left = input_str[:i]
+                right = input_str[i+1:]
+                
+                if self.matches_context(left, right):
+                    result.append(self.transform(segment))
+                else:
+                    result.append(segment)
+            else:
+                result.append(segment)
+            
+            i += 1
+        
+        return "".join(result)
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Serializar a diccionario."""
+        d = {
+            "name": self.name,
+            "input": self.input_segments,
+            "output": self.output_segments,
+            "order": self.order,
+        }
+        if self.left_context:
+            d["left"] = self.left_context
+        if self.right_context:
+            d["right"] = self.right_context
+        if self.optional:
+            d["optional"] = True
+        if self.register != "all":
+            d["register"] = self.register
+        if self.description:
+            d["description"] = self.description
+        return d
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "PhonologicalRule":
+        """Crear desde diccionario."""
+        return cls(
+            name=data.get("name", ""),
+            input_segments=data.get("input", []),
+            output_segments=data.get("output", []),
+            left_context=data.get("left", ""),
+            right_context=data.get("right", ""),
+            order=data.get("order", 0),
+            optional=data.get("optional", False),
+            register=data.get("register", "all"),
+            description=data.get("description", ""),
+        )
+    
+    def __repr__(self) -> str:
+        inputs = ",".join(self.input_segments)
+        outputs = ",".join(self.output_segments)
+        context = ""
+        if self.left_context or self.right_context:
+            context = f" / {self.left_context}_{self.right_context}"
+        return f"{self.name}: {inputs} → {outputs}{context}"
+
+
+# Reglas predefinidas comunes
+
+SPIRANTIZATION_ES = PhonologicalRule(
+    name="Espirantización",
+    input_segments=["b", "d", "g"],
+    output_segments=["β", "ð", "ɣ"],
+    left_context="[aeiouəɛɪʊʌɔ]",  # después de vocal
+    right_context="",
+    order=1,
+    description="Oclusivas sonoras → fricativas entre vocales",
+)
+
+SESEO_ES = PhonologicalRule(
+    name="Seseo",
+    input_segments=["θ"],
+    output_segments=["s"],
+    order=0,  # Muy temprano
+    description="θ → s en dialectos seseantes",
+)
+
+YEISMO_ES = PhonologicalRule(
+    name="Yeísmo",
+    input_segments=["ʎ"],
+    output_segments=["ʝ"],
+    order=0,
+    description="ʎ → ʝ en dialectos yeístas",
+)
+
+D_ELISION_ES = PhonologicalRule(
+    name="Elisión de /d/ final",
+    input_segments=["d"],
+    output_segments=[""],  # Elisión
+    left_context="[aeiou]",
+    right_context="$",  # Final de palabra (aproximado)
+    order=10,
+    optional=True,
+    register="informal",
+    description="d → ∅ en posición final tras vocal",
+)
+
+
+__all__ = [
+    "PhonologicalRule",
+    "SPIRANTIZATION_ES",
+    "SESEO_ES",
+    "YEISMO_ES",
+    "D_ELISION_ES",
+]

@@ -26,7 +26,44 @@ class _Weights:
 
 
 class LevenshteinComparator(BasePlugin):
-    """Calcula PER mediante distancia de Levenshtein con backtracking."""
+    """Calcula PER mediante distancia de Levenshtein con backtracking.
+    
+    Parámetros
+    ----------
+    use_articulatory : bool
+        Si True, usa distancia articulatoria para costos de sustitución.
+        Fonemas similares tendrán menor costo.
+    articulatory_min_cost : float
+        Costo mínimo de sustitución cuando use_articulatory=True.
+    """
+    
+    def __init__(
+        self,
+        *,
+        use_articulatory: bool = False,
+        articulatory_min_cost: float = 0.3,
+    ) -> None:
+        self._use_articulatory = use_articulatory
+        self._articulatory_min_cost = articulatory_min_cost
+    
+    def _get_sub_cost(
+        self,
+        ref_token: str,
+        hyp_token: str,
+        base_cost: float,
+    ) -> float:
+        """Obtener costo de sustitución, opcionalmente usando distancia articulatoria."""
+        if not self._use_articulatory:
+            return base_cost
+        
+        # Import diferido para evitar dependencia circular
+        from ipa_core.compare.articulatory import articulatory_substitution_cost
+        return articulatory_substitution_cost(
+            ref_token,
+            hyp_token,
+            base_cost=base_cost,
+            min_cost=self._articulatory_min_cost,
+        )
 
     async def compare(
         self,
@@ -57,7 +94,13 @@ class LevenshteinComparator(BasePlugin):
                     dp[i][j] = dp[i - 1][j - 1]
                     back[i][j] = ("eq", i - 1, j - 1)
                     continue
-                sub_cost = dp[i - 1][j - 1] + w.sub
+                # Usar costo articulatorio si está habilitado
+                actual_sub_cost = self._get_sub_cost(
+                    ref_tokens[i - 1],
+                    hyp_tokens[j - 1],
+                    w.sub,
+                )
+                sub_cost = dp[i - 1][j - 1] + actual_sub_cost
                 ins_cost = dp[i][j - 1] + w.ins
                 del_cost = dp[i - 1][j] + w.del_
                 best_cost = min(sub_cost, ins_cost, del_cost)
@@ -104,7 +147,15 @@ class LevenshteinComparator(BasePlugin):
         ops = list(reversed(ops_reversed))
         alignment = list(reversed(alignment_reversed))
         per = self._calculate_per(errors, len(ref_tokens), len(hyp_tokens))
-        return {"per": per, "ops": ops, "alignment": alignment, "meta": {"distance": dp[n][m]}}
+        return {
+            "per": per,
+            "ops": ops,
+            "alignment": alignment,
+            "meta": {
+                "distance": dp[n][m],
+                "use_articulatory": self._use_articulatory,
+            },
+        }
 
     @staticmethod
     def _calculate_per(errors: int, ref_len: int, hyp_len: int) -> float:
