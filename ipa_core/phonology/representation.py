@@ -8,6 +8,49 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List, Literal, Optional, TYPE_CHECKING
 
+
+def tokenize_ipa(ipa: str) -> List[str]:
+    """Tokenizar cadena IPA en segmentos (dígrafos + suprasegmentales removidos).
+
+    Elimina acentos primario/secundario y separadores silábicos para trabajar
+    sobre la secuencia de segmentos pura. Soporta dígrafos comunes.
+    """
+    clean = ipa.replace("ˈ", "").replace("ˌ", "").replace(".", "")
+    # Lista de multigrafos comunes en inventarios ES/EN
+    multigraphs = (
+        "tʃ",
+        "dʒ",
+        "ts",
+        "dz",
+        # diptongos frecuentes (se tratan como unidad)
+        "aɪ",
+        "aʊ",
+        "ɔɪ",
+        "oʊ",
+        "eɪ",
+        "ai",
+        "ei",
+        "oi",
+        "au",
+        "eu",
+        "iu",
+    )
+    segments: List[str] = []
+    i = 0
+    while i < len(clean):
+        # Intentar coincidir multigráfos en orden de longitud (aquí todos 2)
+        matched = False
+        if i + 1 < len(clean):
+            pair = clean[i:i+2]
+            if pair in multigraphs:
+                segments.append(pair)
+                i += 2
+                matched = True
+        if not matched:
+            segments.append(clean[i])
+            i += 1
+    return segments
+
 if TYPE_CHECKING:
     from ipa_core.phonology.segment import Segment
 
@@ -39,25 +82,7 @@ class PhonologicalRepresentation:
         
         # Tokenizar si no hay segmentos
         if not self.segments and self.ipa:
-            self.segments = self._tokenize(self.ipa)
-    
-    @staticmethod
-    def _tokenize(ipa: str) -> List[str]:
-        """Tokenizar cadena IPA en segmentos."""
-        # Remover diacríticos de acento y silabificación para tokenización
-        clean = ipa.replace("ˈ", "").replace("ˌ", "").replace(".", "")
-        
-        segments = []
-        i = 0
-        while i < len(clean):
-            # Dígrafos comunes
-            if i + 1 < len(clean) and clean[i:i+2] in ("tʃ", "dʒ", "ts", "dz"):
-                segments.append(clean[i:i+2])
-                i += 2
-            else:
-                segments.append(clean[i])
-                i += 1
-        return segments
+            self.segments = tokenize_ipa(self.ipa)
     
     def to_ipa(self, with_delimiters: bool = True) -> str:
         """Convertir a string IPA con delimitadores apropiados.
@@ -158,4 +183,5 @@ __all__ = [
     "PhonologicalRepresentation",
     "TranscriptionResult",
     "ComparisonResult",
+    "tokenize_ipa",
 ]

@@ -7,8 +7,10 @@ Una regla fonológica transforma segmentos en contextos específicos:
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Set
+
+from ipa_core.phonology.representation import tokenize_ipa
 
 
 @dataclass
@@ -56,6 +58,10 @@ class PhonologicalRule:
         
         # Crear mapeo de transformación
         self._transform_map = dict(zip(self.input_segments, self.output_segments))
+        # Mapa inverso (solo para salidas no vacías y únicas)
+        self._inverse_map: Dict[str, str] = {
+            out: inp for inp, out in self._transform_map.items() if out
+        }
         
         # Compilar patrones de contexto
         self._left_re = re.compile(f"({self.left_context})$") if self.left_context else None
@@ -80,40 +86,53 @@ class PhonologicalRule:
         return self._transform_map.get(segment, segment)
     
     def apply(self, input_str: str) -> str:
-        """Aplicar la regla a una cadena completa.
-        
-        Parámetros
-        ----------
-        input_str : str
-            Cadena de segmentos (cada carácter es un segmento).
-            
-        Retorna
-        -------
-        str
-            Cadena con la regla aplicada.
+        """Aplicar la regla a una cadena completa (tokenizada).
+
+        Tokeniza usando dígrafos; aplica transformación si coincide contexto.
         """
         if not input_str:
             return input_str
-        
-        result = []
-        i = 0
-        
-        while i < len(input_str):
-            segment = input_str[i]
-            
+
+        tokens = tokenize_ipa(input_str)
+        result: List[str] = []
+
+        for idx, segment in enumerate(tokens):
             if self.can_apply(segment):
-                left = input_str[:i]
-                right = input_str[i+1:]
-                
+                left = "".join(tokens[:idx])
+                right = "".join(tokens[idx + 1 :])
+
                 if self.matches_context(left, right):
                     result.append(self.transform(segment))
                 else:
                     result.append(segment)
             else:
                 result.append(segment)
-            
-            i += 1
-        
+
+        return "".join(result)
+
+    def apply_inverse(self, input_str: str) -> str:
+        """Aplicar la regla de forma inversa (colapso alófonos→fonemas).
+
+        Solo se aplica si la salida no está vacía y hay correspondencia 1:1.
+        """
+        if not input_str or not self._inverse_map:
+            return input_str
+
+        tokens = tokenize_ipa(input_str)
+        result: List[str] = []
+
+        for idx, segment in enumerate(tokens):
+            if segment in self._inverse_map:
+                left = "".join(tokens[:idx])
+                right = "".join(tokens[idx + 1 :])
+
+                if self.matches_context(left, right):
+                    result.append(self._inverse_map[segment])
+                else:
+                    result.append(segment)
+            else:
+                result.append(segment)
+
         return "".join(result)
     
     def to_dict(self) -> Dict[str, Any]:

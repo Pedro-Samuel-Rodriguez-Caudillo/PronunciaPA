@@ -19,6 +19,7 @@ from ipa_core.phonology.representation import (
     ComparisonResult,
     RepresentationLevel,
 )
+from ipa_core.compare.compare import compare_representations
 
 if TYPE_CHECKING:
     from ipa_core.plugins.language_pack import LanguagePackPlugin
@@ -137,6 +138,43 @@ async def prepare_comparison(
     return target_repr, observed_repr
 
 
+async def compare_with_pack(
+    target_text: str,
+    observed_audio: AudioInput,
+    *,
+    pre: Preprocessor,
+    asr: ASRBackend,
+    textref: TextRefProvider,
+    pack: Optional["LanguagePackPlugin"],
+    lang: str,
+    mode: EvaluationMode = "objective",
+    evaluation_level: RepresentationLevel = "phonemic",
+) -> ComparisonResult:
+    """Preparar y comparar usando LanguagePack (derive/collapse + scoring profile)."""
+
+    target_repr, observed_repr = await prepare_comparison(
+        target_text,
+        observed_audio,
+        pre=pre,
+        asr=asr,
+        textref=textref,
+        pack=pack,
+        lang=lang,
+        mode=mode,
+        evaluation_level=evaluation_level,
+    )
+
+    profile = pack.get_scoring_profile(mode) if pack is not None else None
+
+    return await compare_representations(
+        target_repr,
+        observed_repr,
+        mode=mode,
+        evaluation_level=evaluation_level,
+        profile=profile,
+    )
+
+
 # Mantener compatibilidad con transcribe() original
 async def transcribe(
     pre: Preprocessor,
@@ -176,5 +214,6 @@ __all__ = [
     "transcribe_audio",
     "transcribe_text",
     "prepare_comparison",
+    "compare_with_pack",
     "EvaluationMode",
 ]

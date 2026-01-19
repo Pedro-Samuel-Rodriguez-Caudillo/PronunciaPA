@@ -54,13 +54,22 @@ async def compare_representations(
             f"Cannot compare different levels: {target.level} vs {observed.level}"
         )
     
-    # Determinar costo mínimo según modo
-    if mode == "casual":
-        min_cost = 0.1  # Muy permisivo
-    elif mode == "phonetic":
-        min_cost = 0.5  # Estricto
+    # Determinar costo mínimo según modo/perfil
+    if profile is not None:
+        tol = profile.tolerance
+        if tol == "high":
+            min_cost = 0.1
+        elif tol == "low":
+            min_cost = 0.5
+        else:
+            min_cost = 0.3
     else:
-        min_cost = 0.3  # Balance
+        if mode == "casual":
+            min_cost = 0.1  # Muy permisivo
+        elif mode == "phonetic":
+            min_cost = 0.5  # Estricto
+        else:
+            min_cost = 0.3  # Balance
     
     # Crear comparador
     comparator = LevenshteinComparator(
@@ -74,34 +83,29 @@ async def compare_representations(
     # Calcular score ajustado por perfil
     per = result.get("per", 0.0)
     base_score = max(0.0, (1.0 - per) * 100.0)
-    
+
     # Aplicar pesos del perfil si existe
     if profile is not None:
-        # Contar errores de alófono vs fonema
-        allophone_errors = 0
-        phoneme_errors = 0
-        
+        weighted_errors = 0.0
+        total_segments = max(len(target.segments), 1)
+
         for op in result.get("ops", []):
-            if op["op"] in ("sub", "del", "ins"):
-                # Simplificación: considerar subs como potenciales alófonos
-                ref = op.get("ref", "")
-                hyp = op.get("hyp", "")
-                
-                # Verificar si es par aceptable
-                if (ref, hyp) in profile.acceptable_variants:
-                    allophone_errors += 1
+            if op["op"] == "eq":
+                continue
+
+            ref = op.get("ref", "")
+            hyp = op.get("hyp", "")
+
+            if op["op"] == "sub":
+                if (ref, hyp) in profile.acceptable_variants or (hyp, ref) in profile.acceptable_variants:
+                    weighted_errors += profile.allophone_error_weight
                 else:
-                    phoneme_errors += 1
-        
-        # Recalcular score con pesos
-        total_segments = len(target.segments)
-        if total_segments > 0:
-            weighted_errors = (
-                phoneme_errors * profile.phoneme_error_weight +
-                allophone_errors * profile.allophone_error_weight
-            )
-            error_rate = weighted_errors / total_segments
-            base_score = max(0.0, (1.0 - error_rate) * 100.0)
+                    weighted_errors += profile.phoneme_error_weight
+            else:  # ins/del
+                weighted_errors += profile.phoneme_error_weight
+
+        error_rate = weighted_errors / total_segments
+        base_score = max(0.0, (1.0 - error_rate) * 100.0)
     
     return ComparisonResult(
         target=target,

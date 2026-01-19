@@ -27,6 +27,8 @@ from ipa_core.ports.compare import Comparator
 from ipa_core.ports.preprocess import Preprocessor
 from ipa_core.ports.textref import TextRefProvider
 from ipa_core.types import AudioInput, CompareResult, CompareWeights, Token
+from ipa_core.phonology.representation import RepresentationLevel, ComparisonResult
+from ipa_core.pipeline.transcribe import compare_with_pack, EvaluationMode
 
 
 async def run_pipeline(
@@ -59,6 +61,45 @@ async def run_pipeline(
 
     # 5. Comparación
     return await comp.compare(ref_tokens, hyp_tokens, weights=weights)
+
+
+async def run_pipeline_with_pack(
+    pre: Preprocessor,
+    asr: ASRBackend,
+    textref: TextRefProvider,
+    *,
+    audio: AudioInput,
+    text: str,
+    pack,
+    lang: Optional[str] = None,
+    mode: EvaluationMode = "objective",
+    evaluation_level: RepresentationLevel = "phonemic",
+) -> ComparisonResult:
+    """Orquestar pipeline usando LanguagePack para derive/collapse + scoring.
+
+    Devuelve `ComparisonResult` (subconjunto compatible con CompareResult).
+    """
+
+    if pack is None:
+        raise ValidationError("Language pack requerido para run_pipeline_with_pack")
+
+    return await compare_with_pack(
+        text,
+        audio,
+        pre=pre,
+        asr=asr,
+        textref=textref,
+        pack=pack,
+        lang=lang or "",
+        mode=mode,
+        evaluation_level=evaluation_level,
+    )
+
+
+__all__ = [
+    "run_pipeline",
+    "run_pipeline_with_pack",
+]
 
 
 async def _resolve_hyp_tokens(

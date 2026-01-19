@@ -56,6 +56,11 @@ class TestPhonologicalRepresentation:
         """Dígrafos se tokenizan correctamente."""
         rep = PhonologicalRepresentation.phonemic("tʃaɾo")
         assert "tʃ" in rep.segments
+
+    def test_segments_with_diphthongs(self) -> None:
+        """Diptongos comunes se tokenizan como unidad."""
+        rep = PhonologicalRepresentation.phonemic("aɪoʊ")
+        assert rep.segments == ["aɪ", "oʊ"]
     
     def test_len(self) -> None:
         """len() retorna cantidad de segmentos."""

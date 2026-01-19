@@ -367,6 +367,18 @@ VOWEL_FEATURES: Dict[str, FeatureBundle] = {
         "voice": True, "continuant": True,
         "high": False, "low": False, "back": True, "round": True,
     }),
+    "ɚ": FeatureBundle.from_dict({
+        "syllabic": True, "consonantal": False, "sonorant": True,
+        "voice": True, "continuant": True,
+        "high": False, "low": False, "back": False, "round": False,
+        "coronal": True,
+    }),
+    "ɝ": FeatureBundle.from_dict({
+        "syllabic": True, "consonantal": False, "sonorant": True,
+        "voice": True, "continuant": True,
+        "high": False, "low": False, "back": False, "round": False,
+        "coronal": True,
+    }),
 }
 
 # Combinar todos los segmentos

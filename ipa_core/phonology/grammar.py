@@ -14,6 +14,7 @@ import yaml
 
 from ipa_core.phonology.rule import PhonologicalRule
 from ipa_core.phonology.inventory import PhoneticInventory
+from ipa_core.phonology.representation import tokenize_ipa
 
 
 @dataclass
@@ -69,19 +70,19 @@ class PhonologicalGrammar:
         """
         # Limpiar delimitadores
         result = underlying.strip("/[]")
-        
+
         for rule in self.rules:
             # Filtrar por register si no es "all"
             if register != "all" and rule.register != "all":
                 if rule.register != register:
                     continue
-            
+
             # Saltar reglas opcionales en modo estricto
             if mode == "phonetic" and rule.optional:
                 continue
-            
+
             result = rule.apply(result)
-        
+
         return result
     
     def collapse(
@@ -109,16 +110,23 @@ class PhonologicalGrammar:
         # Limpiar delimitadores y diacríticos comunes
         result = surface.strip("/[]")
         result = result.replace("ˈ", "").replace("ˌ", "").replace(".", "")
-        
+
+        # Aplicar reglas en orden inverso (cuando sea invertible)
+        for rule in reversed(self.rules):
+            # Si la regla era opcional y estamos en modo permisivo, igual podemos revertir
+            if rule.optional and mode == "casual":
+                continue  # dejamos variación libre sin colapsar
+            result = rule.apply_inverse(result)
+
         if self.inventory is None:
             return result
-        
-        # Colapsar carácter por carácter
+
+        # Colapsar segmento a segmento usando inventario
         collapsed = []
-        for char in result:
-            base = self.inventory.collapse_to_phoneme(char)
+        for seg in tokenize_ipa(result):
+            base = self.inventory.collapse_to_phoneme(seg)
             collapsed.append(base)
-        
+
         return "".join(collapsed)
     
     @classmethod
