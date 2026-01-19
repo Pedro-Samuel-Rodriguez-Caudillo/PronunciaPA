@@ -1,0 +1,10 @@
+# Scoring Profile - Modo Phonetic
+# Muy estricto, para análisis detallado
+
+phoneme_error_weight: 1.0
+allophone_error_weight: 0.8   # Casi igual que fonema
+prosody_weight: 0.7           # Prosodia importante
+tolerance: low
+
+# Sin variantes aceptables - todo cuenta
+acceptable_variants: []

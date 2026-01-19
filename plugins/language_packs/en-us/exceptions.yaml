@@ -1,0 +1,20 @@
+# Excepciones Léxicas - English (American)
+# Palabras con pronunciación irregular
+
+exceptions:
+  # Silent letters
+  knife: "naɪf"
+  know: "noʊ"
+  write: "ɹaɪt"
+  island: "ˈaɪlənd"
+  
+  # Irregular vowels
+  said: "sɛd"
+  says: "sɛz"
+  women: "ˈwɪmɪn"
+  
+  # Common function words
+  the: "ðə"
+  a: "ə"
+  of: "əv"
+  to: "tu"

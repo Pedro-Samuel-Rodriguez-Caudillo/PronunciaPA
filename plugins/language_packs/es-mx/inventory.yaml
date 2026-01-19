@@ -1,0 +1,55 @@
+# Inventario Fonético - Español Mexicano
+# Formato compatible con PhoneticInventory
+
+language: es
+dialect: es-mx
+description: "Inventario fonético para español mexicano"
+
+inventory:
+  consonants:
+    # Oclusivas
+    - p
+    - b
+    - t
+    - d
+    - k
+    - g
+    # Nasales
+    - m
+    - n
+    - ɲ   # ñ
+    # Vibrantes
+    - r    # vibrante múltiple
+    - ɾ    # vibrante simple (tap)
+    # Fricativas
+    - f
+    - s
+    - x    # j, ge, gi
+    - h    # aspiración (alófono)
+    # Africadas
+    - tʃ   # ch
+    # Laterales
+    - l
+    # Aproximantes
+    - j    # y, ll (yeísmo)
+    - w
+
+  vowels:
+    - a
+    - e
+    - i
+    - o
+    - u
+
+# Alófonos y sus fonemas base
+allophones:
+  b: [β]    # b intervocálica
+  d: [ð]    # d intervocálica
+  g: [ɣ]    # g intervocálica
+  s: [h]    # s aspirada (dialectal)
+
+# Diacríticos permitidos
+diacritics:
+  - ˈ    # acento primario
+  - ˌ    # acento secundario
+  - ̃     # nasalización

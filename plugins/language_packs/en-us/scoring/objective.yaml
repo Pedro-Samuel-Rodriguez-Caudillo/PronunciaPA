@@ -1,0 +1,8 @@
+# Scoring Profile - Objective (en-us)
+phoneme_error_weight: 1.0
+allophone_error_weight: 0.3
+prosody_weight: 0.5
+tolerance: medium
+
+acceptable_variants:
+  - [t, ɾ]

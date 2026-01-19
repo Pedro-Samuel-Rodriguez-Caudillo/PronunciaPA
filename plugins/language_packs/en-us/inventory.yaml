@@ -1,7 +1,8 @@
-version: 1
+# Inventario Fonético - English (American)
+
 language: en
-accent: en-us
-description: "Inventario IPA base para EN-US."
+dialect: en-us
+
 inventory:
   consonants:
     - p
@@ -24,10 +25,11 @@ inventory:
     - h
     - tʃ
     - dʒ
-    - ɹ
     - l
-    - j
+    - ɹ
     - w
+    - j
+
   vowels:
     - i
     - ɪ
@@ -39,27 +41,9 @@ inventory:
     - o
     - ʊ
     - u
+    - ʌ
     - ə
-    - ɚ
-    - ɝ
-  diphthongs:
-    - aɪ
-    - aʊ
-    - ɔɪ
-    - oʊ
-    - eɪ
-  diacritics:
-    - ː
-    - ˑ
-    - ˈ
-    - ˌ
-    - ̃
-    - ̥
-    - ̩
-    - ̚
-  suprasegmentals:
-    - ˈ
-    - ˌ
-    - .
-    - "|"
-    - ‖
+
+# En inglés, la variación alofónica es menos sistemática
+allophones:
+  t: [ɾ, ʔ]   # flapping, glottal (dialectal)

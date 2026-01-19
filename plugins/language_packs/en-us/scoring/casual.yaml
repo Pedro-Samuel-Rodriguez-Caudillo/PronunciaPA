@@ -1,0 +1,9 @@
+# Scoring Profile - Casual (en-us)
+phoneme_error_weight: 1.0
+allophone_error_weight: 0.1
+prosody_weight: 0.2
+tolerance: high
+
+acceptable_variants:
+  - [t, ɾ]
+  - [t, ʔ]

@@ -1,0 +1,56 @@
+# Reglas Fonológicas para Español Mexicano
+# Formato compatible con PhonologicalGrammar
+
+language: es
+dialect: es-mx
+
+rules:
+  # Seseo: θ → s (aplicar temprano)
+  - name: "Seseo"
+    input: ["θ"]
+    output: ["s"]
+    order: 0
+    description: "θ → s en dialectos seseantes"
+
+  # Yeísmo: ʎ → ʝ
+  - name: "Yeísmo"
+    input: ["ʎ"]
+    output: ["ʝ"]
+    order: 0
+    description: "ʎ → ʝ en dialectos yeístas"
+
+  # Espirantización de oclusivas sonoras
+  - name: "Espirantización"
+    input: ["b", "d", "g"]
+    output: ["β", "ð", "ɣ"]
+    left: "[aeiouəɛɪʊʌɔ]"
+    order: 1
+    description: "Oclusivas sonoras → fricativas tras vocal"
+
+  # Asimilación nasal (antes de labiales)
+  - name: "Asimilación nasal labial"
+    input: ["n"]
+    output: ["m"]
+    right: "[pbm]"
+    order: 2
+    description: "n → m antes de labial"
+
+  # Elisión de /d/ final (opcional, informal)
+  - name: "Elisión de /d/ final"
+    input: ["d"]
+    output: [""]
+    left: "[aeiou]"
+    order: 10
+    optional: true
+    register: informal
+    description: "d → ∅ en posición final tras vocal"
+
+  # Aspiración de /s/ final (costero, opcional)
+  - name: "Aspiración de /s/"
+    input: ["s"]
+    output: ["h"]
+    right: "[^aeiou]"
+    order: 5
+    optional: true
+    register: informal
+    description: "s → h antes de consonante (dialecto costero)"

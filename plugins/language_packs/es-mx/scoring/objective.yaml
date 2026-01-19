@@ -1,0 +1,13 @@
+# Scoring Profile - Modo Objective
+# Balance entre precisión y pedagogía
+
+phoneme_error_weight: 1.0
+allophone_error_weight: 0.3   # Cuenta pero menos que fonema
+prosody_weight: 0.5           # Prosodia moderada
+tolerance: medium
+
+# Variantes aceptables
+acceptable_variants:
+  - [b, β]
+  - [d, ð]
+  - [g, ɣ]

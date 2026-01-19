@@ -1,0 +1,24 @@
+# Excepciones Léxicas - Español Mexicano
+# Solo palabras que NO siguen las reglas fonológicas
+
+exceptions:
+  # Palabras con x pronunciada como /x/ (náhuatl)
+  méxico: "ˈmexiko"
+  mexicano: "mexiˈkano"
+  oaxaca: "waˈxaka"
+  texas: "ˈtexas"
+  
+  # Palabras con x pronunciada como /s/
+  xilófono: "siˈlofono"
+  
+  # Préstamos con pronunciación especial
+  wifi: "ˈwifi"
+  whisky: "ˈwiski"
+  
+  # Palabras con grupos consonánticos reducidos
+  psicología: "sikoloˈxia"
+  psicólogo: "siˈkologo"
+  gnomo: "ˈnomo"
+  
+  # Palabras con h aspirada (préstamos)
+  hámster: "ˈamster"

@@ -1,0 +1,15 @@
+# Scoring Profile - Modo Casual
+# Alta tolerancia, para principiantes
+
+phoneme_error_weight: 1.0
+allophone_error_weight: 0.1   # Muy bajo - [β] por /b/ casi no cuenta
+prosody_weight: 0.2           # Prosodia poco importante
+tolerance: high
+
+# Variantes aceptables en modo casual
+# [target, variant] - ambos se consideran equivalentes
+acceptable_variants:
+  - [b, β]
+  - [d, ð]
+  - [g, ɣ]
+  - [s, h]   # aspiración OK

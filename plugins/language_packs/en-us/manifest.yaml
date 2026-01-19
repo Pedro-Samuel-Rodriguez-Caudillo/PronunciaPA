@@ -1,0 +1,32 @@
+# Manifest del Language Pack - English (American)
+# Compatible con ipa_core/packs/schema.py
+
+id: en-us
+version: "2.0.0"
+language: en
+dialect: en-us
+description: "English (American) phonological pack for PronunciaPA"
+license: "CC0-1.0"
+
+sources:
+  - name: CMU
+    note: "Carnegie Mellon University Pronouncing Dictionary"
+
+# Recursos del pack (formato PackResource)
+inventory:
+  path: inventory.yaml
+  format: yaml
+
+lexicon:
+  path: exceptions.yaml
+  format: yaml
+  required: false
+
+rules:
+  - path: phonological_rules.yaml
+    format: yaml
+
+# Características del dialecto
+features:
+  rhotic: true
+  rhythm: stress-timed

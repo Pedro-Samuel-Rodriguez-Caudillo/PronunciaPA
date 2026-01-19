@@ -1,0 +1,35 @@
+# Manifest del Language Pack - Español Mexicano
+# Compatible con ipa_core/packs/schema.py
+
+id: es-mx
+version: "2.0.0"
+language: es
+dialect: es-mx
+description: "Spanish (Mexican) phonological pack for PronunciaPA"
+license: "CC0-1.0"
+
+sources:
+  - name: RAE
+    note: "Real Academia Española"
+  - name: DEM
+    note: "Diccionario del Español de México"
+
+# Recursos del pack (formato PackResource)
+inventory:
+  path: inventory.yaml
+  format: yaml
+
+lexicon:
+  path: exceptions.yaml
+  format: yaml
+  required: false
+
+rules:
+  - path: phonological_rules.yaml
+    format: yaml
+
+# Características del dialecto (extra fields allowed)
+features:
+  seseo: true
+  yeismo: true
+  rhythm: syllable-timed

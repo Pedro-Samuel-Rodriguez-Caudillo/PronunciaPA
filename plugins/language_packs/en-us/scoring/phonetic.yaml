@@ -1,0 +1,7 @@
+# Scoring Profile - Phonetic (en-us)
+phoneme_error_weight: 1.0
+allophone_error_weight: 0.8
+prosody_weight: 0.7
+tolerance: low
+
+acceptable_variants: []

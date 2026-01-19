@@ -1,0 +1,27 @@
+# Reglas Fonológicas - English (American)
+# El inglés tiene menos reglas sistemáticas que el español
+
+language: en
+dialect: en-us
+
+rules:
+  # Flapping: t,d → ɾ entre vocales (en habla rápida)
+  - name: "Flapping"
+    input: ["t", "d"]
+    output: ["ɾ", "ɾ"]
+    left: "[aeiouəɛɪʊʌɔæɑ]"
+    right: "[aeiouəɛɪʊʌɔæɑ]"
+    order: 1
+    optional: true
+    register: informal
+    description: "t/d → ɾ between vowels (American English)"
+
+  # Glottalization de t final (opcional)
+  - name: "Glottalization"
+    input: ["t"]
+    output: ["ʔ"]
+    right: "$"
+    order: 2
+    optional: true
+    register: informal
+    description: "t → ʔ word-finally"

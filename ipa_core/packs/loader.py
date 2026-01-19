@@ -9,8 +9,9 @@ import yaml
 
 from ipa_core.packs.schema import LanguagePack, ModelPack, PackResource
 
-DEFAULT_PACKS_DIR = Path(__file__).resolve().parents[2] / "data" / "packs"
-_MANIFEST_NAMES = ("pack.yaml", "pack.yml", "pack.json")
+# UPDATED: Packs now live in plugins/language_packs/
+DEFAULT_PACKS_DIR = Path(__file__).resolve().parents[2] / "plugins" / "language_packs"
+_MANIFEST_NAMES = ("manifest.yaml", "pack.yaml", "pack.yml", "pack.json")
 
 
 def resolve_manifest_path(
