@@ -162,6 +162,29 @@ ipa_core/
 └── pipeline/
     └── transcribe.py    # Pipeline con mode + evaluation_level
 
+## Implementación actual (estado)
+
+- **Tokenización IPA**: `tokenize_ipa` reconoce dígrafos/africadas (tʃ, dʒ, ts, dz)
+  y diptongos frecuentes (aɪ, aʊ, ɔɪ, oʊ, eɪ, ai, ei, oi, au, eu, iu); elimina acentos
+  y separadores silábicos para aplicar reglas y alineación sobre segmentos.
+- **Reglas bidireccionales**: `PhonologicalRule.apply` opera sobre tokens; `apply_inverse`
+  revierte alófonos→fonemas cuando la salida es invertible, permitiendo `collapse`
+  más fiel antes de usar el inventario.
+- **Gramática**: `derive` aplica reglas ordenadas; `collapse` elimina suprasegmentales,
+  revierte reglas en orden inverso y luego mapea al inventario (`collapse_to_phoneme`).
+- **Language Pack en pipeline**: `compare_with_pack` (y `run_pipeline_with_pack`) orquesta
+  preprocesado→ASR→TextRef, aplica `derive/collapse` según `evaluation_level` y
+  usa el `ScoringProfile` (tolerancia/acceptable_variants/pesos) al comparar.
+- **Scoring**: el comparador ajusta costos mínimos según `tolerance` del perfil y pondera
+  sustituciones aceptables como errores de alófono (peso menor) vs. errores de fonema.
+
+### Próximos pasos sugeridos
+
+- Exponer `evaluation_level` y `mode` en CLI/API usando `run_pipeline_with_pack`.
+- Añadir validaciones de inventario (todos los símbolos con rasgos conocidos) y reglas
+  basadas en clases naturales.
+- Ampliar pruebas de round-trip derive→collapse con language packs ES/EN.
+
 plugins/language_packs/
 ├── es-mx/
 │   ├── manifest.yaml
