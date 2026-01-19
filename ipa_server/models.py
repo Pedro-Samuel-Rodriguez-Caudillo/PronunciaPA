@@ -24,6 +24,21 @@ class EditOp(BaseModel):
 class CompareResponse(BaseModel):
     """Respuesta exitosa de comparación."""
     per: float = Field(..., description="Phone Error Rate (0.0 a 1.0)", json_schema_extra={"example": 0.15})
+    score: Optional[float] = Field(
+        default=None,
+        description="Puntuación de pronunciación (0-100)",
+        json_schema_extra={"example": 85.0},
+    )
+    mode: str = Field(
+        default="objective",
+        description="Modo de evaluación: casual, objective, phonetic",
+        json_schema_extra={"example": "objective"},
+    )
+    evaluation_level: str = Field(
+        default="phonemic",
+        description="Nivel de evaluación: phonemic, phonetic",
+        json_schema_extra={"example": "phonemic"},
+    )
     ipa: Optional[str] = Field(
         default=None,
         description="Transcripción IPA detectada (hipótesis)",

@@ -37,6 +37,16 @@ export interface EditOp {
 export interface CompareResponse {
   /** Phone Error Rate (0.0 a 1.0) */
   per: number;
+  /** Puntuación de pronunciación (0-100) */
+  score?: number;
+  /** Modo de evaluación */
+  mode: 'casual' | 'objective' | 'phonetic';
+  /** Nivel de evaluación */
+  evaluation_level: 'phonemic' | 'phonetic';
+  /** Transcripción IPA detectada */
+  ipa?: string;
+  /** Tokens IPA detectados */
+  tokens?: string[];
   /** Lista de operaciones de edición realizadas */
   ops: EditOp[];
   /** Pares de tokens alineados [ref, hyp] */

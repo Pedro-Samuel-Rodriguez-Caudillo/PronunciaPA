@@ -17,6 +17,8 @@ export type CompareRequest = {
   audio: File | Blob;
   text: string;
   lang?: string;
+  mode?: 'casual' | 'objective' | 'phonetic';
+  evaluationLevel?: 'phonemic' | 'phonetic';
 };
 
 export type FeedbackRequest = {
@@ -46,6 +48,8 @@ export function createApiClient(options: ApiClientOptions = {}) {
       form.append('audio', payload.audio);
       form.append('text', payload.text);
       form.append('lang', payload.lang ?? 'es');
+      form.append('mode', payload.mode ?? 'objective');
+      form.append('evaluation_level', payload.evaluationLevel ?? 'phonemic');
       return postForm<CompareResponse>(`${baseUrl}/v1/compare`, form);
     },
 

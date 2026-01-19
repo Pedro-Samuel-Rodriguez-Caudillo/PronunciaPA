@@ -188,12 +188,19 @@ def get_app() -> FastAPI:
         audio: UploadFile = File(..., description="Archivo de audio a comparar"),
         text: str = Form(..., description="Texto de referencia"),
         lang: str = Form("es", description="Idioma del audio"),
+        mode: str = Form("objective", description="Modo: casual, objective, phonetic"),
+        evaluation_level: str = Form("phonemic", description="Nivel: phonemic, phonetic"),
         backend: Optional[str] = Form(None, description="Nombre del backend ASR"),
         textref: Optional[str] = Form(None, description="Nombre del proveedor texto→IPA"),
         comparator: Optional[str] = Form(None, description="Nombre del comparador"),
         kernel: Kernel = Depends(_get_kernel)
     ) -> dict[str, Any]:
-        """Comparación de audio contra texto de referencia usando el microkernel."""
+        """Comparación de audio contra texto de referencia.
+        
+        Parámetros:
+        - mode: casual (permisivo), objective (balance), phonetic (estricto)
+        - evaluation_level: phonemic (subyacente) o phonetic (superficial)
+        """
         tmp_path = await _process_upload(audio)
         try:
             if backend:
@@ -214,8 +221,16 @@ def get_app() -> FastAPI:
             res = payload.result
             hyp_tokens = payload.hyp_tokens
             meta = payload.meta
+            
+            # Calcular score basado en PER y modo
+            per = res.get("per", 0.0)
+            base_score = max(0.0, (1.0 - per) * 100.0)
+            
             return {
                 **res,
+                "score": base_score,
+                "mode": mode,
+                "evaluation_level": evaluation_level,
                 "ipa": " ".join(hyp_tokens),
                 "tokens": hyp_tokens,
                 "meta": meta,
