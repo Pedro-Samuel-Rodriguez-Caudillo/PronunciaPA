@@ -23,6 +23,9 @@ from ipa_core.services.feedback import FeedbackService
 from ipa_core.services.feedback_store import FeedbackStore
 from ipa_core.services.transcription import TranscriptionService
 from ipa_core.types import AudioInput
+from ipa_core.pipeline.runner import run_pipeline_with_pack
+from ipa_core.pipeline.transcribe import EvaluationMode
+from ipa_core.phonology.representation import RepresentationLevel
 from ipa_server.models import TranscriptionResponse, TextRefResponse, CompareResponse, FeedbackResponse, EditOp
 
 
@@ -193,6 +196,7 @@ def get_app() -> FastAPI:
         backend: Optional[str] = Form(None, description="Nombre del backend ASR"),
         textref: Optional[str] = Form(None, description="Nombre del proveedor texto→IPA"),
         comparator: Optional[str] = Form(None, description="Nombre del comparador"),
+        pack: Optional[str] = Form(None, description="Language pack (dialecto) a usar"),
         kernel: Kernel = Depends(_get_kernel)
     ) -> dict[str, Any]:
         """Comparación de audio contra texto de referencia.
@@ -209,7 +213,33 @@ def get_app() -> FastAPI:
                 kernel.textref = registry.resolve_textref(textref.lower(), {"default_lang": lang})
             if comparator:
                 kernel.comp = registry.resolve_comparator(comparator.lower(), {})
+            if pack:
+                kernel.pack = registry.resolve_pack(pack.lower())
             await kernel.setup()
+            if pack and getattr(kernel, "pack", None):
+                # Comparación usando language pack (derive/collapse + scoring profile)
+                comp_res = await run_pipeline_with_pack(
+                    pre=kernel.pre,
+                    asr=kernel.asr,
+                    textref=kernel.textref,
+                    audio={"path": str(tmp_path), "sample_rate": 16000, "channels": 1},
+                    text=text,
+                    pack=kernel.pack,
+                    lang=lang,
+                    mode=EvaluationMode(mode),
+                    evaluation_level=RepresentationLevel(evaluation_level),
+                )
+                return {
+                    "mode": mode,
+                    "evaluation_level": evaluation_level,
+                    "distance": comp_res.distance,
+                    "score": comp_res.score,
+                    "operations": comp_res.operations,
+                    "ipa": comp_res.observed.to_ipa(with_delimiters=False),
+                    "tokens": comp_res.observed.segments,
+                    "target": comp_res.target.to_ipa(with_delimiters=False),
+                }
+            # Fallback al comparador clásico
             service = ComparisonService(
                 preprocessor=kernel.pre,
                 asr=kernel.asr,

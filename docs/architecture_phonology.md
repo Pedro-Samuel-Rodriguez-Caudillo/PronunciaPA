@@ -180,10 +180,11 @@ ipa_core/
 
 ### Próximos pasos sugeridos
 
-- Exponer `evaluation_level` y `mode` en CLI/API usando `run_pipeline_with_pack`.
-- Añadir validaciones de inventario (todos los símbolos con rasgos conocidos) y reglas
-  basadas en clases naturales.
-- Ampliar pruebas de round-trip derive→collapse con language packs ES/EN.
+- **CLI/API**: exponer `mode` y `evaluation_level` en rutas/CLI usando `run_pipeline_with_pack`
+  y language pack (derive/collapse + scoring profile).
+- **Validaciones de inventario**: asegurar que cada símbolo de `inventory.yaml` tiene rasgos
+  en `features.py` y fallar al cargar si no.
+- **Pruebas**: round-trip derive→collapse con packs ES/EN y casos con diptongos/africadas.
 
 plugins/language_packs/
 ├── es-mx/
