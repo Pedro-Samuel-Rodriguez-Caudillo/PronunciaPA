@@ -106,3 +106,151 @@
 .animate-wave {
   animation: wave 1s ease-in-out infinite;
 }
+
+/* ========================================
+ * Pronunciation Comparison Components
+ * ======================================== */
+
+/* Score Bar */
+.score-container {
+  margin: 1rem 0;
+}
+
+.score-label {
+  font-size: 1.25rem;
+  margin-bottom: 0.5rem;
+  color: #374151;
+}
+
+.score-label strong {
+  font-size: 1.5rem;
+  color: #111827;
+}
+
+.score-bar-bg {
+  height: 12px;
+  background: #e5e7eb;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.score-bar-fill {
+  height: 100%;
+  border-radius: 6px;
+  transition: width 0.5s ease-out;
+}
+
+/* Alignment Table */
+.alignment-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+  font-family: 'Fira Code', monospace;
+}
+
+.alignment-table th,
+.alignment-table td {
+  padding: 0.5rem 1rem;
+  text-align: center;
+  border: 1px solid #e5e7eb;
+}
+
+.alignment-table th {
+  background: #f3f4f6;
+  font-weight: 600;
+  color: #374151;
+}
+
+/* Operation Colors */
+.op-eq { background: #dcfce7; color: #166534; }
+.op-sub { background: #fef3c7; color: #92400e; }
+.op-ins { background: #dbeafe; color: #1e40af; }
+.op-del { background: #fee2e2; color: #991b1b; }
+
+/* Inline Alignment */
+.inline-alignment {
+  font-family: 'Fira Code', monospace;
+  font-size: 1.5rem;
+  padding: 1rem;
+  background: #f9fafb;
+  border-radius: 0.5rem;
+  margin: 1rem 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.inline-alignment .token {
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  cursor: help;
+}
+
+/* Error Summary */
+.error-summary {
+  background: #f3f4f6;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  margin: 1rem 0;
+}
+
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.25rem 0;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.summary-row:last-child {
+  border-bottom: none;
+}
+
+.summary-row .label {
+  color: #6b7280;
+}
+
+.summary-row .value {
+  font-weight: 600;
+  color: #111827;
+}
+
+.error-breakdown {
+  display: flex;
+  gap: 1rem;
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+}
+
+/* Compare Result Container */
+.compare-result {
+  max-width: 600px;
+  margin: 2rem auto;
+  padding: 1.5rem;
+  background: white;
+  border-radius: 1rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+
+.compare-result h4 {
+  margin: 1rem 0 0.5rem;
+  color: #374151;
+}
+
+.compare-result details {
+  margin-top: 1rem;
+}
+
+.compare-result summary {
+  cursor: pointer;
+  color: #667eea;
+  font-weight: 500;
+}
+
+.compare-result summary:hover {
+  text-decoration: underline;
+}
+
+.no-data {
+  color: #9ca3af;
+  font-style: italic;
+}

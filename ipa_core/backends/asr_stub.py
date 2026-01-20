@@ -19,6 +19,8 @@ class StubASR(BasePlugin):
       - stub_tokens: list[str] opcional (por defecto: ["h","o","l","a"]).
       - model_path: ruta al modelo (simulado).
     """
+    
+    output_type = "ipa"  # Stub produces IPA tokens
 
     def __init__(self, params: Optional[dict[str, Any]] = None) -> None:
         super().__init__()

@@ -6,7 +6,8 @@ from pathlib import Path
 from typing import Any, Optional
 
 from ipa_core.errors import NotReadyError, ValidationError
-from ipa_core.llm.utils import build_fallback, extract_json_object, load_json, load_text, validate_json_schema
+from ipa_core.llm.utils import extract_json_object, load_json, load_text, validate_json_schema
+from ipa_core.services.fallback import generate_fallback_feedback
 from ipa_core.kernel.core import Kernel
 from ipa_core.packs.schema import ModelPack
 from ipa_core.types import AudioInput, CompareResult, Token
@@ -67,7 +68,7 @@ async def generate_feedback(
         validate_json_schema(payload, output_schema)
         return payload
     except ValidationError:
-        return build_fallback(output_schema, summary="Feedback no disponible.")
+        return generate_fallback_feedback(report, schema=output_schema)
 
 
 class FeedbackService:

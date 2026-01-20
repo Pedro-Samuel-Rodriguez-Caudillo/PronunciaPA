@@ -196,6 +196,22 @@ npm run dev -- --host
 
 Visita `http://localhost:5173`. Si tu backend vive en otra URL ajusta `data-api-base` en `frontend/public/index.html` o define `window.PRONUNCIAPA_API_BASE` antes de cargar la página.
 
+## Mobile App (Flutter)
+
+El cliente móvil (`pronunciapa_client/`) permite evaluar pronunciación desde Android/iOS:
+
+- Grabación de audio con micrófono
+- Transcripción a IPA
+- Comparación con referencia
+
+```bash
+cd pronunciapa_client
+flutter pub get
+flutter run -d android  # o -d ios
+```
+
+> **⚠️ Alpha**: El cliente móvil está en desarrollo activo. Ver [`pronunciapa_client/README.md`](pronunciapa_client/README.md) para detalles.
+
 ## Docker (demo rápida)
 
 Construir imagen del backend (por defecto usa el ASR `stub`):
