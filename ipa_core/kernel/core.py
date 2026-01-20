@@ -78,11 +78,31 @@ class Kernel:
 
 
 def create_kernel(cfg: AppConfig) -> Kernel:
-    """Crea un `Kernel` resolviendo plugins definidos en la configuración."""
+    """Crea un `Kernel` resolviendo plugins definidos en la configuración.
+    
+    Valida que el backend ASR seleccionado produzca IPA si require_ipa=True.
+    """
     pre = registry.resolve_preprocessor(cfg.preprocessor.name, cfg.preprocessor.params)
     asr = registry.resolve_asr(cfg.backend.name, cfg.backend.params)
     textref = registry.resolve_textref(cfg.textref.name, cfg.textref.params)
     comp = registry.resolve_comparator(cfg.comparator.name, cfg.comparator.params)
+    
+    # Validar que ASR produce IPA si es requerido
+    require_ipa = getattr(cfg.backend, "require_ipa", True)  # Por defecto True
+    if require_ipa and hasattr(asr, "output_type"):
+        if asr.output_type != "ipa":
+            raise ValueError(
+                f"❌ Backend ASR '{cfg.backend.name}' produce '{asr.output_type}', no IPA.\n"
+                f"PronunciaPA requiere backends que produzcan IPA directo para análisis fonético.\n"
+                f"\n"
+                f"Opciones:\n"
+                f"1. Usa 'allosaurus' (recomendado): ASR → IPA universal\n"
+                f"2. Usa un modelo Wav2Vec2 IPA (ej: facebook/wav2vec2-large-xlsr-53-ipa)\n"
+                f"3. Desactiva la validación (no recomendado): añade 'require_ipa: false' en config\n"
+                f"\n"
+                f"Backends texto (como Vosk, Wav2Vec2-texto) pierden información de alófonos."
+            )
+    
     language_pack = _load_language_pack(cfg)
     model_pack, model_pack_dir = _load_model_pack(cfg)
     tts = _resolve_tts(cfg, language_pack)

@@ -28,6 +28,14 @@ MODEL_REGISTRY: Dict[str, str] = {
 class Wav2Vec2Backend(BasePlugin, ASRBackend):
     """Backend de ASR usando Wav2Vec2.
     
+    ⚠️ ADVERTENCIA: La mayoría de modelos Wav2Vec2 producen TEXTO, no IPA.
+    Solo usa este backend con modelos fine-tuned para IPA/fonemas:
+    - facebook/wav2vec2-large-xlsr-53-ipa (gated, requiere token)
+    - Otros modelos específicos de IPA
+    
+    Si usas un modelo de texto, el sistema NO capturará los alófonos
+    reales del usuario, perdiendo información fonética crítica.
+    
     Requiere transformers y torch instalados.
     Los modelos se descargan una vez y se cachean localmente.
     
@@ -39,7 +47,13 @@ class Wav2Vec2Backend(BasePlugin, ASRBackend):
         Dispositivo: "cpu", "cuda", "mps".
     cache_dir : Optional[Path]
         Directorio de caché para modelos.
+    force_ipa : bool
+        Si True, valida que el modelo produce IPA. Default: False (legacy).
     """
+    
+    # Por defecto asume texto (modelos xlsr-53 base son texto)
+    # Solo cambia a "ipa" si usas modelo fine-tuned para IPA
+    output_type = "text"
     
     def __init__(
         self,
@@ -47,13 +61,25 @@ class Wav2Vec2Backend(BasePlugin, ASRBackend):
         model_name: str = "facebook/wav2vec2-large-xlsr-53",
         device: str = "cpu",
         cache_dir: Optional[Path] = None,
+        force_ipa: bool = False,
     ) -> None:
         self._model_name = model_name
         self._device = device
         self._cache_dir = cache_dir
+        self._force_ipa = force_ipa
         self._model = None
         self._processor = None
         self._ready = False
+        
+        # Detectar si el modelo es IPA basado en nombre
+        if "ipa" in model_name.lower() or "phoneme" in model_name.lower():
+            self.output_type = "ipa"
+        elif force_ipa:
+            self.output_type = "ipa"
+            logger.warning(
+                f"Forzando output_type='ipa' para {model_name}. "
+                "Verifica que el modelo realmente produzca IPA."
+            )
     
     async def setup(self) -> None:
         """Cargar modelo (requiere conexión solo la primera vez)."""

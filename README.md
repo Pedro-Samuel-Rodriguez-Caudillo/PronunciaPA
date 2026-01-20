@@ -1,8 +1,36 @@
 # PronunciaPA
 
-Reconocimiento fonético (ASR + IPA) con CLI, API HTTP y un frontend listo para que cualquier persona pruebe su pronunciación.
+**Microkernel de análisis fonético** para evaluación de pronunciación en cualquier idioma.
 
-## Instalación rápida
+Sistema extensible mediante plugins que transforma audio en transcripciones IPA y las compara con referencias fonémicas o fonéticas, proporcionando retroalimentación precisa para mejorar la articulación.
+
+## 🎯 Propósito
+
+PronunciaPA permite a los usuarios elegir su objetivo de aprendizaje:
+- **Nivel Fonémico** (`evaluation_level=phonemic`): Para aprender a hablar y ser entendido. Evalúa fonemas `/kasa/`.
+- **Nivel Fonético** (`evaluation_level=phonetic`): Para pronunciación técnica precisa. Evalúa alófonos `[ˈka.sa]`.
+
+El sistema utiliza **ASR → IPA directo** (no texto intermedio) para capturar la producción fonética real del usuario, sin pérdida de información alofónica.
+
+---
+
+## 🏗️ Arquitectura: Microkernel + Plugins
+
+### Kernel (Core)
+- Orquesta el pipeline: `Preprocessor → ASR → TextRef → Comparator`
+- Valida contratos de plugins (ej: ASR debe producir IPA)
+- Maneja ciclo de vida (setup/teardown)
+
+### Plugins
+- **ASR**: Convierte audio → IPA (Allosaurus, Wav2Vec2-IPA)
+- **TextRef**: Convierte texto → IPA (eSpeak, Epitran)
+- **Comparator**: Compara IPA observado vs target
+- **LLM**: Genera ejercicios y feedback (TinyLlama, Phi) — **NO para ASR**
+- **Language Packs**: Inventarios fonéticos, reglas derive/collapse
+
+---
+
+## 📦 Instalación rápida
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
@@ -14,7 +42,43 @@ pip install -e .[speech]
 > El extra `[speech]` requiere ffmpeg (para MP3/OGG/WebM) y PortAudio (para `sounddevice`).  
 > Si solo necesitas el stub exporta `PRONUNCIAPA_ASR=stub` y omite el extra.
 
-## CLI
+---
+
+## 🔽 Descarga de modelos
+
+### Mínimo requerido (ASR → IPA)
+
+```bash
+# Descarga solo lo esencial: Allosaurus (ASR→IPA) + eSpeak (G2P)
+python scripts/download_models.py
+```
+
+### Opcionales
+
+```bash
+# LLMs para ejercicios y feedback (NO para ASR)
+python scripts/download_models.py --with-llms
+
+# Incluir Phi-3 (LLM alternativo, más capaz)
+python scripts/download_models.py --with-llms --with-phi3
+
+# ASR alternativo: Wav2Vec2 IPA (requiere token HF si es gated)
+export HUGGINGFACEHUB_API_TOKEN=hf_XXXX
+python scripts/download_models.py --wav2vec2-ipa-model facebook/wav2vec2-large-xlsr-53-ipa
+```
+
+### ⚠️ Modelos NO recomendados
+
+**Modelos que producen TEXTO** (no IPA) pierden información de alófonos:
+- `facebook/wav2vec2-large-xlsr-53` (texto multilingüe)
+- `jonatasgrosman/wav2vec2-large-xlsr-53-*` (texto por idioma)
+- Vosk, Whisper (útiles para transcripción, no análisis fonético)
+
+**Usa Allosaurus** (IPA universal, 2000+ lenguas) o modelos Wav2Vec2 fine-tuned para IPA.
+
+---
+
+## 🎮 CLI
 
 ```bash
 # Transcribir un WAV/MP3

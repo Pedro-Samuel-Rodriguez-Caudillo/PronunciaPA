@@ -1,7 +1,7 @@
 """Base para plugins del sistema.
 """
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
     from ipa_core.plugins.model_manager import ModelManager
@@ -12,7 +12,13 @@ class BasePlugin:
 
     Define el ciclo de vida básico (setup/teardown) que el `Kernel` invocará
     al cargar o descargar el plugin.
+    
+    Los plugins ASR deben declarar su tipo de salida (IPA o texto) mediante
+    el atributo `output_type` para que el kernel valide la compatibilidad.
     """
+    
+    # Declaración de tipo de salida (plugins ASR deben sobrescribir)
+    output_type: Literal["ipa", "text", "none"] = "none"
 
     def __init__(self) -> None:
         self._model_manager: ModelManager | None = None

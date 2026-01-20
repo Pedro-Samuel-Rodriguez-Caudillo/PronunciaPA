@@ -47,6 +47,9 @@ class AllosaurusBackend(BasePlugin):
         Si True, intenta obtener timestamps por token.
     """
     
+    # Declara que este backend produce IPA directo
+    output_type = "ipa"
+    
     # Mapeo de códigos ISO a códigos Allosaurus
     _LANG_MAP = {
         "en": "eng",

@@ -30,6 +30,15 @@ VOSK_MODELS: Dict[str, str] = {
 class VoskBackend(BasePlugin, ASRBackend):
     """Backend de ASR usando Vosk.
     
+    ⚠️ ADVERTENCIA: Vosk produce TEXTO, no IPA.
+    Este backend NO es recomendado para evaluación de pronunciación,
+    ya que pierde información fonética (alófonos) del usuario.
+    
+    Úsalo solo si:
+    1. Necesitas transcripción de texto rápida en dispositivos limitados
+    2. Aceptas pérdida de precisión fonética
+    3. Planeas post-procesar con G2P (no recomendado)
+    
     Vosk es más ligero y rápido que Wav2Vec2, pero produce
     texto en lugar de IPA. Requiere post-procesamiento G2P.
     
@@ -40,6 +49,9 @@ class VoskBackend(BasePlugin, ASRBackend):
     sample_rate : int
         Frecuencia de muestreo (16000 recomendado).
     """
+    
+    # Vosk produce texto, no IPA
+    output_type = "text"
     
     def __init__(
         self,
