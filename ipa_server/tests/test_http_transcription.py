@@ -12,15 +12,14 @@ def client():
 
 def test_http_transcribe_success(client, monkeypatch, tmp_path) -> None:
     """Verifica que /v1/transcribe funciona con el stub."""
-    monkeypatch.setenv("PRONUNCIAPA_BACKEND_NAME", "stub")
-    
     wav_path = write_sine_wave(tmp_path / "http_transcribe.wav")
     with open(wav_path, "rb") as f:
-        response = client.post(
-            "/v1/transcribe",
-            files={"audio": ("test.wav", f, "audio/wav")},
-            data={"lang": "es"}
-        )
+        audio_content = f.read()
+    response = client.post(
+        "/v1/transcribe",
+        files={"audio": ("test.wav", audio_content, "audio/wav")},
+        data={"lang": "es"}
+    )
     
     assert response.status_code == 200
     data = response.json()
@@ -42,15 +41,14 @@ def test_http_textref_success(client) -> None:
 
 def test_http_compare_success(client, monkeypatch, tmp_path) -> None:
     """Verifica que /v1/compare funciona con el stub."""
-    monkeypatch.setenv("PRONUNCIAPA_BACKEND_NAME", "stub")
-    
     wav_path = write_sine_wave(tmp_path / "http_compare.wav")
     with open(wav_path, "rb") as f:
-        response = client.post(
-            "/v1/compare",
-            files={"audio": ("test.wav", f, "audio/wav")},
-            data={"text": "hola", "lang": "es"}
-        )
+        audio_content = f.read()
+    response = client.post(
+        "/v1/compare",
+        files={"audio": ("test.wav", audio_content, "audio/wav")},
+        data={"text": "hola", "lang": "es"}
+    )
     
     assert response.status_code == 200
     data = response.json()
@@ -74,7 +72,6 @@ def test_http_validation_error(client, monkeypatch) -> None:
 
 def test_http_transcribe_unsupported_audio(client, monkeypatch) -> None:
     """Verifica el manejo de audio inválido con error 415."""
-    monkeypatch.setenv("PRONUNCIAPA_BACKEND_NAME", "stub")
     response = client.post(
         "/v1/transcribe",
         files={"audio": ("bad.wav", b"not a wav", "audio/wav")},

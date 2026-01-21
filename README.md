@@ -30,15 +30,263 @@ El sistema utiliza **ASR → IPA directo** (no texto intermedio) para capturar l
 
 ---
 
+## 🚀 MVP Quickstart (Sin dependencias externas)
+
+La forma más rápida de probar el sistema usando backends stub (sin modelos pesados):
+
+### 1. Instalar dependencias básicas
+
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -e '.[dev]'  # Nota: comillas necesarias en zsh
+```
+
+### 2. Ejecutar tests para verificar instalación
+
+```bash
+python -m pytest -v
+```
+
+### 3. Lanzar el servidor HTTP
+
+```bash
+export PRONUNCIAPA_ASR=stub
+export PRONUNCIAPA_TEXTREF=grapheme
+uvicorn ipa_server.main:get_app --reload --port 8000
+```
+
+O con Docker:
+
+```bash
+docker-compose up
+```
+
+### 4. Probar la API con audio de muestra
+
+```bash
+# Crear archivos de audio de muestra
+python scripts/create_sample_audio.py
+
+# Transcribir audio con el cliente demo
+python scripts/demo_client.py --audio data/sample/sample_es.wav --lang es
+
+# O usar curl directamente
+curl -X POST http://localhost:8000/v1/transcribe \
+  -F "audio=@data/sample/sample_es.wav" \
+  -F "lang=es"
+```
+
+**Respuesta esperada:**
+```json
+{
+  "ipa": "h o l a",
+  "tokens": ["h", "o", "l", "a"],
+  "lang": "es",
+  "meta": {"backend": "stub", "method": "grapheme"}
+}
+```
+
+### 5. Frontend web (opcional)
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Visita `http://localhost:5173` para subir audio desde el navegador.
+
+---
+
+## 📖 Referencia de API HTTP
+
+### Endpoints disponibles
+
+#### `POST /v1/transcribe` - Transcripción audio → IPA
+
+Convierte un archivo de audio a notación IPA.
+
+**Request:**
+- `audio` (file, required): Archivo de audio (WAV, MP3, OGG, WebM)
+- `lang` (string, optional): Idioma del audio (`es`, `en`, `es-mx`, `en-us`). Default: `es`
+- `backend` (string, optional): Backend ASR a usar (`stub`, `allosaurus`). Default: configurado en server
+- `textref` (string, optional): Proveedor texto→IPA (`grapheme`, `espeak`, `epitran`). Default: configurado en server
+
+**Response 200:**
+```json
+{
+  "ipa": "o l a m u n d o",
+  "tokens": ["o", "l", "a", "m", "u", "n", "d", "o"],
+  "lang": "es",
+  "meta": {
+    "backend": "stub",
+    "method": "grapheme",
+    "duration": 1.23
+  }
+}
+```
+
+**Errores:**
+- `400` - Archivo inválido o faltante
+- `415` - Formato de audio no soportado
+- `503` - Servicio no disponible (modelos no cargados)
+
+**Ejemplo curl:**
+```bash
+curl -X POST http://localhost:8000/v1/transcribe \
+  -F "audio=@mi_audio.wav" \
+  -F "lang=es" \
+  -F "backend=stub"
+```
+
+---
+
+#### `POST /v1/textref` - Conversión texto → IPA
+
+Convierte texto a notación IPA usando reglas fonológicas.
+
+**Request:**
+- `text` (string, required): Texto a convertir
+- `lang` (string, optional): Idioma del texto. Default: `es`
+- `textref` (string, optional): Proveedor (`grapheme`, `espeak`, `epitran`). Default: `grapheme`
+
+**Response 200:**
+```json
+{
+  "ipa": "h o l a",
+  "tokens": ["h", "o", "l", "a"],
+  "lang": "es",
+  "meta": {"method": "grapheme"}
+}
+```
+
+**Ejemplo curl:**
+```bash
+curl -X POST http://localhost:8000/v1/textref \
+  -F "text=hola mundo" \
+  -F "lang=es" \
+  -F "textref=grapheme"
+```
+
+---
+
+#### `POST /v1/compare` - Comparación audio vs texto
+
+Compara la pronunciación del audio contra un texto de referencia y calcula métricas de precisión.
+
+**Request:**
+- `audio` (file, required): Archivo de audio
+- `text` (string, required): Texto de referencia
+- `lang` (string, optional): Idioma. Default: `es`
+- `mode` (string, optional): Modo de evaluación (`casual`, `objective`, `phonetic`). Default: `objective`
+- `evaluation_level` (string, optional): Nivel (`phonemic`, `phonetic`). Default: `phonemic`
+- `backend`, `textref`, `comparator` (optional): Overrides de plugins
+
+**Response 200:**
+```json
+{
+  "per": 0.0,
+  "score": 100.0,
+  "distance": 0,
+  "operations": 4,
+  "alignment": [["h", "h"], ["o", "o"], ["l", "l"], ["a", "a"]],
+  "ipa": "h o l a",
+  "tokens": ["h", "o", "l", "a"],
+  "target": "h o l a",
+  "mode": "objective",
+  "evaluation_level": "phonemic",
+  "meta": {"backend": "stub"}
+}
+```
+
+**Métricas:**
+- `per`: Phone Error Rate (0.0 = perfecto, 1.0 = completamente diferente)
+- `score`: Puntuación 0-100 (100 = pronunciación perfecta)
+- `distance`: Distancia de Levenshtein entre IPA observado y esperado
+- `alignment`: Alineación símbolo por símbolo
+
+**Ejemplo curl:**
+```bash
+curl -X POST http://localhost:8000/v1/compare \
+  -F "audio=@mi_audio.wav" \
+  -F "text=hola" \
+  -F "lang=es" \
+  -F "mode=objective"
+```
+
+---
+
+#### `POST /v1/feedback` - Feedback pedagógico con LLM
+
+Genera retroalimentación pedagógica personalizada usando LLMs locales (TinyLlama, Phi-3).
+
+**Request:**
+- `audio` (file, required): Archivo de audio
+- `text` (string, required): Texto de referencia
+- `lang` (string, optional): Idioma. Default: `es`
+- `model_pack` (string, optional): Model pack LLM a usar
+- `llm` (string, optional): Adapter LLM (`llama_cpp`, `onnx`, `stub`)
+- `persist` (bool, optional): Guardar resultado localmente. Default: `false`
+
+**Response 200:**
+```json
+{
+  "feedback": "Tu pronunciación de 'hola' es clara. Trabaja en...",
+  "exercises": ["Practica el sonido /o/ con 'loro', 'coro'"],
+  "score": 85,
+  "per": 0.15
+}
+```
+
+**Nota:** Requiere modelos LLM descargados (ver sección de modelos).
+
+---
+
+#### `GET /health` - Health check
+
+Verifica que el servidor está funcionando.
+
+**Response 200:**
+```json
+{
+  "status": "ok"
+}
+```
+
+---
+
+## 📦 Instalación completa (con modelos)
+
+Para usar modelos reales de ASR (Allosaurus) en lugar de stubs:
+
+```bash
+# Instalar dependencias de audio y ASR
+pip install -e .[dev,speech]
+
+# Instalar ffmpeg y eSpeak (Ubuntu/Debian)
+sudo apt-get install ffmpeg espeak-ng
+
+# Descargar modelos
+python scripts/download_models.py
+
+# Lanzar servidor con Allosaurus
+export PRONUNCIAPA_ASR=allosaurus
+export PRONUNCIAPA_TEXTREF=espeak
+uvicorn ipa_server.main:get_app --reload --port 8000
+```
+
+---
+
 ## 📦 Instalación rápida
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
-pip install -e .[dev]
+pip install -e '.[dev]'
 # Dependencias de audio/ASR (Allosaurus + micrófono + conversión MP3/OGG/WebM)
-pip install -e .[speech]
+pip install -e '.[speech]'
 ```
 
+> **Nota para zsh:** Las comillas son necesarias para evitar el error "no matches found".  
 > El extra `[speech]` requiere ffmpeg (para MP3/OGG/WebM) y PortAudio (para `sounddevice`).  
 > Si solo necesitas el stub exporta `PRONUNCIAPA_ASR=stub` y omite el extra.
 
@@ -345,3 +593,166 @@ flowchart LR
     TR --> CMP
     CMP --> OUT[(CompareResult)]
 ```
+
+
+---
+
+## 🔧 Troubleshooting
+
+### El servidor no arranca
+
+**Error: "Address already in use"**
+```bash
+# El puerto 8000 está ocupado, usa otro puerto
+uvicorn ipa_server.main:get_app --port 8001
+```
+
+**Error: "No se encontró espeak ni espeak-ng"**
+```bash
+# Opción 1: Instalar eSpeak
+sudo apt-get install espeak-ng  # Ubuntu/Debian
+brew install espeak             # macOS
+
+# Opción 2: Usar backend stub para testing
+export PRONUNCIAPA_ASR=stub
+export PRONUNCIAPA_TEXTREF=grapheme
+```
+
+**Error: "Pack manifest not found for: model/..."**
+```bash
+# El config tiene un model_pack que no existe
+# Usa variables de entorno para overridear:
+export PRONUNCIAPA_CONFIG=""  # No cargar config local
+export PRONUNCIAPA_ASR=stub
+export PRONUNCIAPA_TEXTREF=grapheme
+```
+
+### Los tests fallan
+
+**"pytest: command not found"** o **"zsh: no matches found: .[dev]"**
+```bash
+# Instala las dependencias de desarrollo (comillas necesarias en zsh)
+pip install -e '.[dev]'
+```
+
+**"Import pytest could not be resolved"**
+- Es un warning del linter, no afecta la ejecución
+- Los tests corren correctamente con `python -m pytest`
+
+**Tests HTTP fallan con 503**
+- Verifica que tengas configurado `PRONUNCIAPA_ASR=stub` y `PRONUNCIAPA_TEXTREF=grapheme`
+- El conftest de `ipa_server/tests/conftest.py` debería manejar esto automáticamente
+
+### Docker no funciona
+
+**"Cannot connect to Docker daemon"**
+```bash
+# Inicia el servicio Docker
+sudo systemctl start docker  # Linux
+# O inicia Docker Desktop en Windows/macOS
+```
+
+**Contenedor se reinicia continuamente**
+```bash
+# Ver logs
+docker-compose logs -f
+
+# Verificar que el Dockerfile tiene las deps correctas
+docker-compose build --no-cache
+```
+
+### Frontend no se conecta al backend
+
+**Error CORS en el navegador**
+```bash
+# Configura CORS en el servidor
+export PRONUNCIAPA_ALLOWED_ORIGINS="http://localhost:5173,http://localhost:3000"
+# O usa DEBUG mode (permite *)
+export DEBUG=1
+```
+
+**"Failed to fetch"**
+- Verifica que el servidor esté corriendo en `http://localhost:8000`
+- Prueba el endpoint manualmente: `curl http://localhost:8000/health`
+- Abre `frontend/public/app.html` y verifica la URL en API_BASE
+
+### Audio no se transcribe correctamente
+
+**Usando stub backend**
+- El backend stub siempre retorna `["h", "o", "l", "a"]` para testing
+- Para transcripciones reales, usa `PRONUNCIAPA_ASR=allosaurus`
+
+**Con Allosaurus**
+```bash
+# Verifica que el modelo esté descargado
+python -c "from allosaurus.app import read_recognizer; read_recognizer(\"uni2005\")"
+
+# Si falla, descarga manualmente
+python scripts/download_models.py
+```
+
+**Formato de audio no soportado**
+- Instala ffmpeg: `sudo apt-get install ffmpeg`
+- Convierte tu audio: `ffmpeg -i input.mp3 -ar 16000 -ac 1 output.wav`
+
+### Rendimiento lento
+
+**Primera ejecución es lenta**
+- Allosaurus carga el modelo en memoria (puede tomar 10-30s)
+- Ejecuciones posteriores son más rápidas
+
+**Uso de memoria alto**
+- Allosaurus uni2005 requiere ~2GB RAM
+- Considera usar el stub backend para desarrollo
+- En producción, usa un servidor con mínimo 4GB RAM
+
+### Problemas con modelos LLM
+
+**Error: "LLM not available"**
+- Los LLMs son opcionales y solo necesarios para `/v1/feedback`
+- Endpoints básicos (`/v1/transcribe`, `/v1/compare`) no los requieren
+
+**Descargar modelos LLM**
+```bash
+python scripts/download_models.py --with-llms
+```
+
+---
+
+## 📝 Contribuir
+
+Para contribuir al proyecto:
+
+1. Fork el repositorio
+2. Crea una rama: `git checkout -b feature/nueva-funcionalidad`
+3. Ejecuta los tests: `python -m pytest`
+4. Commit tus cambios: `git commit -am "Agregar nueva funcionalidad"`
+5. Push a la rama: `git push origin feature/nueva-funcionalidad`
+6. Abre un Pull Request
+
+Ver `docs/CONTRIBUTING_BRANCHES.md` para más detalles sobre el flujo de trabajo.
+
+---
+
+## 📄 Licencia
+
+Este proyecto está bajo la licencia MIT. Ver el archivo `LICENSE` para más detalles.
+
+---
+
+## 🙏 Agradecimientos
+
+- **Allosaurus**: Sistema ASR multilingüe que produce IPA directo
+- **eSpeak-NG**: Motor de síntesis de voz y conversión G2P
+- **FastAPI**: Framework web moderno para Python
+- **Vite + Tailwind**: Herramientas para el frontend
+
+---
+
+## 📧 Contacto
+
+Para preguntas, issues o sugerencias:
+- GitHub Issues: https://github.com/Pedro-Samuel-Rodriguez-Caudillo/PronunciaPA/issues
+- Documentación: Ver carpeta `docs/`
+
+

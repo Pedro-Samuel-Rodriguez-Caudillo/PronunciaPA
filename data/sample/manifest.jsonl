@@ -1,0 +1,3 @@
+{"audio_filepath": "data/sample/sample_es.wav", "text": "hola mundo", "lang": "es", "ipa_expected": "o l a m u n d o", "duration": 1.4}
+{"audio_filepath": "data/sample/sample_en.wav", "text": "hello world", "lang": "en", "ipa_expected": "h ɛ l o w ɜː l d", "duration": 1.0999999999999999}
+{"audio_filepath": "data/sample/sample_short.wav", "text": "test", "lang": "en", "ipa_expected": "t ɛ s t", "duration": 0.5}
