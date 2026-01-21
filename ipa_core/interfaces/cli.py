@@ -845,6 +845,78 @@ def plugin_uninstall(
         raise typer.Exit(code=1)
 
 
+# =============================================================================
+# Modo Interactivo
+# =============================================================================
+
+class TranscriptionModeChoice(str, Enum):
+    phonemic = "phonemic"
+    phonetic = "phonetic"
+
+
+class FeedbackLevelChoice(str, Enum):
+    casual = "casual"
+    precise = "precise"
+
+
+@app.command()
+def interactive(
+    lang: str = typer.Option("es", "--lang", "-l", help="Idioma objetivo"),
+    mode: TranscriptionModeChoice = typer.Option(
+        TranscriptionModeChoice.phonemic,
+        "--mode", "-m",
+        help="Modo de transcripción: phonemic (/.../) o phonetic ([...])"
+    ),
+    feedback_level: FeedbackLevelChoice = typer.Option(
+        FeedbackLevelChoice.casual,
+        "--feedback-level", "-f",
+        help="Nivel de feedback: casual (sencillo) o precise (detallado)"
+    ),
+):
+    """Modo interactivo con interfaz TUI, grabación en tiempo real y gamificación.
+    
+    Practica tu pronunciación con feedback visual inmediato.
+    Incluye sistema de niveles, logros y estadísticas.
+    
+    Controles:
+      r - Grabar audio
+      t - Cambiar texto de referencia
+      m - Alternar modo fonémico/fonético
+      l - Cambiar idioma
+      f - Cambiar nivel de feedback
+      s - Ver estadísticas
+      q - Salir
+    """
+    from ipa_core.interfaces.interactive import (
+        run_interactive_session,
+        TranscriptionMode,
+        FeedbackLevel,
+    )
+    
+    # Convertir enums
+    tx_mode = (
+        TranscriptionMode.PHONEMIC
+        if mode == TranscriptionModeChoice.phonemic
+        else TranscriptionMode.PHONETIC
+    )
+    fb_level = (
+        FeedbackLevel.CASUAL
+        if feedback_level == FeedbackLevelChoice.casual
+        else FeedbackLevel.PRECISE
+    )
+    
+    # Factory para crear kernel con config
+    def kernel_factory():
+        return _get_kernel()
+    
+    asyncio.run(run_interactive_session(
+        initial_lang=lang,
+        initial_mode=tx_mode,
+        feedback_level=fb_level,
+        kernel_factory=kernel_factory,
+    ))
+
+
 def main():
     """Punto de entrada para el script de consola."""
     app()
