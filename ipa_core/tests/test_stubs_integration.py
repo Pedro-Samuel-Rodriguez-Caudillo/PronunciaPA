@@ -73,5 +73,5 @@ async def test_resolve_basic_preprocessor() -> None:
 
     res = await obj.normalize_tokens([" A ", "b"])
 
-    assert res["tokens"] == ["A", "b"]
+    assert res["tokens"] == ["a", "b"]
 

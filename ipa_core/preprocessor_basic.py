@@ -41,10 +41,11 @@ class BasicPreprocessor(BasePlugin):
         return {"audio": dict(audio), "meta": {"preprocessor": "basic", "audio_valid": True}}  # type: ignore
 
     async def normalize_tokens(self, tokens: TokenSeq, **kw: Any) -> PreprocessorResult:  # noqa: D401
-        """Aplicar strip/NFC y descartar tokens vacíos para mantener idempotencia."""
+        """Aplicar strip/lower/NFC y descartar tokens vacíos para mantener idempotencia."""
         out: list[Token] = []
         for token in tokens:
-            normalized = unicodedata.normalize("NFC", str(token).strip())
+            # Strip, lower and NFC normalization
+            normalized = unicodedata.normalize("NFC", str(token).strip().lower())
             if normalized:
                 out.append(normalized)
         return {"tokens": out, "meta": {"preprocessor": "basic", "count": len(out)}}

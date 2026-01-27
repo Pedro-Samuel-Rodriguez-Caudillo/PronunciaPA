@@ -8,6 +8,7 @@ from typing import Any, Optional
 from ipa_core.errors import NotReadyError, ValidationError
 from ipa_core.llm.utils import extract_json_object, load_json, load_text, validate_json_schema
 from ipa_core.services.fallback import generate_fallback_feedback
+from ipa_core.services.error_report import build_enriched_error_report
 from ipa_core.kernel.core import Kernel
 from ipa_core.packs.schema import ModelPack
 from ipa_core.types import AudioInput, CompareResult, Token
@@ -20,19 +21,31 @@ def build_error_report(
     hyp_tokens: list[Token],
     compare_result: CompareResult,
     lang: str,
+    mode: str = "objective",
+    evaluation_level: str = "phonemic",
+    feedback_level: Optional[str] = None,
+    confidence: Optional[str] = None,
+    warnings: Optional[list[str]] = None,
     meta: Optional[dict[str, Any]] = None,
 ) -> dict[str, Any]:
-    """Build the canonical Error Report JSON for the LLM."""
-    return {
-        "target_text": target_text,
-        "target_ipa": " ".join(target_tokens),
-        "observed_ipa": " ".join(hyp_tokens),
-        "metrics": {"per": compare_result.get("per")},
-        "ops": compare_result.get("ops", []),
-        "alignment": compare_result.get("alignment", []),
-        "lang": lang,
-        "meta": meta or {},
-    }
+    """Build the canonical Error Report JSON for the LLM.
+    
+    Uses the enriched error report with articulatory features
+    for better pedagogical feedback generation.
+    """
+    return build_enriched_error_report(
+        target_text=target_text,
+        target_tokens=target_tokens,
+        hyp_tokens=hyp_tokens,
+        compare_result=compare_result,
+        lang=lang,
+        mode=mode,
+        evaluation_level=evaluation_level,
+        feedback_level=feedback_level,
+        confidence=confidence,
+        warnings=warnings,
+        meta=meta,
+    )
 
 
 async def generate_feedback(
@@ -83,12 +96,20 @@ class FeedbackService:
         audio: AudioInput,
         text: str,
         lang: str,
+        mode: str = "objective",
+        evaluation_level: str = "phonemic",
+        feedback_level: Optional[str] = None,
         prompt_path: Optional[Path] = None,
         output_schema_path: Optional[Path] = None,
     ) -> dict[str, Any]:
         if not self._kernel.llm or not self._kernel.model_pack or not self._kernel.model_pack_dir:
             raise NotReadyError("LLM/model pack not configured.")
 
+        context = _build_feedback_context(
+            evaluation_level=evaluation_level,
+            feedback_level=feedback_level,
+            pack_used=bool(self._kernel.model_pack),
+        )
         pre_audio_res = await self._kernel.pre.process_audio(audio)
         processed_audio = pre_audio_res.get("audio", audio)
         asr_result = await self._kernel.asr.transcribe(processed_audio, lang=lang)
@@ -103,13 +124,25 @@ class FeedbackService:
         ref_tokens = ref_pre_res.get("tokens", [])
 
         compare_res = await self._kernel.comp.compare(ref_tokens, hyp_tokens)
+        compare_payload = dict(compare_res)
         report = build_error_report(
             target_text=text,
             target_tokens=ref_tokens,
             hyp_tokens=hyp_tokens,
             compare_result=compare_res,
             lang=lang,
-            meta={"asr": asr_result.get("meta", {})},
+            mode=mode,
+            evaluation_level=evaluation_level,
+            feedback_level=context["feedback_level"],
+            confidence=context["confidence"],
+            warnings=context["warnings"],
+            meta={
+                "asr": asr_result.get("meta", {}),
+                "feedback_level": context["feedback_level"],
+                "tone": context["tone"],
+                "confidence": context["confidence"],
+                "warnings": context["warnings"],
+            },
         )
         feedback = await generate_feedback(
             report,
@@ -119,11 +152,80 @@ class FeedbackService:
             prompt_path=prompt_path,
             output_schema_path=output_schema_path,
         )
+        compare_payload.setdefault("mode", mode)
+        compare_payload.setdefault("evaluation_level", evaluation_level)
+        compare_payload.setdefault("score", report.get("metrics", {}).get("score"))
+        feedback_payload = _apply_feedback_context(feedback, context=context)
         return {
             "report": report,
-            "compare": compare_res,
-            "feedback": feedback,
+            "compare": compare_payload,
+            "feedback": feedback_payload,
         }
+
+
+def _resolve_feedback_level(
+    feedback_level: Optional[str],
+    evaluation_level: str,
+) -> str:
+    if feedback_level in ("casual", "precise"):
+        return feedback_level
+    if evaluation_level == "phonetic":
+        return "precise"
+    return "casual"
+
+
+def _build_feedback_context(
+    *,
+    evaluation_level: str,
+    feedback_level: Optional[str],
+    pack_used: bool = False,
+) -> dict[str, Any]:
+    level = _resolve_feedback_level(feedback_level, evaluation_level)
+    tone = "technical" if level == "precise" else "friendly"
+    warnings: list[str] = []
+    confidence = "normal"
+    if evaluation_level == "phonetic" and not pack_used:
+        warnings.append(
+            "Aviso: modo fonetico sin pack; confiabilidad baja, comparacion aproximada para IPA general."
+        )
+        confidence = "low"
+    return {
+        "feedback_level": level,
+        "tone": tone,
+        "warnings": warnings,
+        "confidence": confidence,
+    }
+
+
+def _apply_feedback_context(
+    feedback: dict[str, Any],
+    *,
+    context: dict[str, Any],
+) -> dict[str, Any]:
+    payload = dict(feedback or {})
+    payload.setdefault("feedback_level", context.get("feedback_level"))
+    payload.setdefault("tone", context.get("tone"))
+    payload.setdefault("confidence", context.get("confidence"))
+    warnings = context.get("warnings") or []
+    if warnings:
+        existing = payload.get("warnings")
+        if isinstance(existing, list):
+            for warning in warnings:
+                if warning not in existing:
+                    existing.append(warning)
+        else:
+            payload["warnings"] = warnings
+        warning_text = warnings[0]
+        summary = payload.get("summary")
+        if isinstance(summary, str) and warning_text not in summary:
+            payload["summary"] = f"{warning_text} {summary}"
+        else:
+            advice_short = payload.get("advice_short")
+            if isinstance(advice_short, str) and warning_text not in advice_short:
+                payload["advice_short"] = f"{warning_text} {advice_short}"
+            elif not summary:
+                payload["summary"] = warning_text
+    return payload
 
 
 def _build_prompt(

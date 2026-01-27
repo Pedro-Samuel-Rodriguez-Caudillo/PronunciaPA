@@ -190,6 +190,56 @@ class Inventory:
         """Conjunto de todos los fonemas válidos."""
         return self._all_phones.copy()
     
+    def normalize_sequence(
+        self,
+        tokens: list[str],
+        *,
+        oov_strategy: str = "mark",
+    ) -> tuple[list[str], list[str]]:
+        """Normalize a sequence of tokens against this inventory.
+        
+        Applies aliases and handles out-of-vocabulary tokens according
+        to the specified strategy.
+        
+        Parameters
+        ----------
+        tokens : list[str]
+            Raw tokens from ASR output.
+        oov_strategy : str
+            How to handle OOV tokens:
+            - "mark": Replace with ⟨token⟩ marker and track
+            - "drop": Remove OOV tokens from output
+            - "passthrough": Keep OOV tokens as-is but track them
+            
+        Returns
+        -------
+        tuple[list[str], list[str]]
+            Tuple of (normalized_tokens, oov_tokens).
+        """
+        normalized = []
+        oov = []
+        
+        for token in tokens:
+            # Apply aliases first (maps ASR output to canonical form)
+            canonical = self.get_canonical(token)
+            
+            if self.is_valid_phone(canonical):
+                normalized.append(canonical)
+            elif oov_strategy == "passthrough":
+                normalized.append(token)
+                oov.append(token)
+            elif oov_strategy == "mark":
+                normalized.append(f"⟨{token}⟩")
+                oov.append(token)
+            elif oov_strategy == "drop":
+                oov.append(token)
+            else:
+                # Default to passthrough for unknown strategies
+                normalized.append(token)
+                oov.append(token)
+        
+        return normalized, oov
+    
     def __repr__(self) -> str:
         accent_str = f"/{self.accent}" if self.accent else ""
         return (

@@ -155,24 +155,24 @@ class TestG2PRulesEngine:
 class TestRealRulesFiles:
     """Tests para archivos de reglas reales."""
     
-    PACKS_DIR = Path(__file__).parent.parent.parent.parent / "data" / "packs"
+    PACKS_DIR = Path(__file__).parent.parent.parent.parent / "plugins" / "language_packs"
     
     @pytest.mark.parametrize("pack_id", ["en-us", "es-mx"])
     def test_rules_file_exists(self, pack_id: str) -> None:
         """Archivo de reglas existe."""
-        rules_path = self.PACKS_DIR / pack_id / "rules.yaml"
-        assert rules_path.exists(), f"Missing rules.yaml for {pack_id}"
+        rules_path = self.PACKS_DIR / pack_id / "g2p_rules.yaml"
+        assert rules_path.exists(), f"Missing g2p_rules.yaml for {pack_id}"
     
     @pytest.mark.parametrize("pack_id", ["en-us", "es-mx"])
     def test_rules_load_successfully(self, pack_id: str) -> None:
         """Reglas cargan sin errores."""
-        rules_path = self.PACKS_DIR / pack_id / "rules.yaml"
+        rules_path = self.PACKS_DIR / pack_id / "g2p_rules.yaml"
         ruleset = G2PRuleset.from_yaml(rules_path)
         assert len(ruleset.rules) > 0
     
     def test_spanish_rules_basic_words(self) -> None:
         """Reglas de español funcionan con palabras básicas."""
-        rules_path = self.PACKS_DIR / "es-mx" / "rules.yaml"
+        rules_path = self.PACKS_DIR / "es-mx" / "g2p_rules.yaml"
         engine = G2PRulesEngine.from_yaml(rules_path)
         
         # Palabras regulares

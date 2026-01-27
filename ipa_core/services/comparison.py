@@ -163,7 +163,13 @@ class ComparisonService:
                 tr_res = await self.textref.to_ipa(raw_text, lang=lang or self._default_lang)
                 hyp_tokens = tr_res.get("tokens", [])
         if not hyp_tokens:
-            raise ValidationError("ASR no devolvió tokens IPA")
+            raw_text = asr_result.get("raw_text", "")
+            msg = "ASR no devolvió tokens IPA."
+            if raw_text:
+                msg += f" Texto detectado: '{raw_text}'. Verifique el language pack o la configuración del backend."
+            else:
+                msg += " El audio podría estar vacío, ser demasiado corto o el modelo aún no está listo."
+            raise ValidationError(msg)
         hyp_pre_res = await self.pre.normalize_tokens(hyp_tokens)
         hyp_tokens = hyp_pre_res.get("tokens", [])
 

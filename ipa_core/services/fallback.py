@@ -43,6 +43,40 @@ def get_templates(lang: str) -> dict[str, str]:
     return TEMPLATES.get(lang_key, TEMPLATES["es"])
 
 
+def _resolve_feedback_level(error_report: dict[str, Any]) -> str:
+    level = error_report.get("feedback_level")
+    if not level:
+        meta = error_report.get("meta") or {}
+        if isinstance(meta, dict):
+            level = meta.get("feedback_level")
+    if level not in ("casual", "precise"):
+        return "casual"
+    return level
+
+
+def _build_comparison_note(
+    *,
+    tone: str,
+    per: float,
+    counts: dict[str, int],
+    evaluation_level: str,
+    mode: str,
+) -> str:
+    errors = counts.get("sub", 0) + counts.get("ins", 0) + counts.get("del", 0)
+    level_label = "fonetico" if evaluation_level == "phonetic" else "fonemico"
+    if tone == "technical":
+        return (
+            "Comparacion tecnica: "
+            f"PER {per * 100:.1f}%, errores {errors} "
+            f"(sub {counts.get('sub', 0)}, ins {counts.get('ins', 0)}, del {counts.get('del', 0)}). "
+            f"Nivel {level_label}, modo {mode}."
+        )
+    return (
+        f"Comparacion general en nivel {level_label}. "
+        "Enfocate en los sonidos marcados."
+    )
+
+
 def generate_fallback_feedback(
     error_report: dict[str, Any],
     *,
@@ -62,59 +96,98 @@ def generate_fallback_feedback(
     
     per = error_report.get("metrics", {}).get("per", 0.0)
     ops = error_report.get("ops", [])
+    mode = error_report.get("mode", "objective")
+    evaluation_level = error_report.get("evaluation_level", "phonemic")
+    feedback_level = _resolve_feedback_level(error_report)
+    tone = "technical" if feedback_level == "precise" else "friendly"
+    
+    counts = {"eq": 0, "sub": 0, "ins": 0, "del": 0}
+    for op in ops:
+        op_type = op.get("op", "")
+        if op_type in counts:
+            counts[op_type] += 1
+    error_count = counts["sub"] + counts["ins"] + counts["del"]
     
     # Determine overall feedback based on PER
-    if per == 0.0:
-        summary = templates["perfect"]
-        severity = "perfect"
-    elif per < 0.15:
-        summary = templates["good"]
-        severity = "good"
+    if tone == "technical":
+        level_label = "fonetico" if evaluation_level == "phonetic" else "fonemico"
+        summary = (
+            f"PER {per * 100:.1f}%, errores {error_count}. Nivel {level_label}."
+        )
+        severity = "needs_work" if per >= 0.15 else "good"
     else:
-        summary = templates["needs_work"]
-        severity = "needs_work"
+        if per == 0.0:
+            summary = templates["perfect"]
+            severity = "perfect"
+        elif per < 0.15:
+            summary = templates["good"]
+            severity = "good"
+        else:
+            summary = templates["needs_work"]
+            severity = "needs_work"
     
     # Build detailed advice from operations
     advice_lines = []
     drills = []
-    error_count = {"sub": 0, "ins": 0, "del": 0}
+    shown = {"sub": 0, "ins": 0, "del": 0}
     
     for op in ops:
         op_type = op.get("op", "")
         ref = op.get("ref", "")
         hyp = op.get("hyp", "")
         
-        if op_type == "sub" and error_count["sub"] < 3:
-            advice_lines.append(
-                templates["sub"].format(ref=ref, hyp=hyp)
-            )
+        if op_type == "sub" and shown["sub"] < 3:
+            if tone == "technical":
+                advice_lines.append(f"sub {ref}->{hyp}")
+            else:
+                advice_lines.append(
+                    templates["sub"].format(ref=ref, hyp=hyp)
+                )
             drills.append({"type": "contrast", "pair": [ref, hyp]})
-            error_count["sub"] += 1
+            shown["sub"] += 1
             
-        elif op_type == "ins" and error_count["ins"] < 2:
-            advice_lines.append(
-                templates["ins"].format(hyp=hyp)
-            )
-            error_count["ins"] += 1
+        elif op_type == "ins" and shown["ins"] < 2:
+            if tone == "technical":
+                advice_lines.append(f"ins {hyp}")
+            else:
+                advice_lines.append(
+                    templates["ins"].format(hyp=hyp)
+                )
+            shown["ins"] += 1
             
-        elif op_type == "del" and error_count["del"] < 2:
-            advice_lines.append(
-                templates["del"].format(ref=ref)
-            )
+        elif op_type == "del" and shown["del"] < 2:
+            if tone == "technical":
+                advice_lines.append(f"del {ref}")
+            else:
+                advice_lines.append(
+                    templates["del"].format(ref=ref)
+                )
             drills.append({"type": "practice", "sound": ref})
-            error_count["del"] += 1
-    
+            shown["del"] += 1
+
     if not advice_lines:
         advice_lines.append(templates["no_errors"])
+    else:
+        comparison_note = _build_comparison_note(
+            tone=tone,
+            per=per,
+            counts=counts,
+            evaluation_level=evaluation_level,
+            mode=mode,
+        )
+        advice_lines.insert(0, comparison_note)
     
     advice_long = "\n".join(advice_lines)
     
     # Build the feedback payload
     feedback = {
+        "summary": summary,
         "advice_short": summary,
         "advice_long": advice_long,
         "drills": drills[:5],  # Max 5 drills
         "severity": severity,
+        "feedback_level": feedback_level,
+        "tone": tone,
         "source": "fallback_templates",
     }
     

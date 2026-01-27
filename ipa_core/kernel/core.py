@@ -88,11 +88,12 @@ def create_kernel(cfg: AppConfig) -> Kernel:
     comp = registry.resolve_comparator(cfg.comparator.name, cfg.comparator.params)
     
     # Validar que ASR produce IPA si es requerido
-    require_ipa = getattr(cfg.backend, "require_ipa", True)  # Por defecto True
-    if require_ipa and hasattr(asr, "output_type"):
-        if asr.output_type != "ipa":
+    require_ipa = cfg.backend.params.get("require_ipa", True)  # Por defecto True
+    if require_ipa:
+        output_type = getattr(asr, "output_type", "none")
+        if output_type != "ipa":
             raise ValueError(
-                f"❌ Backend ASR '{cfg.backend.name}' produce '{asr.output_type}', no IPA.\n"
+                f"❌ Backend ASR '{cfg.backend.name}' produce '{output_type}', no IPA.\n"
                 f"PronunciaPA requiere backends que produzcan IPA directo para análisis fonético.\n"
                 f"\n"
                 f"Opciones:\n"
