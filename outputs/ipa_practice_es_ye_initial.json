@@ -1,0 +1,66 @@
+{
+  "schema_version": "1.0",
+  "kind": "ipa.practice.set",
+  "request": {
+    "lang": "es",
+    "sound": "\u029d",
+    "context": "initial",
+    "count": 3,
+    "mode": "phonetic",
+    "evaluation": "phonetic"
+  },
+  "sound": {
+    "id": "es/\u029d",
+    "ipa": "\u029d",
+    "label": "Y/LL",
+    "aliases": [
+      "y",
+      "ll",
+      "ye"
+    ],
+    "tags": [
+      "consonant",
+      "palatal",
+      "fricative",
+      "voiced"
+    ]
+  },
+  "items": [
+    {
+      "id": "es/\u029d/initial/llama",
+      "text": "llama",
+      "ipa": "\u029d a m a",
+      "position": "initial",
+      "context": "initial",
+      "source": "curated",
+      "validated": true
+    },
+    {
+      "id": "es/\u029d/initial/llave",
+      "text": "llave",
+      "ipa": "\u029d a b e",
+      "position": "initial",
+      "context": "initial",
+      "source": "curated",
+      "validated": true
+    },
+    {
+      "id": "es/\u029d/initial/lluvia",
+      "text": "lluvia",
+      "ipa": "\u029d u b j a",
+      "position": "initial",
+      "context": "initial",
+      "source": "curated",
+      "validated": true
+    }
+  ],
+  "warnings": [
+    "Aviso: modo fonetico sin pack; confiabilidad baja, comparacion aproximada para IPA general."
+  ],
+  "confidence": "low",
+  "meta": {
+    "model_pack": null,
+    "llm": null,
+    "generated_at": "2026-01-26T19:09:48Z"
+  }
+}

@@ -1,0 +1,75 @@
+{
+  "schema_version": "1.0",
+  "kind": "ipa.practice.set",
+  "request": {
+    "lang": "es",
+    "sound": "\u029d",
+    "context": "medial",
+    "count": 4,
+    "mode": "phonetic",
+    "evaluation": "phonetic"
+  },
+  "sound": {
+    "id": "es/\u029d",
+    "ipa": "\u029d",
+    "label": "Y/LL",
+    "aliases": [
+      "y",
+      "ll",
+      "ye"
+    ],
+    "tags": [
+      "consonant",
+      "palatal",
+      "fricative",
+      "voiced"
+    ]
+  },
+  "items": [
+    {
+      "id": "es/\u029d/medial/calle",
+      "text": "calle",
+      "ipa": "k a \u029d e",
+      "position": "medial",
+      "context": "medial",
+      "source": "curated",
+      "validated": true
+    },
+    {
+      "id": "es/\u029d/medial/silla",
+      "text": "silla",
+      "ipa": "s i \u029d a",
+      "position": "medial",
+      "context": "medial",
+      "source": "curated",
+      "validated": true
+    },
+    {
+      "id": "es/\u029d/medial/pollo",
+      "text": "pollo",
+      "ipa": "p o \u029d o",
+      "position": "medial",
+      "context": "medial",
+      "source": "curated",
+      "validated": true
+    },
+    {
+      "id": "es/\u029d/medial/taller",
+      "text": "taller",
+      "ipa": "t a \u029d e \u027e",
+      "position": "medial",
+      "context": "medial",
+      "source": "curated",
+      "validated": true
+    }
+  ],
+  "warnings": [
+    "Aviso: modo fonetico sin pack; confiabilidad baja, comparacion aproximada para IPA general."
+  ],
+  "confidence": "low",
+  "meta": {
+    "model_pack": null,
+    "llm": null,
+    "generated_at": "2026-01-26T12:46:41Z"
+  }
+}

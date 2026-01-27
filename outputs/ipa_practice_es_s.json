@@ -1,0 +1,57 @@
+{
+  "schema_version": "1.0",
+  "kind": "ipa.practice.set",
+  "request": {
+    "lang": "es",
+    "sound": "s",
+    "context": "initial",
+    "count": 4,
+    "mode": "phonetic",
+    "evaluation": "phonetic"
+  },
+  "sound": {
+    "id": "es/s",
+    "ipa": "s",
+    "label": "S",
+    "aliases": [
+      "s"
+    ],
+    "tags": [
+      "consonant",
+      "alveolar",
+      "fricative",
+      "voiceless"
+    ]
+  },
+  "items": [
+    {
+      "id": "es/s/initial/sapo",
+      "text": "sapo",
+      "ipa": "s a p o",
+      "position": "initial",
+      "context": "initial",
+      "source": "curated",
+      "validated": true
+    },
+    {
+      "id": "es/s/initial/silla",
+      "text": "silla",
+      "ipa": "s i l l a",
+      "position": "initial",
+      "context": "initial",
+      "source": "curated",
+      "validated": true
+    }
+  ],
+  "warnings": [
+    "Aviso: modo fonetico sin pack; confiabilidad baja, comparacion aproximada para IPA general.",
+    "LLM no disponible; se usaron solo ejemplos curados.",
+    "Solo se validaron 2 ejemplos de 4."
+  ],
+  "confidence": "low",
+  "meta": {
+    "model_pack": null,
+    "llm": null,
+    "generated_at": "2026-01-26T11:17:19Z"
+  }
+}

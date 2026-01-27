@@ -1,0 +1,143 @@
+language: es
+sounds:
+  - id: es/ɾ
+    ipa: "ɾ"
+    label: "R simple"
+    aliases: ["r simple", "tap", "flap"]
+    tags: ["consonant", "alveolar", "tap", "voiced"]
+    orthography:
+      - pattern: "r"
+        position: "medial"
+        notes: "entre vocales"
+    contexts:
+      medial:
+        seeds:
+          - text: "pero"
+          - text: "caro"
+      final:
+        seeds:
+          - text: "amar"
+          - text: "comer"
+  - id: es/r
+    ipa: "r"
+    label: "R multiple"
+    aliases: ["rr", "trill"]
+    tags: ["consonant", "alveolar", "trill", "voiced"]
+    orthography:
+      - pattern: "rr"
+        position: "medial"
+        notes: "entre vocales"
+      - pattern: "r"
+        position: "initial"
+        notes: "inicio de palabra"
+    contexts:
+      initial:
+        seeds:
+          - text: "rojo"
+          - text: "rosa"
+      medial:
+        seeds:
+          - text: "perro"
+          - text: "carro"
+  - id: es/x
+    ipa: "x"
+    label: "J gutural"
+    aliases: ["j", "ge", "gi"]
+    tags: ["consonant", "velar", "fricative", "voiceless"]
+    orthography:
+      - pattern: "j"
+        position: "initial"
+      - pattern: "ge"
+        position: "medial"
+      - pattern: "gi"
+        position: "medial"
+    contexts:
+      initial:
+        seeds:
+          - text: "jabon"
+          - text: "junta"
+      medial:
+        seeds:
+          - text: "gente"
+          - text: "tejado"
+  - id: es/tʃ
+    ipa: "tʃ"
+    label: "CH"
+    aliases: ["ch", "che"]
+    tags: ["consonant", "postalveolar", "affricate", "voiceless"]
+    orthography:
+      - pattern: "ch"
+        position: "initial"
+      - pattern: "ch"
+        position: "medial"
+    contexts:
+      initial:
+        seeds:
+          - text: "chico"
+          - text: "chica"
+      medial:
+        seeds:
+          - text: "leche"
+          - text: "mucho"
+  - id: es/ɲ
+    ipa: "ɲ"
+    label: "Enye"
+    aliases: ["ñ", "enye"]
+    tags: ["consonant", "palatal", "nasal", "voiced"]
+    orthography:
+      - pattern: "ñ"
+        position: "medial"
+    contexts:
+      medial:
+        seeds:
+          - text: "niño"
+          - text: "mañana"
+          - text: "baño"
+          - text: "señor"
+  - id: es/ʝ
+    ipa: "ʝ"
+    label: "Y/LL"
+    aliases: ["y", "ll", "ye"]
+    tags: ["consonant", "palatal", "fricative", "voiced"]
+    orthography:
+      - pattern: "ll"
+        position: "initial"
+      - pattern: "ll"
+        position: "medial"
+    contexts:
+      initial:
+        seeds:
+          - text: "llama"
+          - text: "llave"
+          - text: "lluvia"
+      medial:
+        seeds:
+          - text: "calle"
+          - text: "silla"
+          - text: "pollo"
+          - text: "taller"
+  - id: es/s
+    ipa: "s"
+    label: "S"
+    aliases: ["s"]
+    tags: ["consonant", "alveolar", "fricative", "voiceless"]
+    orthography:
+      - pattern: "s"
+        position: "initial"
+      - pattern: "s"
+        position: "medial"
+      - pattern: "s"
+        position: "final"
+    contexts:
+      initial:
+        seeds:
+          - text: "sapo"
+          - text: "silla"
+      medial:
+        seeds:
+          - text: "casa"
+          - text: "mesa"
+      final:
+        seeds:
+          - text: "tres"
+          - text: "dos"

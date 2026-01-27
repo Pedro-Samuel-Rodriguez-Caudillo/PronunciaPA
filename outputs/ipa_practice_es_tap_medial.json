@@ -1,0 +1,57 @@
+{
+  "schema_version": "1.0",
+  "kind": "ipa.practice.set",
+  "request": {
+    "lang": "es",
+    "sound": "\u027e",
+    "context": "medial",
+    "count": 2,
+    "mode": "phonetic",
+    "evaluation": "phonetic"
+  },
+  "sound": {
+    "id": "es/\u027e",
+    "ipa": "\u027e",
+    "label": "R simple",
+    "aliases": [
+      "r simple",
+      "tap",
+      "flap"
+    ],
+    "tags": [
+      "consonant",
+      "alveolar",
+      "tap",
+      "voiced"
+    ]
+  },
+  "items": [
+    {
+      "id": "es/\u027e/medial/pero",
+      "text": "pero",
+      "ipa": "p e \u027e o",
+      "position": "medial",
+      "context": "medial",
+      "source": "curated",
+      "validated": true
+    },
+    {
+      "id": "es/\u027e/medial/caro",
+      "text": "caro",
+      "ipa": "k a \u027e o",
+      "position": "medial",
+      "context": "medial",
+      "source": "curated",
+      "validated": true
+    }
+  ],
+  "warnings": [
+    "Aviso: modo fonetico sin pack; confiabilidad baja, comparacion aproximada para IPA general."
+  ],
+  "confidence": "low",
+  "meta": {
+    "model_pack": null,
+    "llm": null,
+    "generated_at": "2026-01-26T12:39:30Z"
+  }
+}

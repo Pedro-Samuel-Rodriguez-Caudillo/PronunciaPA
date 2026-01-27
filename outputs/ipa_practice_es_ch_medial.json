@@ -1,0 +1,56 @@
+{
+  "schema_version": "1.0",
+  "kind": "ipa.practice.set",
+  "request": {
+    "lang": "es",
+    "sound": "t\u0283",
+    "context": "medial",
+    "count": 2,
+    "mode": "phonetic",
+    "evaluation": "phonetic"
+  },
+  "sound": {
+    "id": "es/t\u0283",
+    "ipa": "t\u0283",
+    "label": "CH",
+    "aliases": [
+      "ch",
+      "che"
+    ],
+    "tags": [
+      "consonant",
+      "postalveolar",
+      "affricate",
+      "voiceless"
+    ]
+  },
+  "items": [
+    {
+      "id": "es/t\u0283/medial/leche",
+      "text": "leche",
+      "ipa": "l e t\u0361\u0283 e",
+      "position": "medial",
+      "context": "medial",
+      "source": "curated",
+      "validated": true
+    },
+    {
+      "id": "es/t\u0283/medial/mucho",
+      "text": "mucho",
+      "ipa": "m u t\u0361\u0283 o",
+      "position": "medial",
+      "context": "medial",
+      "source": "curated",
+      "validated": true
+    }
+  ],
+  "warnings": [
+    "Aviso: modo fonetico sin pack; confiabilidad baja, comparacion aproximada para IPA general."
+  ],
+  "confidence": "low",
+  "meta": {
+    "model_pack": null,
+    "llm": null,
+    "generated_at": "2026-01-26T12:39:47Z"
+  }
+}

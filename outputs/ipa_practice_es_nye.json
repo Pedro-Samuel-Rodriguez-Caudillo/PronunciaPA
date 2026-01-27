@@ -1,0 +1,76 @@
+{
+  "schema_version": "1.0",
+  "kind": "ipa.practice.set",
+  "request": {
+    "lang": "es",
+    "sound": "\u0272",
+    "context": "medial",
+    "count": 6,
+    "mode": "phonetic",
+    "evaluation": "phonetic"
+  },
+  "sound": {
+    "id": "es/\u0272",
+    "ipa": "\u0272",
+    "label": "Enye",
+    "aliases": [
+      "\u00f1",
+      "enye"
+    ],
+    "tags": [
+      "consonant",
+      "palatal",
+      "nasal",
+      "voiced"
+    ]
+  },
+  "items": [
+    {
+      "id": "es/\u0272/medial/ni-o",
+      "text": "ni\u00f1o",
+      "ipa": "n i \u0272 o",
+      "position": "medial",
+      "context": "medial",
+      "source": "curated",
+      "validated": true
+    },
+    {
+      "id": "es/\u0272/medial/ma-ana",
+      "text": "ma\u00f1ana",
+      "ipa": "m a \u0272 a n a",
+      "position": "medial",
+      "context": "medial",
+      "source": "curated",
+      "validated": true
+    },
+    {
+      "id": "es/\u0272/medial/ba-o",
+      "text": "ba\u00f1o",
+      "ipa": "b a \u0272 o",
+      "position": "medial",
+      "context": "medial",
+      "source": "curated",
+      "validated": true
+    },
+    {
+      "id": "es/\u0272/medial/se-or",
+      "text": "se\u00f1or",
+      "ipa": "s e \u0272 o \u027e",
+      "position": "medial",
+      "context": "medial",
+      "source": "curated",
+      "validated": true
+    }
+  ],
+  "warnings": [
+    "Aviso: modo fonetico sin pack; confiabilidad baja, comparacion aproximada para IPA general.",
+    "LLM no disponible; se usaron solo ejemplos curados.",
+    "Solo se validaron 4 ejemplos de 6."
+  ],
+  "confidence": "low",
+  "meta": {
+    "model_pack": null,
+    "llm": null,
+    "generated_at": "2026-01-26T11:41:32Z"
+  }
+}

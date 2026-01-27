@@ -1,0 +1,55 @@
+{
+  "schema_version": "1.0",
+  "kind": "ipa.practice.set",
+  "request": {
+    "lang": "es",
+    "sound": "s",
+    "context": "final",
+    "count": 2,
+    "mode": "phonetic",
+    "evaluation": "phonetic"
+  },
+  "sound": {
+    "id": "es/s",
+    "ipa": "s",
+    "label": "S",
+    "aliases": [
+      "s"
+    ],
+    "tags": [
+      "consonant",
+      "alveolar",
+      "fricative",
+      "voiceless"
+    ]
+  },
+  "items": [
+    {
+      "id": "es/s/final/tres",
+      "text": "tres",
+      "ipa": "t \u027e e s",
+      "position": "final",
+      "context": "final",
+      "source": "curated",
+      "validated": true
+    },
+    {
+      "id": "es/s/final/dos",
+      "text": "dos",
+      "ipa": "d o s",
+      "position": "final",
+      "context": "final",
+      "source": "curated",
+      "validated": true
+    }
+  ],
+  "warnings": [
+    "Aviso: modo fonetico sin pack; confiabilidad baja, comparacion aproximada para IPA general."
+  ],
+  "confidence": "low",
+  "meta": {
+    "model_pack": null,
+    "llm": null,
+    "generated_at": "2026-01-26T12:39:52Z"
+  }
+}

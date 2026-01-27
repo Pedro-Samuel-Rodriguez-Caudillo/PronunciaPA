@@ -1,0 +1,57 @@
+{
+  "schema_version": "1.0",
+  "kind": "ipa.practice.set",
+  "request": {
+    "lang": "es",
+    "sound": "x",
+    "context": "initial",
+    "count": 2,
+    "mode": "phonetic",
+    "evaluation": "phonetic"
+  },
+  "sound": {
+    "id": "es/x",
+    "ipa": "x",
+    "label": "J gutural",
+    "aliases": [
+      "j",
+      "ge",
+      "gi"
+    ],
+    "tags": [
+      "consonant",
+      "velar",
+      "fricative",
+      "voiceless"
+    ]
+  },
+  "items": [
+    {
+      "id": "es/x/initial/jabon",
+      "text": "jabon",
+      "ipa": "x a b o n",
+      "position": "initial",
+      "context": "initial",
+      "source": "curated",
+      "validated": true
+    },
+    {
+      "id": "es/x/initial/junta",
+      "text": "junta",
+      "ipa": "x u n t a",
+      "position": "initial",
+      "context": "initial",
+      "source": "curated",
+      "validated": true
+    }
+  ],
+  "warnings": [
+    "Aviso: modo fonetico sin pack; confiabilidad baja, comparacion aproximada para IPA general."
+  ],
+  "confidence": "low",
+  "meta": {
+    "model_pack": null,
+    "llm": null,
+    "generated_at": "2026-01-26T12:39:41Z"
+  }
+}
