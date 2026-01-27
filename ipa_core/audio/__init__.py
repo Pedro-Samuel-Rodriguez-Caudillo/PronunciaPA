@@ -1,2 +1,12 @@
-"""Utilidades de audio para carga y captura."""
+"""Utilidades de audio para carga, captura y validación."""
 
+from ipa_core.audio.vad import VADResult, analyze_vad
+from ipa_core.audio.quality_gates import QualityIssue, QualityGateResult, check_quality
+
+__all__ = [
+    "VADResult",
+    "analyze_vad",
+    "QualityIssue",
+    "QualityGateResult",
+    "check_quality",
+]
