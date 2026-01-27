@@ -5,8 +5,14 @@ y comparación fonética.
 """
 from __future__ import annotations
 import asyncio
+from datetime import datetime
 from typing import Optional
 from enum import Enum
+import json
+import random
+import re
+import sys
+import unicodedata
 import typer
 from rich.console import Console
 from rich.table import Table
@@ -22,8 +28,12 @@ from ipa_core.pipeline.transcribe import transcribe as transcribe_pipeline
 from ipa_core.services.comparison import ComparisonService
 from ipa_core.services.feedback import FeedbackService
 from ipa_core.services.feedback_store import FeedbackStore
+from ipa_core.services.error_report import build_enriched_error_report
+from ipa_core.services.fallback import generate_fallback_feedback
 from ipa_core.services.transcription import TranscriptionService
+from ipa_core.llm.utils import extract_json_object, validate_json_schema
 from ipa_core.types import AudioInput
+from ipa_core.ipa_catalog import load_catalog, list_sounds, normalize_lang, resolve_sound_entry
 from ipa_core.plugins.models import storage
 from ipa_core.plugins.model_manager import ModelManager
 from ipa_core.testing.benchmark import DatasetLoader, MetricsCalculator
@@ -39,6 +49,84 @@ app.add_typer(plugin_app, name="plugin")
 
 model_app = typer.Typer(help="Gestión de modelos locales (ONNX)")
 app.add_typer(model_app, name="models")
+
+ipa_app = typer.Typer(help="Explorador y práctica de sonidos IPA")
+app.add_typer(ipa_app, name="ipa")
+
+
+@app.command()
+def health(
+    config: Optional[Path] = typer.Option(None, "--config", help="Ruta al archivo de configuración"),
+    json_output: bool = typer.Option(False, "--json", help="Salida en formato JSON"),
+):
+    """🏥 Verificar estado del sistema y componentes."""
+    from rich.panel import Panel
+    from rich import box
+    
+    console_local = Console()
+    
+    def check_config():
+        try:
+            cfg = loader.load_config(str(config) if config else None)
+            return ("✓", "green", f"v{cfg.version}")
+        except Exception as e:
+            return ("✗", "red", str(e)[:40])
+    
+    def check_plugins():
+        try:
+            from ipa_core.plugins import registry
+            return ("✓", "green", "Cargados")
+        except Exception:
+            return ("✗", "red", "Error")
+    
+    def check_language_packs():
+        try:
+            from ipa_core.packs.loader import DEFAULT_PACKS_DIR
+            packs = [d.name for d in DEFAULT_PACKS_DIR.iterdir() if d.is_dir() and not d.name.startswith(".")]
+            return ("✓", "green", ", ".join(packs[:3]) if packs else "Ninguno")
+        except Exception:
+            return ("⚠", "yellow", "N/A")
+    
+    def check_models():
+        try:
+            models = storage.scan_models()
+            if models:
+                return ("✓", "green", f"{len(models)} instalados")
+            return ("⚠", "yellow", "Sin modelos")
+        except Exception:
+            return ("✗", "red", "Error")
+    
+    health_items = [
+        ("Config", check_config),
+        ("Plugins", check_plugins),
+        ("Lang Packs", check_language_packs),
+        ("Models", check_models),
+    ]
+    
+    all_ok = True
+    results = []
+    
+    table = Table(box=box.ROUNDED, show_header=False)
+    table.add_column("", width=3)
+    table.add_column("", width=12)
+    table.add_column("")
+    
+    for name, check_fn in health_items:
+        icon, color, detail = check_fn()
+        results.append({"component": name, "ok": icon == "✓", "detail": detail})
+        if icon != "✓":
+            all_ok = False
+        table.add_row(f"[{color}]{icon}[/{color}]", name, f"[dim]{detail}[/dim]")
+    
+    if json_output:
+        _emit_json({"healthy": all_ok, "components": results})
+        return
+    
+    status = "[green]✓ OK[/green]" if all_ok else "[yellow]⚠ Revisar[/yellow]"
+    console_local.print()
+    console_local.print(Panel(table, title="[bold]🏥 Health Check[/bold]", subtitle=status, border_style="blue" if all_ok else "yellow"))
+    console_local.print()
+
 
 @model_app.command("list")
 def models_list():
@@ -211,6 +299,46 @@ def benchmark(
 
 console = Console()
 
+
+def _stdout_supports_unicode() -> bool:
+    encoding = getattr(sys.stdout, "encoding", None)
+    if not encoding:
+        return False
+    return "utf" in encoding.lower()
+
+
+def _emit_json(data: dict) -> None:
+    payload = json.dumps(data, ensure_ascii=not _stdout_supports_unicode(), indent=2)
+    buffer = getattr(sys.stdout, "buffer", None)
+    if buffer is not None:
+        try:
+            buffer.write(payload.encode("utf-8"))
+            buffer.write(b"\n")
+            return
+        except Exception:
+            pass
+    sys.stdout.write(payload + "\n")
+
+
+def _read_json_source(path: Path) -> str:
+    if str(path) == "-":
+        return sys.stdin.read()
+    return path.read_text(encoding="utf-8")
+
+
+def _safe_print(message: str, *, style: Optional[str] = None) -> None:
+    if _stdout_supports_unicode():
+        if style:
+            console.print(message, style=style)
+        else:
+            console.print(message)
+        return
+    buffer = getattr(sys.stdout, "buffer", None)
+    if buffer is not None:
+        buffer.write((message + "\n").encode("utf-8"))
+        return
+    sys.stdout.write(message + "\n")
+
 class TranscribeFormat(str, Enum):
     json = "json"
     text = "text"
@@ -219,6 +347,26 @@ class OutputFormat(str, Enum):
     json = "json"
     table = "table"
     aligned = "aligned"
+
+
+class CatalogOutput(str, Enum):
+    human = "human"
+    json = "json"
+
+
+_PRACTICE_CONTEXTS = {"initial", "medial", "final", "cluster", "vowel_context"}
+_IGNORED_TOKENS = {"ˈ", "ˌ", ".", "·", "ː", "ˑ"}
+_TIE_BARS = {"\u0361", "\u035c"}
+_VOWELS = {
+    "a", "e", "i", "o", "u", "y",
+    "æ", "ɑ", "ɒ", "ɔ", "ə", "ɚ", "ɝ",
+    "ɛ", "ɜ", "ɐ", "ʌ", "ɪ", "ʊ", "ɯ",
+    "ø", "œ", "ɶ", "ʏ", "ɨ",
+}
+_IPA_SCHEMA_VERSION = "1.0"
+_COMPARE_MODES = {"casual", "objective", "phonetic"}
+_EVAL_LEVELS = {"phonemic", "phonetic"}
+_FEEDBACK_LEVELS = {"casual", "precise"}
 
 
 def _get_kernel(
@@ -253,6 +401,308 @@ def _exit_code_for_error(exc: Exception) -> int:
     if isinstance(exc, KeyError):
         return 6
     return 1
+
+
+def _normalize_context(value: Optional[str]) -> Optional[str]:
+    if not value:
+        return None
+    normalized = value.strip().lower().replace("-", "_")
+    if normalized not in _PRACTICE_CONTEXTS:
+        raise ValueError(f"Contexto no soportado: {value}")
+    return normalized
+
+
+def _slugify(text: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+    return slug or "sample"
+
+
+def _normalize_sound(value: str) -> str:
+    normalized = unicodedata.normalize("NFC", value.strip().lower())
+    for mark in _TIE_BARS:
+        normalized = normalized.replace(mark, "")
+    return normalized
+
+
+def _position_label(index: int, total: int) -> str:
+    if index <= 0:
+        return "initial"
+    if index >= total - 1:
+        return "final"
+    return "medial"
+
+
+def _is_vowel(token: str) -> bool:
+    return token in _VOWELS
+
+
+def _filter_context_tokens(tokens: list[str]) -> list[str]:
+    return [_normalize_sound(token) for token in tokens if token not in _IGNORED_TOKENS]
+
+
+def _match_context(
+    tokens: list[str],
+    sound: str,
+    context: str,
+    before: Optional[str],
+    after: Optional[str],
+) -> Optional[int]:
+    positions = [idx for idx, token in enumerate(tokens) if token == sound]
+    if not positions:
+        return None
+    total = len(tokens)
+    for idx in positions:
+        if context == "initial" and idx == 0:
+            return idx
+        if context == "final" and idx == total - 1:
+            return idx
+        if context == "medial" and 0 < idx < total - 1:
+            return idx
+        if context == "cluster":
+            left = tokens[idx - 1] if idx > 0 else None
+            right = tokens[idx + 1] if idx < total - 1 else None
+            if (left and not _is_vowel(left)) or (right and not _is_vowel(right)):
+                return idx
+        if context == "vowel_context":
+            left = tokens[idx - 1] if idx > 0 else None
+            right = tokens[idx + 1] if idx < total - 1 else None
+            if before and left != before:
+                continue
+            if after and right != after:
+                continue
+            if not before and left and not _is_vowel(left):
+                continue
+            if not after and right and not _is_vowel(right):
+                continue
+            if left and right:
+                return idx
+    return None
+
+
+def _pick_default_context(sound_entry: dict) -> str:
+    contexts = sound_entry.get("contexts", {}) if isinstance(sound_entry, dict) else {}
+    keys = [key for key in contexts.keys() if isinstance(key, str)]
+    for preferred in ("medial", "initial", "final"):
+        if preferred in keys:
+            return preferred
+    return keys[0] if keys else "initial"
+
+
+def _resolve_feedback_level(value: Optional[str], evaluation_level: str) -> str:
+    if value in ("casual", "precise"):
+        return value
+    if evaluation_level == "phonetic":
+        return "precise"
+    return "casual"
+
+
+def _build_confidence(mode: str, pack_used: bool) -> tuple[str, list[str]]:
+    warnings: list[str] = []
+    confidence = "normal"
+    if mode == "phonetic" and not pack_used:
+        warnings.append(
+            "Aviso: modo fonetico sin pack; confiabilidad baja, comparacion aproximada para IPA general."
+        )
+        confidence = "low"
+    return confidence, warnings
+
+
+def _sound_payload(entry: dict) -> dict:
+    return {
+        "id": entry.get("id"),
+        "ipa": entry.get("ipa"),
+        "label": entry.get("label"),
+        "aliases": entry.get("aliases", []),
+        "tags": entry.get("tags", []),
+    }
+
+
+def _prompt_lang(lang: Optional[str], *, non_interactive: bool) -> str:
+    if lang:
+        return normalize_lang(lang)
+    if non_interactive:
+        console.print("Error: --lang es requerido en modo no interactivo", style="red")
+        raise typer.Exit(code=2)
+    value = typer.prompt("Idioma (es/en)", default="es")
+    return normalize_lang(value)
+
+
+def _prompt_sound(sound: Optional[str], catalog: dict, *, non_interactive: bool) -> str:
+    if sound:
+        return sound
+    if non_interactive:
+        console.print("Error: --sound es requerido en modo no interactivo", style="red")
+        raise typer.Exit(code=2)
+    entries = list_sounds(catalog)
+    console.print("Sonidos disponibles:", style="bold")
+    for idx, entry in enumerate(entries, start=1):
+        ipa = entry.get("ipa", "")
+        label = entry.get("label", "")
+        console.print(f"{idx}. {ipa} - {label}")
+    choice = typer.prompt("Selecciona sonido (numero o IPA)", default=entries[0].get("ipa", ""))
+    if str(choice).isdigit():
+        pos = int(choice) - 1
+        if 0 <= pos < len(entries):
+            return entries[pos].get("ipa", "")
+    return str(choice)
+
+
+def _prompt_context(
+    context: Optional[str],
+    sound_entry: dict,
+    *,
+    non_interactive: bool,
+) -> str:
+    if context:
+        return context
+    default_context = _pick_default_context(sound_entry)
+    if non_interactive:
+        return default_context
+    contexts = sound_entry.get("contexts", {}) if isinstance(sound_entry, dict) else {}
+    options = [key for key in contexts.keys() if isinstance(key, str)]
+    if options:
+        console.print(f"Contextos disponibles: {', '.join(options)}")
+    return typer.prompt("Contexto", default=default_context)
+
+
+def _prompt_count(count: int, *, non_interactive: bool) -> int:
+    if count > 0:
+        return count
+    if non_interactive:
+        console.print("Error: --count debe ser mayor que 0", style="red")
+        raise typer.Exit(code=2)
+    return int(typer.prompt("Cantidad de ejemplos", default="10"))
+
+
+def _build_request_payload(
+    *,
+    lang: str,
+    sound: str,
+    context: str,
+    count: int,
+    mode: str,
+    evaluation_level: str,
+    feedback_level: Optional[str],
+    seed: Optional[int],
+) -> dict:
+    payload = {
+        "lang": lang,
+        "sound": sound,
+        "context": context,
+        "count": count,
+        "mode": mode,
+        "evaluation": evaluation_level,
+    }
+    if feedback_level:
+        payload["feedback_level"] = feedback_level
+    if seed is not None:
+        payload["seed"] = seed
+    return payload
+
+
+def _build_meta(kernel: Kernel) -> dict:
+    pack_id = kernel.model_pack.id if kernel.model_pack else None
+    runtime = kernel.model_pack.runtime.kind if kernel.model_pack else None
+    return {
+        "model_pack": pack_id,
+        "llm": runtime,
+        "generated_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+    }
+
+
+async def _generate_llm_candidates(
+    kernel: Kernel,
+    *,
+    lang: str,
+    sound: dict,
+    context: str,
+    count: int,
+    before: Optional[str],
+    after: Optional[str],
+) -> list[str]:
+    if not kernel.llm or not kernel.model_pack:
+        return []
+    sound_ipa = sound.get("ipa", "")
+    sound_label = sound.get("label", "")
+    context_hint = {
+        "initial": "inicio de palabra",
+        "medial": "mitad de palabra",
+        "final": "final de palabra",
+        "cluster": "en cluster consonantico",
+        "vowel_context": "entre vocales",
+    }.get(context, context)
+    extra = ""
+    if before or after:
+        extra = f" Vecino izquierdo: {before or 'cualquier vocal'}. Vecino derecho: {after or 'cualquier vocal'}."
+    prompt = (
+        "Eres un generador de ejemplos para practicar pronunciacion IPA.\n"
+        f"Idioma: {lang}\n"
+        f"Sonido IPA: {sound_ipa} ({sound_label})\n"
+        f"Contexto: {context_hint}.{extra}\n"
+        f"Genera {count} ejemplos cortos (palabras o frases breves), evita nombres propios.\n"
+        "Devuelve SOLO JSON con la forma: {\"items\": [{\"text\": \"...\"}]}\n"
+    )
+    schema = {
+        "type": "object",
+        "required": ["items"],
+        "properties": {"items": {"type": "array"}},
+    }
+    raw = await kernel.llm.complete(prompt, params=kernel.model_pack.params)
+    payload = extract_json_object(raw)
+    validate_json_schema(payload, schema)
+    items = payload.get("items", [])
+    results: list[str] = []
+    for item in items:
+        if isinstance(item, str):
+            text = item
+        elif isinstance(item, dict):
+            text = item.get("text") or item.get("phrase") or ""
+        else:
+            text = ""
+        text = str(text).strip()
+        if text:
+            results.append(text)
+    return results
+
+
+async def _validate_examples(
+    kernel: Kernel,
+    *,
+    lang: str,
+    sound: str,
+    context: str,
+    before: Optional[str],
+    after: Optional[str],
+    candidates: list[dict],
+) -> list[dict]:
+    validated: list[dict] = []
+    for candidate in candidates:
+        text = str(candidate.get("text", "")).strip()
+        if not text:
+            continue
+        try:
+            tr_result = await kernel.textref.to_ipa(text, lang=lang)
+            norm = await kernel.pre.normalize_tokens(tr_result.get("tokens", []))
+        except (ValidationError, NotReadyError):
+            continue
+        tokens = norm.get("tokens", [])
+        filtered = _filter_context_tokens(tokens)
+        match_idx = _match_context(filtered, sound, context, before, after)
+        if match_idx is None:
+            continue
+        position = _position_label(match_idx, len(filtered))
+        validated.append(
+            {
+                "text": text,
+                "ipa": " ".join(tokens),
+                "tokens": tokens,
+                "position": position,
+                "context": context,
+                "source": candidate.get("source", "curated"),
+                "validated": True,
+            }
+        )
+    return validated
 
 
 @app.command()
@@ -315,7 +765,7 @@ def transcribe(
         output_format = TranscribeFormat.json
 
     if output_format == TranscribeFormat.json:
-        console.print_json(data={
+        _emit_json({
             "ipa": " ".join(tokens),
             "tokens": tokens,
             "lang": lang,
@@ -566,7 +1016,7 @@ def compare(
         raise typer.Exit(code=_exit_code_for_error(e))
 
     if output_format == OutputFormat.json:
-        console.print_json(data=res)
+        _emit_json(res)
     elif output_format == OutputFormat.aligned:
         _print_compare_aligned(res)
         _print_feedback(res.get("feedback", []))
@@ -588,6 +1038,9 @@ def feedback(
     audio: str = typer.Option(..., "--audio", "-a", help="Path to the audio file"),
     text: str = typer.Option(..., "--text", "-t", help="Reference text"),
     lang: str = typer.Option("es", "--lang", "-l", help="Target language"),
+    mode: str = typer.Option("objective", "--mode", help="Comparison mode (casual/objective/phonetic)"),
+    evaluation_level: str = typer.Option("phonemic", "--evaluation", "--evaluation-level", help="Evaluation level"),
+    feedback_level: Optional[str] = typer.Option(None, "--feedback-level", help="Feedback level"),
     model_pack: Optional[str] = typer.Option(None, "--model-pack", help="Model pack override"),
     llm_name: Optional[str] = typer.Option(None, "--llm", help="LLM adapter override"),
     prompt_path: Optional[Path] = typer.Option(None, "--prompt-path", help="Prompt override path"),
@@ -597,7 +1050,18 @@ def feedback(
     json_output: bool = typer.Option(False, "--json/--no-json", help="Output JSON"),
 ):
     """Generate LLM feedback for a pronunciation attempt."""
-    kernel = _get_kernel()
+    if mode not in _COMPARE_MODES:
+        console.print("Error: --mode debe ser casual, objective o phonetic", style="red")
+        raise typer.Exit(code=2)
+    if evaluation_level not in _EVAL_LEVELS:
+        console.print("Error: --evaluation debe ser phonemic o phonetic", style="red")
+        raise typer.Exit(code=2)
+    if feedback_level and feedback_level not in _FEEDBACK_LEVELS:
+        console.print("Error: --feedback-level debe ser casual o precise", style="red")
+        raise typer.Exit(code=2)
+    before = _normalize_sound(before) if before else None
+    after = _normalize_sound(after) if after else None
+    kernel = _get_kernel(model_pack=model_pack, llm_name=llm_name)
     wav_path = ""
     tmp_audio = False
 
@@ -617,6 +1081,9 @@ def feedback(
                 audio=audio_in,
                 text=text,
                 lang=lang,
+                mode=mode,
+                evaluation_level=evaluation_level,
+                feedback_level=feedback_level,
                 prompt_path=prompt_path,
                 output_schema_path=output_schema_path,
             )
@@ -642,7 +1109,7 @@ def feedback(
         payload = dict(res)
         if persisted_to:
             payload["persisted_to"] = str(persisted_to)
-        console.print_json(data=payload)
+        _emit_json(payload)
     else:
         compare = res.get("compare", {})
         per = compare.get("per")
@@ -668,12 +1135,584 @@ def feedback_export(
     console.print(f"Exported to: {export_path}")
 
 
+@ipa_app.command("list-sounds")
+def ipa_list_sounds(
+    lang: str = typer.Option("es", "--lang", "-l", help="Idioma objetivo (es/en)"),
+    output: CatalogOutput = typer.Option(CatalogOutput.human, "--output", "-o", help="Formato de salida"),
+):
+    """Lista sonidos IPA disponibles para un idioma."""
+    lang_key = normalize_lang(lang)
+    try:
+        catalog = load_catalog(lang_key)
+    except FileNotFoundError as exc:
+        console.print(f"Error: {exc}", style="red")
+        raise typer.Exit(code=1)
+
+    sounds = list_sounds(catalog)
+    if output == CatalogOutput.json:
+        _emit_json({
+            "schema_version": _IPA_SCHEMA_VERSION,
+            "kind": "ipa.list-sounds",
+            "request": {"lang": lang_key},
+            "sounds": [_sound_payload(entry) for entry in sounds],
+        })
+        return
+
+    table = Table(title=f"Sonidos IPA ({lang_key})")
+    table.add_column("IPA", style="cyan")
+    table.add_column("Etiqueta", style="green")
+    table.add_column("Aliases", style="yellow")
+    for entry in sounds:
+        aliases = entry.get("aliases", [])
+        alias_text = ", ".join(aliases) if isinstance(aliases, list) else ""
+        table.add_row(
+            str(entry.get("ipa", "")),
+            str(entry.get("label", "")),
+            alias_text,
+        )
+    console.print(table)
+
+
+@ipa_app.command("explore")
+def ipa_explore(
+    lang: Optional[str] = typer.Option(None, "--lang", "-l", help="Idioma objetivo (es/en)"),
+    sound: Optional[str] = typer.Option(None, "--sound", "-s", help="Sonido IPA o alias"),
+    context: Optional[str] = typer.Option(None, "--context", "-c", help="Contexto (initial, medial, final, cluster, vowel-context)"),
+    count: int = typer.Option(10, "--count", help="Numero maximo de ejemplos"),
+    output: CatalogOutput = typer.Option(CatalogOutput.human, "--output", "-o", help="Formato de salida"),
+    seed: Optional[int] = typer.Option(None, "--seed", help="Semilla para muestreo"),
+    interactive: bool = typer.Option(False, "--interactive", help="Forzar modo interactivo"),
+    non_interactive: bool = typer.Option(False, "--non-interactive", help="Desactivar prompts"),
+):
+    """Muestra detalles de un sonido y ejemplos verificados con IPA."""
+    if interactive and non_interactive:
+        console.print("Error: --interactive y --non-interactive son excluyentes", style="red")
+        raise typer.Exit(code=2)
+    lang_key = _prompt_lang(lang, non_interactive=non_interactive) if (interactive or not lang) else normalize_lang(lang)
+    try:
+        catalog = load_catalog(lang_key)
+    except FileNotFoundError as exc:
+        console.print(f"Error: {exc}", style="red")
+        raise typer.Exit(code=1)
+
+    sound_query = _prompt_sound(sound, catalog, non_interactive=non_interactive) if (interactive or not sound) else sound
+    sound_entry = resolve_sound_entry(catalog, sound_query)
+    if not sound_entry:
+        console.print(f"Error: sonido no encontrado: {sound_query}", style="red")
+        raise typer.Exit(code=1)
+
+    raw_context = context
+    if interactive and not context:
+        raw_context = _prompt_context(context, sound_entry, non_interactive=non_interactive)
+    if raw_context:
+        try:
+            context_key = _normalize_context(raw_context)
+        except ValueError as exc:
+            console.print(f"Error: {exc}", style="red")
+            raise typer.Exit(code=2)
+    else:
+        context_key = None
+
+    contexts = sound_entry.get("contexts", {}) if isinstance(sound_entry, dict) else {}
+    candidates_by_context: dict[str, list[dict]] = {}
+    if context_key:
+        ctx_data = contexts.get(context_key, {})
+        seeds = ctx_data.get("seeds", []) if isinstance(ctx_data, dict) else []
+        candidates_by_context[context_key] = [{"text": seed.get("text"), "source": "curated"} for seed in seeds if isinstance(seed, dict)]
+    else:
+        for ctx, ctx_data in contexts.items():
+            if not isinstance(ctx_data, dict):
+                continue
+            seeds = ctx_data.get("seeds", [])
+            candidates_by_context[str(ctx)] = [{"text": seed.get("text"), "source": "curated"} for seed in seeds if isinstance(seed, dict)]
+
+    kernel = _get_kernel()
+    sound_ipa = _normalize_sound(sound_entry.get("ipa", ""))
+    validated: list[dict] = []
+    warnings: list[str] = []
+
+    async def _run_explore():
+        await kernel.setup()
+        try:
+            for ctx, items in candidates_by_context.items():
+                validated.extend(
+                    await _validate_examples(
+                        kernel,
+                        lang=lang_key,
+                        sound=sound_ipa,
+                        context=ctx,
+                        before=None,
+                        after=None,
+                        candidates=items,
+                    )
+                )
+        finally:
+            await kernel.teardown()
+
+    try:
+        asyncio.run(_run_explore())
+    except Exception as exc:
+        console.print(f"Error: {exc}", style="red")
+        raise typer.Exit(code=1)
+
+    if not validated:
+        warnings.append("No se encontraron ejemplos validados.")
+
+    if seed is not None:
+        random.Random(seed).shuffle(validated)
+    if count > 0:
+        validated = validated[:count]
+
+    if output == CatalogOutput.json:
+        _emit_json({
+            "schema_version": _IPA_SCHEMA_VERSION,
+            "kind": "ipa.explore",
+            "request": {
+                "lang": lang_key,
+                "sound": sound_entry.get("ipa"),
+                "context": context_key,
+                "count": count,
+            },
+            "sound": _sound_payload(sound_entry),
+            "examples": [
+                {
+                    "id": f"{sound_entry.get('id')}/{item.get('context')}/{_slugify(item.get('text', ''))}",
+                    "text": item.get("text"),
+                    "ipa": item.get("ipa"),
+                    "position": item.get("position"),
+                    "context": item.get("context"),
+                    "source": item.get("source"),
+                    "validated": item.get("validated", False),
+                }
+                for item in validated
+            ],
+            "warnings": warnings,
+            "confidence": "normal",
+            "meta": _build_meta(kernel),
+        })
+        return
+
+    console.print(f"Sonido: {sound_entry.get('ipa')} - {sound_entry.get('label')}", style="bold")
+    if warnings:
+        for warning in warnings:
+            console.print(warning, style="yellow")
+    if not validated:
+        return
+    table = Table(title="Ejemplos")
+    table.add_column("Texto", style="green")
+    table.add_column("IPA", style="cyan")
+    table.add_column("Contexto", style="magenta")
+    for item in validated:
+        table.add_row(
+            str(item.get("text", "")),
+            str(item.get("ipa", "")),
+            str(item.get("context", "")),
+        )
+    console.print(table)
+
+
+@ipa_app.command("practice")
+def ipa_practice(
+    lang: Optional[str] = typer.Option(None, "--lang", "-l", help="Idioma objetivo (es/en)"),
+    sound: Optional[str] = typer.Option(None, "--sound", "-s", help="Sonido IPA o alias"),
+    context: Optional[str] = typer.Option(None, "--context", "-c", help="Contexto (initial, medial, final, cluster, vowel-context)"),
+    count: int = typer.Option(10, "--count", help="Numero de ejemplos"),
+    mode: str = typer.Option("phonetic", "--mode", help="Modo de comparacion (casual/objective/phonetic)"),
+    evaluation_level: str = typer.Option("phonetic", "--evaluation", "--evaluation-level", help="Nivel de evaluacion (phonemic/phonetic)"),
+    feedback_level: Optional[str] = typer.Option(None, "--feedback-level", help="Nivel de feedback (casual/precise)"),
+    before: Optional[str] = typer.Option(None, "--before", help="Vocal anterior (solo vowel-context)"),
+    after: Optional[str] = typer.Option(None, "--after", help="Vocal posterior (solo vowel-context)"),
+    audio: Optional[str] = typer.Option(None, "--audio", "-a", help="Ruta al audio"),
+    mic: bool = typer.Option(False, "--mic", help="Grabar desde microfono"),
+    seconds: float = typer.Option(3.0, "--seconds", help="Duracion de la grabacion"),
+    loop: bool = typer.Option(False, "--loop", help="Iterar ejemplos con grabacion"),
+    example_index: Optional[int] = typer.Option(None, "--example-index", help="Indice del ejemplo a evaluar"),
+    output: CatalogOutput = typer.Option(CatalogOutput.human, "--output", "-o", help="Formato de salida"),
+    seed: Optional[int] = typer.Option(None, "--seed", help="Semilla para muestreo"),
+    interactive: bool = typer.Option(False, "--interactive", help="Forzar modo interactivo"),
+    non_interactive: bool = typer.Option(False, "--non-interactive", help="Desactivar prompts"),
+    model_pack: Optional[str] = typer.Option(None, "--model-pack", help="Model pack override"),
+    llm_name: Optional[str] = typer.Option(None, "--llm", help="LLM adapter override"),
+    prompt_path: Optional[Path] = typer.Option(None, "--prompt-path", help="Prompt override path"),
+    output_schema_path: Optional[Path] = typer.Option(None, "--schema-path", help="Output schema override path"),
+):
+    """Genera práctica por sonido y contexto, con validación IPA."""
+    if interactive and non_interactive:
+        console.print("Error: --interactive y --non-interactive son excluyentes", style="red")
+        raise typer.Exit(code=2)
+    if audio and mic:
+        console.print("Error: --audio y --mic son excluyentes", style="red")
+        raise typer.Exit(code=2)
+    if mode not in _COMPARE_MODES:
+        console.print("Error: --mode debe ser casual, objective o phonetic", style="red")
+        raise typer.Exit(code=2)
+    if evaluation_level not in _EVAL_LEVELS:
+        console.print("Error: --evaluation debe ser phonemic o phonetic", style="red")
+        raise typer.Exit(code=2)
+    if feedback_level and feedback_level not in _FEEDBACK_LEVELS:
+        console.print("Error: --feedback-level debe ser casual o precise", style="red")
+        raise typer.Exit(code=2)
+
+    lang_key = _prompt_lang(lang, non_interactive=non_interactive) if (interactive or not lang) else normalize_lang(lang)
+    try:
+        catalog = load_catalog(lang_key)
+    except FileNotFoundError as exc:
+        console.print(f"Error: {exc}", style="red")
+        raise typer.Exit(code=1)
+
+    sound_query = _prompt_sound(sound, catalog, non_interactive=non_interactive) if (interactive or not sound) else sound
+    sound_entry = resolve_sound_entry(catalog, sound_query)
+    if not sound_entry:
+        console.print(f"Error: sonido no encontrado: {sound_query}", style="red")
+        raise typer.Exit(code=1)
+
+    raw_context = context
+    if not raw_context:
+        raw_context = (
+            _prompt_context(context, sound_entry, non_interactive=non_interactive)
+            if not non_interactive
+            else _pick_default_context(sound_entry)
+        )
+    try:
+        context_key = _normalize_context(raw_context)
+    except ValueError as exc:
+        console.print(f"Error: {exc}", style="red")
+        raise typer.Exit(code=2)
+
+    count = _prompt_count(count, non_interactive=non_interactive)
+    rng = random.Random(seed) if seed is not None else None
+
+    contexts = sound_entry.get("contexts", {}) if isinstance(sound_entry, dict) else {}
+    ctx_data = contexts.get(context_key, {}) if context_key else {}
+    seeds = ctx_data.get("seeds", []) if isinstance(ctx_data, dict) else []
+    candidates = [{"text": seed.get("text"), "source": "curated"} for seed in seeds if isinstance(seed, dict)]
+    warnings: list[str] = []
+    if not candidates:
+        warnings.append("No hay ejemplos curados para este contexto.")
+
+    kernel = _get_kernel(model_pack=model_pack, llm_name=llm_name)
+    sound_ipa = _normalize_sound(sound_entry.get("ipa", ""))
+    pack_used = kernel.model_pack is not None
+    confidence, mode_warnings = _build_confidence(mode, pack_used)
+    warnings.extend(mode_warnings)
+
+    async def _run_practice():
+        await kernel.setup()
+        try:
+            extra_needed = max(0, count - len(candidates))
+            if extra_needed:
+                if not kernel.llm:
+                    warnings.append("LLM no disponible; se usaron solo ejemplos curados.")
+                llm_items = await _generate_llm_candidates(
+                    kernel,
+                    lang=lang_key,
+                    sound=sound_entry,
+                    context=context_key,
+                    count=extra_needed,
+                    before=before,
+                    after=after,
+                )
+                for item in llm_items:
+                    candidates.append({"text": item, "source": "llm"})
+            validated = await _validate_examples(
+                kernel,
+                lang=lang_key,
+                sound=sound_ipa,
+                context=context_key,
+                before=before,
+                after=after,
+                candidates=candidates,
+            )
+            if rng:
+                rng.shuffle(validated)
+            return validated
+        finally:
+            await kernel.teardown()
+
+    try:
+        validated = asyncio.run(_run_practice())
+    except Exception as exc:
+        console.print(f"Error: {exc}", style="red")
+        raise typer.Exit(code=1)
+
+    if not validated:
+        console.print("No se encontraron ejemplos validados.", style="yellow")
+        raise typer.Exit(code=1)
+    if len(validated) < count:
+        warnings.append(f"Solo se validaron {len(validated)} ejemplos de {count}.")
+    validated = validated[:count]
+
+    for item in validated:
+        item["id"] = f"{sound_entry.get('id')}/{item.get('context')}/{_slugify(item.get('text', ''))}"
+
+    request_payload = _build_request_payload(
+        lang=lang_key,
+        sound=sound_entry.get("ipa", ""),
+        context=context_key,
+        count=count,
+        mode=mode,
+        evaluation_level=evaluation_level,
+        feedback_level=feedback_level,
+        seed=seed,
+    )
+
+    if not audio and not mic:
+        if output == CatalogOutput.json:
+            _emit_json({
+                "schema_version": _IPA_SCHEMA_VERSION,
+                "kind": "ipa.practice.set",
+                "request": request_payload,
+                "sound": _sound_payload(sound_entry),
+                "items": [
+                    {
+                        "id": item.get("id"),
+                        "text": item.get("text"),
+                        "ipa": item.get("ipa"),
+                        "position": item.get("position"),
+                        "context": item.get("context"),
+                        "source": item.get("source"),
+                        "validated": item.get("validated", False),
+                    }
+                    for item in validated
+                ],
+                "warnings": warnings,
+                "confidence": confidence,
+                "meta": _build_meta(kernel),
+            })
+            return
+
+        console.print(f"Modo IPA ({sound_entry.get('ipa')}) - contexto {context_key}", style="bold")
+        for warning in warnings:
+            console.print(warning, style="yellow")
+        table = Table(title="Practica sugerida")
+        table.add_column("Texto", style="green")
+        table.add_column("IPA", style="cyan")
+        for item in validated:
+            table.add_row(str(item.get("text", "")), str(item.get("ipa", "")))
+        console.print(table)
+        return
+
+    if loop and not mic:
+        console.print("Error: --loop requiere --mic", style="red")
+        raise typer.Exit(code=2)
+
+    selected_indices = list(range(len(validated)))
+    if not loop:
+        if example_index is None and not non_interactive:
+            console.print("Ejemplos disponibles:")
+            for idx, item in enumerate(validated, start=1):
+                console.print(f"{idx}. {item.get('text')}")
+            example_index = int(typer.prompt("Selecciona ejemplo", default="1")) - 1
+        if example_index is None:
+            example_index = 0
+        if example_index < 0 or example_index >= len(validated):
+            console.print("Error: --example-index fuera de rango", style="red")
+            raise typer.Exit(code=2)
+        selected_indices = [example_index]
+
+    feedback_level = _resolve_feedback_level(feedback_level, evaluation_level)
+
+    def _emit_result(payload: dict) -> None:
+        if output == CatalogOutput.json:
+            _emit_json(payload)
+            return
+        compare = payload.get("compare", {})
+        report = payload.get("report", {})
+        if warnings:
+            for warning in warnings:
+                console.print(warning, style="yellow")
+        if compare.get("per") is not None:
+            console.print(f"PER: {compare.get('per'):.2%}")
+        _print_feedback_payload(payload)
+        if report.get("confidence"):
+            console.print(f"Confiabilidad: {report.get('confidence')}")
+
+    for idx in selected_indices:
+        item = validated[idx]
+        if mic:
+            console.print(f"Grabando para: {item.get('text')}")
+            if not non_interactive:
+                typer.prompt("Presiona Enter para grabar", default="", show_default=False)
+            wav_path, _ = record(seconds=seconds)
+            tmp_audio = True
+        else:
+            wav_path, tmp_audio = ensure_wav(audio)
+        audio_in = to_audio_input(wav_path)
+
+        async def _run_feedback():
+            await kernel.setup()
+            try:
+                service = FeedbackService(kernel)
+                return await service.analyze(
+                    audio=audio_in,
+                    text=item.get("text", ""),
+                    lang=lang_key,
+                    mode=mode,
+                    evaluation_level=evaluation_level,
+                    feedback_level=feedback_level,
+                    prompt_path=prompt_path,
+                    output_schema_path=output_schema_path,
+                )
+            finally:
+                await kernel.teardown()
+
+        async def _run_fallback():
+            await kernel.setup()
+            try:
+                service = ComparisonService(
+                    preprocessor=kernel.pre,
+                    asr=kernel.asr,
+                    textref=kernel.textref,
+                    comparator=kernel.comp,
+                    default_lang=lang_key,
+                )
+                payload = await service.compare_file_detail(
+                    wav_path,
+                    item.get("text", ""),
+                    lang=lang_key,
+                )
+                report = build_enriched_error_report(
+                    target_text=item.get("text", ""),
+                    target_tokens=payload.ref_tokens,
+                    hyp_tokens=payload.hyp_tokens,
+                    compare_result=payload.result,
+                    lang=lang_key,
+                    mode=mode,
+                    evaluation_level=evaluation_level,
+                    feedback_level=feedback_level,
+                    confidence=confidence,
+                    warnings=warnings,
+                    meta=payload.meta,
+                )
+                feedback = generate_fallback_feedback(report)
+                compare_payload = dict(payload.result)
+                compare_payload.setdefault("mode", mode)
+                compare_payload.setdefault("evaluation_level", evaluation_level)
+                compare_payload.setdefault("score", report.get("metrics", {}).get("score"))
+                return {
+                    "report": report,
+                    "compare": compare_payload,
+                    "feedback": feedback,
+                }
+            finally:
+                await kernel.teardown()
+
+        try:
+            result = asyncio.run(_run_feedback())
+        except NotReadyError:
+            result = asyncio.run(_run_fallback())
+        except Exception as exc:
+            console.print(f"Error: {exc}", style="red")
+            raise typer.Exit(code=1)
+        finally:
+            if tmp_audio and wav_path:
+                cleanup_temp(wav_path)
+
+        payload = {
+            "schema_version": _IPA_SCHEMA_VERSION,
+            "kind": "ipa.practice.result",
+            "request": request_payload,
+            "sound": _sound_payload(sound_entry),
+            "item": {
+                "id": item.get("id"),
+                "text": item.get("text"),
+                "ipa": item.get("ipa"),
+                "position": item.get("position"),
+                "context": item.get("context"),
+                "source": item.get("source"),
+                "validated": item.get("validated", False),
+            },
+            "compare": result.get("compare"),
+            "report": result.get("report"),
+            "feedback": result.get("feedback"),
+            "warnings": warnings,
+            "confidence": confidence,
+            "meta": _build_meta(kernel),
+        }
+        _emit_result(payload)
+
+
+@ipa_app.command("load")
+def ipa_load(
+    path: Path = typer.Argument(..., help="Ruta al JSON IPA (o '-' para stdin)"),
+    output: CatalogOutput = typer.Option(CatalogOutput.human, "--output", "-o", help="Formato de salida"),
+):
+    """Carga un JSON IPA y muestra un resumen en CLI."""
+    try:
+        raw = _read_json_source(path)
+        payload = json.loads(raw)
+    except FileNotFoundError:
+        console.print(f"Error: archivo no encontrado: {path}", style="red")
+        raise typer.Exit(code=1)
+    except json.JSONDecodeError as exc:
+        console.print(f"Error: JSON invalido: {exc}", style="red")
+        raise typer.Exit(code=1)
+
+    if output == CatalogOutput.json:
+        _emit_json(payload)
+        return
+
+    if not isinstance(payload, dict):
+        console.print("Error: JSON invalido (se esperaba objeto).", style="red")
+        raise typer.Exit(code=1)
+
+    kind = payload.get("kind", "unknown")
+    _safe_print(f"IPA JSON: {kind}")
+
+    warnings = payload.get("warnings", [])
+    confidence = payload.get("confidence")
+    if isinstance(warnings, list):
+        for warning in warnings:
+            _safe_print(str(warning))
+    if confidence:
+        _safe_print(f"Confiabilidad: {confidence}")
+
+    if kind in ("ipa.practice.set", "ipa.explore"):
+        items = payload.get("items") if kind == "ipa.practice.set" else payload.get("examples")
+        sound = payload.get("sound", {}).get("ipa") if isinstance(payload.get("sound"), dict) else None
+        context = payload.get("request", {}).get("context") if isinstance(payload.get("request"), dict) else None
+        if sound:
+            _safe_print(f"Sonido: {sound}")
+        if context:
+            _safe_print(f"Contexto: {context}")
+        if not items:
+            _safe_print("No hay ejemplos.")
+            return
+        _safe_print("Ejemplos:")
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            _safe_print(
+                f"- {item.get('text', '')} | {item.get('ipa', '')} | {item.get('context', '')}"
+            )
+        return
+
+    if kind == "ipa.list-sounds":
+        sounds = payload.get("sounds", [])
+        _safe_print("Sonidos:")
+        for entry in sounds:
+            if not isinstance(entry, dict):
+                continue
+            _safe_print(f"- {entry.get('ipa', '')} | {entry.get('label', '')}")
+        return
+
+    if kind == "ipa.practice.result":
+        item = payload.get("item", {})
+        if isinstance(item, dict):
+            _safe_print(f"Texto: {item.get('text', '')}")
+            _safe_print(f"IPA: {item.get('ipa', '')}")
+        compare = payload.get("compare", {})
+        if isinstance(compare, dict) and compare.get("per") is not None:
+            _safe_print(f"PER: {compare.get('per'):.2%}")
+        return
+
+
 @config_app.command("show")
 def config_show():
     """Muestra la configuración actual."""
     try:
         cfg = loader.load_config()
-        console.print_json(data=cfg.model_dump())
+        _emit_json(cfg.model_dump())
     except Exception as e:
         console.print(f"Error cargando configuración: {e}", style="red")
         raise typer.Exit(code=1)
