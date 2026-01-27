@@ -68,6 +68,30 @@ class ErrorReport(BaseModel):
         default_factory=list,
         description="Pares de tokens alineados [ref, hyp]",
     )
+    mode: Optional[str] = Field(
+        default=None,
+        description="Modo de evaluacion: casual, objective, phonetic",
+        json_schema_extra={"example": "objective"},
+    )
+    evaluation_level: Optional[str] = Field(
+        default=None,
+        description="Nivel de evaluacion: phonemic, phonetic",
+        json_schema_extra={"example": "phonemic"},
+    )
+    feedback_level: Optional[str] = Field(
+        default=None,
+        description="Nivel de feedback: casual o precise",
+        json_schema_extra={"example": "casual"},
+    )
+    confidence: Optional[str] = Field(
+        default=None,
+        description="Confianza de la comparacion",
+        json_schema_extra={"example": "low"},
+    )
+    warnings: List[str] = Field(
+        default_factory=list,
+        description="Advertencias sobre confiabilidad o datos incompletos",
+    )
     lang: str = Field(..., description="Codigo de idioma")
     meta: dict[str, Any] = Field(default_factory=dict, description="Metadatos adicionales")
 

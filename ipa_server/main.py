@@ -6,12 +6,27 @@ PronunciaPA.
 from __future__ import annotations
 import os
 import tempfile
+import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, List, Optional
 from fastapi import FastAPI, File, Form, UploadFile, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
+from starlette.middleware.base import BaseHTTPMiddleware
+
+
+class TimingMiddleware(BaseHTTPMiddleware):
+    """Middleware que agrega headers de timing."""
+    
+    async def dispatch(self, request, call_next):
+        start_time = time.perf_counter()
+        response = await call_next(request)
+        duration_ms = (time.perf_counter() - start_time) * 1000
+        response.headers["X-Response-Time-Ms"] = f"{duration_ms:.2f}"
+        response.headers["X-Timestamp"] = datetime.now().isoformat()
+        return response
 
 from ipa_core.config import loader
 from ipa_core.config.overrides import apply_overrides
@@ -71,13 +86,23 @@ def get_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    
+    # Agregar middleware de timing
+    app.add_middleware(TimingMiddleware)
 
     # Handlers de excepciones
     @app.exception_handler(ValidationError)
     async def validation_exception_handler(request: Request, exc: ValidationError):
+        import logging
+        logger = logging.getLogger("ipa_server")
+        logger.warning(f"Validation error on {request.url.path}: {exc}")
         return JSONResponse(
             status_code=400,
-            content={"detail": str(exc), "type": "validation_error"},
+            content={
+                "detail": str(exc),
+                "type": "validation_error",
+                "path": request.url.path
+            },
         )
 
     @app.exception_handler(UnsupportedFormat)
@@ -116,9 +141,31 @@ def get_app() -> FastAPI:
         )
 
     @app.get("/health")
-    async def health() -> dict[str, str]:
-        """Endpoint de salud para monitoreo."""
-        return {"status": "ok"}
+    async def health() -> dict[str, Any]:
+        """Endpoint de salud mejorado con info del sistema."""
+        from ipa_core.packs.loader import DEFAULT_PACKS_DIR
+        from ipa_core.plugins.models import storage
+        
+        # Detectar language packs
+        try:
+            packs = [d.name for d in DEFAULT_PACKS_DIR.iterdir() 
+                     if d.is_dir() and not d.name.startswith(".")]
+        except Exception:
+            packs = []
+        
+        # Detectar modelos locales
+        try:
+            models = storage.scan_models()
+        except Exception:
+            models = []
+        
+        return {
+            "status": "ok",
+            "version": "0.1.0",
+            "timestamp": datetime.now().isoformat(),
+            "language_packs": packs,
+            "local_models": len(models),
+        }
 
     async def _process_upload(audio: UploadFile) -> Path:
         """Guarda un UploadFile en un archivo temporal y retorna su ruta."""
@@ -275,6 +322,12 @@ def get_app() -> FastAPI:
         audio: UploadFile = File(..., description="Archivo de audio a analizar"),
         text: str = Form(..., description="Texto de referencia"),
         lang: str = Form("es", description="Idioma del audio"),
+        mode: str = Form("objective", description="Modo: casual, objective, phonetic"),
+        evaluation_level: str = Form("phonemic", description="Nivel: phonemic, phonetic"),
+        feedback_level: Optional[str] = Form(
+            None,
+            description="Nivel de feedback: casual (amigable) o precise (tecnico)",
+        ),
         model_pack: Optional[str] = Form(None, description="Model pack a usar (opcional)"),
         llm: Optional[str] = Form(None, description="Adapter LLM a usar (opcional)"),
         prompt_path: Optional[str] = Form(None, description="Ruta a prompt override (opcional)"),
@@ -298,6 +351,9 @@ def get_app() -> FastAPI:
                 audio=audio_in,
                 text=text,
                 lang=lang,
+                mode=mode,
+                evaluation_level=evaluation_level,
+                feedback_level=feedback_level,
                 prompt_path=prompt_file,
                 output_schema_path=schema_file,
             )
