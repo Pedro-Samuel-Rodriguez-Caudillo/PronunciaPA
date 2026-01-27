@@ -133,11 +133,14 @@ def _register_defaults() -> None:
     try:
         from ipa_core.llm.llama_cpp import LlamaCppAdapter
         from ipa_core.llm.onnx import OnnxLLMAdapter
+        from ipa_core.llm.ollama import OllamaAdapter
     except Exception as exc:
         logger.warning("LLM adapters unavailable: %s", exc)
     else:
         register("llm", "llama_cpp", lambda p: LlamaCppAdapter(p))
         register("llm", "onnx", lambda p: OnnxLLMAdapter(p))
+        register("llm", "ollama", lambda p: OllamaAdapter(p))
+        register("llm", "default", lambda p: OllamaAdapter(p))  # Ollama as default
 
     # También ejecutar descubrimiento inicial
     register_discovered_plugins()

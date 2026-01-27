@@ -29,6 +29,7 @@ LANG_MAP = {
 
 class AllosaurusASR(BasePlugin):
     """Implementación de `ASRBackend` usando el modelo Allosaurus."""
+    output_type = "ipa"
 
     def __init__(self, params: Optional[dict[str, Any]] = None, *, recognizer: Any | None = None) -> None:
         super().__init__()

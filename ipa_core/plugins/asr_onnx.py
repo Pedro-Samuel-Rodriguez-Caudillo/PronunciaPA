@@ -20,6 +20,8 @@ from ipa_core.types import ASRResult, AudioInput, Token
 class ONNXASRPlugin(BasePlugin):
     """Backend ASR basado en modelos ONNX locales."""
 
+    output_type: Literal["ipa", "text", "none"] = "ipa"
+
     def __init__(self, params: Optional[dict[str, Any]] = None) -> None:
         super().__init__()
         params = params or {}

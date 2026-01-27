@@ -149,7 +149,7 @@ class ModelManager:
 
         return dest
 
-    def ensure_model(
+    async def ensure_model(
         self,
         filename: str,
         url: str,
@@ -157,13 +157,13 @@ class ModelManager:
         md5_hash: Optional[str] = None,
         force_download: bool = False,
     ) -> Path:
-        """Garantiza que un modelo esté disponible localmente (Síncrono/Legacy).
+        """Garantiza que un modelo esté disponible localmente.
 
         Si no existe, lo descarga.
 
         Args:
             filename: Nombre del archivo local.
-            url: URL desde donde descargar.
+            url: URL o ruta desde donde descargar.
             subdir: Subdirectorio dentro del caché para organizar modelos.
             md5_hash: Hash MD5 opcional para verificar integridad.
             force_download: Si es True, descarga aunque exista.
@@ -185,12 +185,16 @@ class ModelManager:
 
         logger.info(f"Descargando recurso {filename} desde {url}...")
         try:
-            # TODO: Implementar barra de progreso si se desea UX mejorada
-            urlretrieve(url, str(file_path))
+            # urlretrieve requiere string
+            url_str = str(url)
+            await asyncio.to_thread(urlretrieve, url_str, str(file_path))
         except Exception as e:
+            if file_path.exists():
+                file_path.unlink()
             raise ModelDownloadError(f"Fallo al descargar {url}: {e}") from e
 
         if md5_hash and not self._verify_hash(file_path, md5_hash):
+            file_path.unlink()
             raise ModelDownloadError(f"Hash MD5 no coincide para {filename}")
 
         return file_path

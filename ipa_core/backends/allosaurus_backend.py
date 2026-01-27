@@ -206,6 +206,7 @@ class AllosaurusBackendStub(BasePlugin):
     
     Retorna tokens predefinidos para pruebas unitarias.
     """
+    output_type = "ipa"
     
     def __init__(
         self,
