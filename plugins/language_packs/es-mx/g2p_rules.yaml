@@ -1,0 +1,29 @@
+language: es
+dialect: es-mx
+rules:
+  - grapheme: a
+    phoneme: a
+  - grapheme: e
+    phoneme: e
+  - grapheme: i
+    phoneme: i
+  - grapheme: o
+    phoneme: o
+  - grapheme: u
+    phoneme: u
+  - grapheme: c
+    phoneme: s
+    right: "[ei]"
+    priority: 10
+  - grapheme: c
+    phoneme: k
+  - grapheme: s
+    phoneme: s
+  - grapheme: n
+    phoneme: n
+  - grapheme: l
+    phoneme: l
+  - grapheme: m
+    phoneme: m
+exceptions:
+  méxico: "ˈmexiko"

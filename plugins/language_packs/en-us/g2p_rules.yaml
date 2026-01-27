@@ -1,0 +1,9 @@
+language: en
+dialect: en-us
+rules:
+  - grapheme: a
+    phoneme: æ
+  - grapheme: b
+    phoneme: b
+exceptions:
+  hello: "həˈloʊ"

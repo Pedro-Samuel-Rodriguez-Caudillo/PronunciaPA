@@ -1,0 +1,8 @@
+# PronunciaPA Pack Checksums
+# Format: sha256_hash  filename
+# Generated automatically - do not edit
+
+859c87256491d6161b1d166b1ee0ec32c2a96302d483d607042830f506f343cc  exceptions.yaml
+564b739540ef8fd0b4b70dd8987c6bb92dd23424db812dad961ceb59408dcd9d  g2p_rules.yaml
+d26dc8680cbfcfb4ffac2b0948708b06a13327ec72da603808a0d4f98f8afbb3  inventory.yaml
+28c3c06d8c205fd4360483821502fa08209eedfb6eb280b6ced9a8058f8b8565  phonological_rules.yaml

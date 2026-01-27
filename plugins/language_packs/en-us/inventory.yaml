@@ -44,6 +44,50 @@ inventory:
     - ʌ
     - ə
 
-# En inglés, la variación alofónica es menos sistemática
+# Aliases: mapping of ASR output variations → canonical form
+# This helps normalize Allosaurus output to our inventory
+aliases:
+  # R variants
+  r: ɹ       # General 'r' → American approximant
+  ɾ: ɹ       # Flap (usually allophone of /t,d/) → approximant
+  ɻ: ɹ       # Retroflex approximant → alveolar approximant
+  
+  # Affricates (may come with tie bar or separated)
+  "t͡ʃ": tʃ   # With tie bar → without
+  "d͡ʒ": dʒ
+  "t͡s": ts
+  "d͡z": dz
+  
+  # Vowel variants
+  ɝ: ɜ       # R-colored schwa (simplified)
+  ɚ: ə       # R-colored schwa → plain schwa
+  ɜ: ə       # Open-mid central → schwa (for simplicity)
+  
+  # Stop variants
+  ʔ: t       # Glottal stop (often allophone of /t/) → t
+  
+  # Common Allosaurus outputs that need mapping
+  ɑː: ɑ      # Remove length markers
+  iː: i
+  uː: u
+  eː: e
+  oː: o
+
+# Allophones: phones that can substitute for each other in casual speech
+# Format: base_phone: [allowed_variants]
 allophones:
-  t: [ɾ, ʔ]   # flapping, glottal (dialectal)
+  t: [ɾ, ʔ]   # Flapping and glottal (American English)
+  d: [ɾ]      # Flapping between vowels
+
+# Allophone collapse for phonemic mode (evaluation_level=phonemic)
+# Map of allophone → base phoneme for normalization
+allophone_collapse:
+  # Flapping
+  ɾ: t        # Flap → /t/ (default, most common)
+  # Glottal
+  ʔ: t        # Glottal stop → /t/
+  # R-colored vowels
+  ɝ: ər       # R-colored → schwa+r
+  ɚ: ər       # R-colored → schwa+r
+  # Reduced vowels
+  ɨ: ə        # Close central → schwa
