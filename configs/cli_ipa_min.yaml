@@ -1,0 +1,21 @@
+version: 1
+
+preprocessor:
+  name: basic
+
+backend:
+  name: stub
+
+textref:
+  name: epitran
+  params:
+    default_lang: es
+
+comparator:
+  name: levenshtein
+
+llm:
+  name: auto
+
+options:
+  lang: es

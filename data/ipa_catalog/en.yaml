@@ -1,0 +1,145 @@
+language: en
+sounds:
+  - id: en/θ
+    ipa: "θ"
+    label: "Voiceless th"
+    aliases: ["theta", "th"]
+    tags: ["consonant", "dental", "fricative", "voiceless"]
+    orthography:
+      - pattern: "th"
+        position: "all"
+    contexts:
+      initial:
+        seeds:
+          - text: "think"
+          - text: "thin"
+      medial:
+        seeds:
+          - text: "author"
+          - text: "method"
+      final:
+        seeds:
+          - text: "bath"
+          - text: "math"
+  - id: en/ð
+    ipa: "ð"
+    label: "Voiced th"
+    aliases: ["eth", "th voiced"]
+    tags: ["consonant", "dental", "fricative", "voiced"]
+    orthography:
+      - pattern: "th"
+        position: "all"
+    contexts:
+      initial:
+        seeds:
+          - text: "this"
+          - text: "that"
+      medial:
+        seeds:
+          - text: "mother"
+          - text: "feather"
+      final:
+        seeds:
+          - text: "breathe"
+          - text: "clothe"
+  - id: en/ʃ
+    ipa: "ʃ"
+    label: "Sh"
+    aliases: ["sh", "esh"]
+    tags: ["consonant", "postalveolar", "fricative", "voiceless"]
+    orthography:
+      - pattern: "sh"
+        position: "initial"
+      - pattern: "ti"
+        position: "medial"
+    contexts:
+      initial:
+        seeds:
+          - text: "ship"
+          - text: "shoe"
+      medial:
+        seeds:
+          - text: "nation"
+          - text: "pressure"
+      final:
+        seeds:
+          - text: "fish"
+          - text: "dish"
+  - id: en/ɹ
+    ipa: "ɹ"
+    label: "English r"
+    aliases: ["r", "rhotic"]
+    tags: ["consonant", "alveolar", "approximant", "voiced"]
+    orthography:
+      - pattern: "r"
+        position: "initial"
+      - pattern: "r"
+        position: "medial"
+      - pattern: "r"
+        position: "cluster"
+    contexts:
+      initial:
+        seeds:
+          - text: "red"
+          - text: "road"
+      medial:
+        seeds:
+          - text: "around"
+          - text: "carry"
+      cluster:
+        seeds:
+          - text: "train"
+          - text: "green"
+  - id: en/tʃ
+    ipa: "tʃ"
+    label: "Ch"
+    aliases: ["ch", "tch"]
+    tags: ["consonant", "postalveolar", "affricate", "voiceless"]
+    orthography:
+      - pattern: "ch"
+        position: "initial"
+      - pattern: "tch"
+        position: "final"
+    contexts:
+      initial:
+        seeds:
+          - text: "chair"
+          - text: "cheese"
+      final:
+        seeds:
+          - text: "match"
+          - text: "watch"
+  - id: en/æ
+    ipa: "æ"
+    label: "Short a"
+    aliases: ["ae", "short a"]
+    tags: ["vowel", "front", "open", "unrounded"]
+    orthography:
+      - pattern: "a"
+        position: "medial"
+    contexts:
+      initial:
+        seeds:
+          - text: "apple"
+          - text: "animal"
+      medial:
+        seeds:
+          - text: "cat"
+          - text: "bag"
+  - id: en/ɪ
+    ipa: "ɪ"
+    label: "Short i"
+    aliases: ["ih", "short i"]
+    tags: ["vowel", "near-close", "near-front", "unrounded"]
+    orthography:
+      - pattern: "i"
+        position: "medial"
+    contexts:
+      initial:
+        seeds:
+          - text: "in"
+          - text: "ink"
+      medial:
+        seeds:
+          - text: "ship"
+          - text: "milk"
