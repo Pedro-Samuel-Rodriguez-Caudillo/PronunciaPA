@@ -25,6 +25,9 @@ export type FeedbackRequest = {
   audio: File | Blob;
   text: string;
   lang?: string;
+  mode?: 'casual' | 'objective' | 'phonetic';
+  evaluationLevel?: 'phonemic' | 'phonetic';
+  feedbackLevel?: 'casual' | 'precise';
   persist?: boolean;
   modelPack?: string;
   llm?: string;
@@ -58,6 +61,15 @@ export function createApiClient(options: ApiClientOptions = {}) {
       form.append('audio', payload.audio);
       form.append('text', payload.text);
       form.append('lang', payload.lang ?? 'es');
+      if (payload.mode) {
+        form.append('mode', payload.mode);
+      }
+      if (payload.evaluationLevel) {
+        form.append('evaluation_level', payload.evaluationLevel);
+      }
+      if (payload.feedbackLevel) {
+        form.append('feedback_level', payload.feedbackLevel);
+      }
       if (payload.persist) {
         form.append('persist', 'true');
       }

@@ -187,6 +187,30 @@
                   <option value="pt">Portugu�s (pt)</option>
                 </select>
               </div>
+              <div>
+                <label for="feedbackEvaluationLevel" class="block text-sm font-medium text-gray-700 mb-2">Nivel de evaluacion</label>
+                <select id="feedbackEvaluationLevel" name="evaluation_level" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-400">
+                  <option value="phonemic">Fonemico (general)</option>
+                  <option value="phonetic">Fonetico (detallado)</option>
+                </select>
+              </div>
+              <div>
+                <label for="feedbackMode" class="block text-sm font-medium text-gray-700 mb-2">Modo de comparacion</label>
+                <select id="feedbackMode" name="mode" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-400">
+                  <option value="casual">Casual (permisivo)</option>
+                  <option value="objective" selected>Objetivo (balance)</option>
+                  <option value="phonetic">Estricto (detallado)</option>
+                </select>
+              </div>
+              <div>
+                <label for="feedbackLevel" class="block text-sm font-medium text-gray-700 mb-2">Nivel de explicacion</label>
+                <select id="feedbackLevel" name="feedback_level" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-400">
+                  <option value="">Automatico</option>
+                  <option value="casual">Amigable</option>
+                  <option value="precise">Tecnico</option>
+                </select>
+                <p class="mt-1 text-xs text-gray-500">El nivel tecnico es mas detallado y usa terminologia IPA.</p>
+              </div>
               <label class="inline-flex items-center gap-2 text-sm text-gray-600">
                 <input id="feedbackPersist" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500">
                 Guardar resultado localmente
@@ -221,6 +245,7 @@
                 </div>
               </dl>
               <div class="mt-6 space-y-4">
+                <div id="feedbackNotice" class="hidden rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-700"></div>
                 <div>
                   <p class="text-xs uppercase tracking-wide text-gray-500">Summary</p>
                   <p id="feedbackSummary" class="text-gray-700"></p>
@@ -764,12 +789,16 @@
     const feedbackFileInput = document.getElementById('feedbackFile');
     const feedbackTextInput = document.getElementById('feedbackText');
     const feedbackLangSelect = document.getElementById('feedbackLang');
+    const feedbackEvaluationLevel = document.getElementById('feedbackEvaluationLevel');
+    const feedbackModeSelect = document.getElementById('feedbackMode');
+    const feedbackLevelSelect = document.getElementById('feedbackLevel');
     const feedbackPersist = document.getElementById('feedbackPersist');
     const feedbackUseRecordingBtn = document.getElementById('feedbackUseRecordingBtn');
     const feedbackRecordingHint = document.getElementById('feedbackRecordingHint');
     const feedbackStatus = document.getElementById('feedbackStatus');
     const feedbackError = document.getElementById('feedbackError');
     const feedbackResult = document.getElementById('feedbackResult');
+    const feedbackNotice = document.getElementById('feedbackNotice');
     const feedbackPer = document.getElementById('feedbackPer');
     const feedbackTargetIpa = document.getElementById('feedbackTargetIpa');
     const feedbackObservedIpa = document.getElementById('feedbackObservedIpa');
@@ -935,6 +964,7 @@
     function resetFeedbackResult() {
       if (feedbackResult) feedbackResult.classList.add('hidden');
       if (feedbackError) feedbackError.classList.add('hidden');
+      if (feedbackNotice) feedbackNotice.classList.add('hidden');
     }
 
     function setFeedbackStatus(message) {
@@ -976,6 +1006,29 @@
       });
     }
 
+    function renderFeedbackNotice(report, feedback) {
+      if (!feedbackNotice) return;
+      const feedbackWarnings = Array.isArray(feedback?.warnings) ? feedback.warnings : [];
+      const reportWarnings = Array.isArray(report?.warnings) ? report.warnings : [];
+      const warnings = Array.from(new Set([...feedbackWarnings, ...reportWarnings])).filter(Boolean);
+      const confidence = feedback?.confidence || report?.confidence || report?.meta?.confidence;
+      if (!warnings.length && !confidence) {
+        feedbackNotice.classList.add('hidden');
+        return;
+      }
+      const confidenceLabels = { low: 'baja', normal: 'normal', high: 'alta' };
+      const parts = [];
+      if (confidence) {
+        const label = confidenceLabels[confidence] || confidence;
+        parts.push(`Confiabilidad: ${label}`);
+      }
+      if (warnings.length) {
+        parts.push(warnings.join(' '));
+      }
+      feedbackNotice.textContent = parts.join(' - ');
+      feedbackNotice.classList.remove('hidden');
+    }
+
     function renderFeedback(payload) {
       if (!feedbackResult) return;
       const report = payload.report || {};
@@ -1001,6 +1054,7 @@
         feedbackAdviceLong.textContent = feedback.advice_long || '-';
       }
       renderDrills(feedback.drills || []);
+      renderFeedbackNotice(report, feedback);
       feedbackResult.classList.remove('hidden');
     }
 
@@ -1092,6 +1146,9 @@
       resetFeedbackResult();
       setFeedbackError(null);
       const lang = feedbackLangSelect?.value || 'es';
+      const evaluationLevel = feedbackEvaluationLevel?.value || 'phonemic';
+      const modeValue = feedbackModeSelect?.value || 'objective';
+      const feedbackLevel = feedbackLevelSelect?.value || '';
       const textValue = feedbackTextInput?.value?.trim();
       if (!textValue) {
         setFeedbackError('Ingresa el texto de referencia.');
@@ -1102,6 +1159,11 @@
       formData.append('lang', lang);
       formData.append('text', textValue);
       formData.append('audio', blob, filename);
+      formData.append('mode', modeValue);
+      formData.append('evaluation_level', evaluationLevel);
+      if (feedbackLevel) {
+        formData.append('feedback_level', feedbackLevel);
+      }
       if (feedbackPersist?.checked) {
         formData.append('persist', 'true');
       }

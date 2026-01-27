@@ -68,6 +68,16 @@ export interface ErrorReport {
   ops: EditOp[];
   /** Pares de tokens alineados [ref, hyp] */
   alignment: Array<[string | null, string | null]>;
+  /** Modo de evaluacion */
+  mode?: 'casual' | 'objective' | 'phonetic';
+  /** Nivel de evaluacion */
+  evaluation_level?: 'phonemic' | 'phonetic';
+  /** Nivel de feedback */
+  feedback_level?: 'casual' | 'precise';
+  /** Confianza de la comparacion */
+  confidence?: string;
+  /** Advertencias sobre confiabilidad */
+  warnings?: string[];
   /** Codigo de idioma */
   lang: string;
   /** Metadatos adicionales */
@@ -90,6 +100,14 @@ export interface FeedbackPayload {
   advice_long: string;
   /** Ejercicios recomendados */
   drills: FeedbackDrill[];
+  /** Nivel de feedback */
+  feedback_level?: 'casual' | 'precise';
+  /** Tono de explicacion */
+  tone?: 'friendly' | 'technical';
+  /** Confianza del resultado */
+  confidence?: string;
+  /** Advertencias */
+  warnings?: string[];
 }
 
 export interface FeedbackResponse {
