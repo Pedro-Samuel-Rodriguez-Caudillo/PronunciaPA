@@ -15,11 +15,12 @@ async def main():
         print("Running compare...")
         # create a dummy wav file if not exists
         import os
-        if not os.path.exists("test.wav"):
-            with open("test.wav", "wb") as f:
+        test_file = "inputs/debug_test.wav"
+        if not os.path.exists(test_file):
+            with open(test_file, "wb") as f:
                 f.write(b'\x00' * 1024)
                 
-        audio_in = {"path": "test.wav", "sample_rate": 16000, "channels": 1}
+        audio_in = {"path": test_file, "sample_rate": 16000, "channels": 1}
         res = await kernel.run(audio=audio_in, text="hola")
         print("Result:", res)
     except Exception as e:

@@ -1,7 +1,7 @@
 # Configuración local para PronunciaPA
 version: 1
 language_pack: en-us
-model_pack: model/qwen2.5-7b-instruct
+# model_pack: model/qwen2.5-7b-instruct  # Comentado: descomentar cuando el modelo esté descargado
 
 # Preprocesamiento
 preprocessor:
@@ -36,16 +36,24 @@ textref:
 comparator:
   name: levenshtein
 
-# LLM runtime (llama.cpp)
+# LLM runtime (Ollama - TinyLlama or Phi-3)
 llm:
-  name: llama_cpp
+  name: ollama
   params:
-    # Ajusta la ruta del binario si no esta en PATH.
-    binary: llama-cli
-    # Override del modelo si necesitas otra ruta.
-    model_path: data/models/llm/qwen2.5-7b-instruct.gguf
-    n_ctx: 4096
-    n_gpu_layers: 0
+    base_url: http://localhost:11434
+    model: tinyllama  # or phi3:mini for better quality
+    temperature: 0.7
+    num_ctx: 4096
+    timeout: 120
+
+# Alternative: llama.cpp (uncomment if preferred)
+# llm:
+#   name: llama_cpp
+#   params:
+#     binary: llama-cli
+#     model_path: data/models/llm/qwen2.5-7b-instruct.gguf
+#     n_ctx: 4096
+#     n_gpu_layers: 0
 
 # Text-to-speech (Piper con fallback al sistema)
 tts:
