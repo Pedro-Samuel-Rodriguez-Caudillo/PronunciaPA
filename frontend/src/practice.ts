@@ -5,6 +5,7 @@
 
 import { createApiClient, type CompareRequest } from './api';
 import type { CompareResponse, FeedbackResponse } from './types/api';
+import type { IpaCliPayload, IpaExample } from './types/ipa';
 
 // ============================================================================
 // Types
@@ -12,6 +13,7 @@ import type { CompareResponse, FeedbackResponse } from './types/api';
 
 type TranscriptionMode = 'phonemic' | 'phonetic';
 type FeedbackLevel = 'casual' | 'precise';
+type CompareMode = 'casual' | 'objective' | 'phonetic';
 
 interface GameStats {
     level: number;
@@ -27,12 +29,17 @@ interface SessionState {
     lang: string;
     mode: TranscriptionMode;
     feedbackLevel: FeedbackLevel;
+    compareMode: CompareMode;
     referenceText: string;
     isRecording: boolean;
     isProcessing: boolean;
+    isFeedbackLoading: boolean;
     recordingSeconds: number;
     lastResult: CompareResponse | null;
     lastFeedback: FeedbackResponse | null;
+    feedbackError: string | null;
+    ipaPayload: IpaCliPayload | null;
+    ipaError: string | null;
     error: string | null;
 }
 
@@ -61,6 +68,8 @@ const COLORS = {
     info: '#3b82f6',
 };
 
+const DEFAULT_COMPARE_MODE: CompareMode = 'objective';
+
 // ============================================================================
 // State
 // ============================================================================
@@ -69,12 +78,17 @@ let state: SessionState = {
     lang: 'es',
     mode: 'phonemic',
     feedbackLevel: 'casual',
+    compareMode: DEFAULT_COMPARE_MODE,
     referenceText: '',
     isRecording: false,
     isProcessing: false,
+    isFeedbackLoading: false,
     recordingSeconds: 0,
     lastResult: null,
     lastFeedback: null,
+    feedbackError: null,
+    ipaPayload: null,
+    ipaError: null,
     error: null,
 };
 
@@ -124,6 +138,7 @@ function savePreferences(): void {
             lang: state.lang,
             mode: state.mode,
             feedbackLevel: state.feedbackLevel,
+            compareMode: state.compareMode,
         }));
     } catch (e) {
         console.warn('Failed to save preferences', e);
@@ -138,6 +153,7 @@ function loadPreferences(): void {
             state.lang = prefs.lang || 'es';
             state.mode = prefs.mode || 'phonemic';
             state.feedbackLevel = prefs.feedbackLevel || 'casual';
+            state.compareMode = prefs.compareMode || DEFAULT_COMPARE_MODE;
         }
     } catch (e) {
         console.warn('Failed to load preferences', e);
@@ -267,7 +283,10 @@ async function processRecording(): Promise<void> {
     }
 
     state.isProcessing = true;
+    state.isFeedbackLoading = false;
     state.error = null;
+    state.feedbackError = null;
+    state.lastFeedback = null;
     render();
 
     try {
@@ -275,6 +294,7 @@ async function processRecording(): Promise<void> {
             audio: audioBlob,
             text: state.referenceText,
             lang: state.lang,
+            mode: state.compareMode,
             evaluationLevel: state.mode,
         });
 
@@ -294,6 +314,26 @@ async function processRecording(): Promise<void> {
     } catch (err) {
         state.isProcessing = false;
         state.error = err instanceof Error ? err.message : 'Error procesando audio';
+        render();
+        return;
+    }
+
+    state.isFeedbackLoading = true;
+    render();
+    try {
+        const feedback = await api.feedback({
+            audio: audioBlob,
+            text: state.referenceText,
+            lang: state.lang,
+            mode: state.compareMode,
+            evaluationLevel: state.mode,
+            feedbackLevel: state.feedbackLevel,
+        });
+        state.lastFeedback = feedback;
+    } catch (err) {
+        state.feedbackError = err instanceof Error ? err.message : 'No se pudo generar feedback';
+    } finally {
+        state.isFeedbackLoading = false;
         render();
     }
 }
@@ -332,6 +372,89 @@ function getOpColor(op: string): string {
 
 function getLevelName(level: number): string {
     return LEVEL_NAMES[level] || `Nivel ${level}`;
+}
+
+function formatDrillLabel(drill: any): string {
+    if (!drill) return '-';
+    const type = drill.type ? `${drill.type}: ` : '';
+    if (drill.text) return `${type}${drill.text}`;
+    if (Array.isArray(drill.pair)) return `${type}${drill.pair.join(' vs ')}`;
+    if (drill.sound) return `${type}${drill.sound}`;
+    return type.trim() || 'drill';
+}
+
+function buildFeedbackNotice(report: any, feedback: any): string {
+    const warnings = new Set<string>();
+    const addWarnings = (value: any) => {
+        if (Array.isArray(value)) {
+            value.forEach((item) => {
+                if (typeof item === 'string' && item.trim()) warnings.add(item.trim());
+            });
+        }
+    };
+    addWarnings(feedback?.warnings);
+    addWarnings(report?.warnings);
+    addWarnings(report?.meta?.warnings);
+    const confidence =
+        feedback?.confidence || report?.confidence || report?.meta?.confidence || '';
+    if (!warnings.size && !confidence) return '';
+    const confidenceLabels: Record<string, string> = {
+        low: 'baja',
+        normal: 'normal',
+        high: 'alta',
+    };
+    const parts: string[] = [];
+    if (confidence) {
+        parts.push(`Confiabilidad: ${confidenceLabels[confidence] || confidence}`);
+    }
+    if (warnings.size) {
+        parts.push(Array.from(warnings).join(' '));
+    }
+    return parts.join(' - ');
+}
+
+function parseIpaCliPayload(raw: any): IpaCliPayload | null {
+    if (!raw || typeof raw !== 'object') return null;
+    const kind = raw.kind as IpaCliPayload['kind'];
+    if (!kind) return null;
+    if (kind === 'ipa.practice.set' && Array.isArray(raw.items)) return raw;
+    if (kind === 'ipa.explore' && Array.isArray(raw.examples)) return raw;
+    if (kind === 'ipa.practice.result') return raw;
+    if (kind === 'ipa.list-sounds') return raw;
+    return null;
+}
+
+function getIpaExamples(payload: IpaCliPayload | null): IpaExample[] {
+    if (!payload) return [];
+    if (payload.kind === 'ipa.practice.set') return payload.items || [];
+    if (payload.kind === 'ipa.explore') return payload.examples || [];
+    if (payload.kind === 'ipa.practice.result' && payload.item) return [payload.item];
+    return [];
+}
+
+function getIpaSummary(payload: IpaCliPayload | null): string {
+    if (!payload) return 'Sin set cargado.';
+    const count = getIpaExamples(payload).length;
+    const sound = (payload as any).sound?.ipa || '';
+    const kindLabel = payload.kind === 'ipa.explore' ? 'explore' : payload.kind.replace('ipa.', '');
+    return `${sound ? `Sonido ${sound} · ` : ''}${kindLabel} · ${count} ejemplos`;
+}
+
+function loadIpaPayloadFromText(text: string): void {
+    try {
+        const raw = JSON.parse(text);
+        const payload = parseIpaCliPayload(raw);
+        if (!payload) {
+            state.ipaError = 'JSON no compatible con el esquema IPA.';
+            state.ipaPayload = null;
+        } else {
+            state.ipaPayload = payload;
+            state.ipaError = null;
+        }
+    } catch (err) {
+        state.ipaError = err instanceof Error ? err.message : 'No se pudo leer el JSON.';
+        state.ipaPayload = null;
+    }
 }
 
 // ============================================================================
@@ -389,6 +512,106 @@ function renderModeSelector(): string {
       >
         [fonético]
       </button>
+    </div>
+  `;
+}
+
+function renderCompareModeSelector(): string {
+    const helperByMode: Record<CompareMode, string> = {
+        casual: 'Comparacion permisiva para practica diaria.',
+        objective: 'Balance entre precision y consistencia.',
+        phonetic: 'IPA general para practicar sonidos. Sin pack puede tener baja confiabilidad.',
+    };
+
+    return `
+    <div class="option-card">
+      <label class="label">🔍 Modo de comparacion</label>
+      <div class="mode-selector">
+        <button
+          class="mode-btn ${state.compareMode === 'casual' ? 'active' : ''}"
+          data-compare-mode="casual"
+        >
+          Casual
+        </button>
+        <button
+          class="mode-btn ${state.compareMode === 'objective' ? 'active' : ''}"
+          data-compare-mode="objective"
+        >
+          Objetivo
+        </button>
+        <button
+          class="mode-btn ${state.compareMode === 'phonetic' ? 'active' : ''}"
+          data-compare-mode="phonetic"
+        >
+          IPA general
+        </button>
+      </div>
+      <p class="helper-text">${helperByMode[state.compareMode]}</p>
+    </div>
+  `;
+}
+
+function renderIpaImport(): string {
+    const payload = state.ipaPayload;
+    const examples = getIpaExamples(payload);
+    const summary = state.ipaError ? state.ipaError : getIpaSummary(payload);
+    const warnings = payload?.warnings || [];
+    const confidence = payload?.confidence;
+    const warningHtml = warnings.length
+        ? `<p class="ipa-alert">${warnings.join(' ')}</p>`
+        : '';
+    const confidenceHtml = confidence
+        ? `<p class="ipa-meta">Confiabilidad: ${confidence}</p>`
+        : '';
+    const examplesHtml = examples.length
+        ? `
+      <div class="ipa-example-list">
+        ${examples.map((example, idx) => `
+          <button class="ipa-example" data-ipa-example="${idx}">
+            <span class="ipa-example-text">${example.text || '-'}</span>
+            <span class="ipa-example-meta">${example.ipa || ''}</span>
+          </button>
+        `).join('')}
+      </div>
+    `
+        : '<p class="helper-text">Carga un JSON del CLI para ver ejemplos.</p>';
+
+    return `
+    <div class="option-card">
+      <label class="label">📥 Set IPA (CLI JSON)</label>
+      <input id="ipa-json-file" type="file" accept="application/json" class="file-input" />
+      <textarea id="ipa-json-text" class="ipa-json-textarea" rows="4" placeholder="Pega JSON del CLI aqui..."></textarea>
+      <div class="ipa-import-actions">
+        <button id="ipa-json-import" class="secondary-btn">Importar texto</button>
+        <button id="ipa-json-clear" class="secondary-btn" ${payload ? '' : 'disabled'}>Limpiar</button>
+      </div>
+      <p class="helper-text">${summary}</p>
+      ${warningHtml}
+      ${confidenceHtml}
+      ${examplesHtml}
+    </div>
+  `;
+}
+
+function renderFeedbackLevelSelector(): string {
+    return `
+    <div class="option-card">
+      <label class="label">💬 Nivel de explicacion</label>
+      <div class="mode-selector feedback-selector">
+        <button
+          class="mode-btn ${state.feedbackLevel === 'casual' ? 'active' : ''}"
+          data-feedback-level="casual"
+        >
+          Amigable
+        </button>
+        <button
+          class="mode-btn ${state.feedbackLevel === 'precise' ? 'active' : ''}"
+          data-feedback-level="precise"
+        >
+          Tecnico
+        </button>
+      </div>
+      <p class="helper-text">El nivel tecnico usa mas detalle fonetico.</p>
     </div>
   `;
 }
@@ -510,6 +733,52 @@ function renderResults(): string {
   `;
 }
 
+function renderFeedbackPanel(): string {
+    const feedback = state.lastFeedback?.feedback;
+    const report = state.lastFeedback?.report;
+    const notice = buildFeedbackNotice(report, feedback);
+
+    let content = '';
+    if (state.isFeedbackLoading) {
+        content = '<p class="feedback-status">Generando feedback...</p>';
+    } else if (state.feedbackError) {
+        content = `<p class="feedback-error">${state.feedbackError}</p>`;
+    } else if (!feedback) {
+        content = '<p class="feedback-status">Graba tu voz para generar feedback</p>';
+    } else {
+        const drills = feedback.drills || [];
+        const drillsHtml = drills.length
+            ? drills.map((drill: any) => `<span class="feedback-pill">${formatDrillLabel(drill)}</span>`).join('')
+            : '<span class="feedback-empty">Sin drills disponibles.</span>';
+        content = `
+        <div class="feedback-block">
+          <p class="feedback-label">Resumen</p>
+          <p class="feedback-text">${feedback.summary || '-'}</p>
+        </div>
+        <div class="feedback-block">
+          <p class="feedback-label">Consejo</p>
+          <p class="feedback-text">${feedback.advice_short || '-'}</p>
+        </div>
+        <div class="feedback-block">
+          <p class="feedback-label">Detalle</p>
+          <p class="feedback-text">${feedback.advice_long || '-'}</p>
+        </div>
+        <div class="feedback-block">
+          <p class="feedback-label">Drills</p>
+          <div class="feedback-drills">${drillsHtml}</div>
+        </div>
+      `;
+    }
+
+    return `
+    <div class="feedback-section">
+      <h3>💬 Feedback</h3>
+      ${notice ? `<div class="feedback-notice">${notice}</div>` : ''}
+      ${content}
+    </div>
+  `;
+}
+
 function renderStats(): string {
     const xpPercent = (stats.xp / stats.xpToNextLevel) * 100;
 
@@ -561,11 +830,15 @@ function render(): void {
     <main class="main-content">
       <div class="practice-column">
         ${renderModeSelector()}
+        ${renderCompareModeSelector()}
+        ${renderIpaImport()}
+        ${renderFeedbackLevelSelector()}
         ${renderReferenceInput()}
         ${renderRecordButton()}
       </div>
       <div class="results-column">
         ${renderResults()}
+        ${renderFeedbackPanel()}
         ${renderStats()}
       </div>
     </main>
@@ -583,11 +856,83 @@ function attachEventListeners(): void {
     });
 
     // Mode buttons
-    document.querySelectorAll('.mode-btn').forEach(btn => {
+    document.querySelectorAll('[data-mode]').forEach(btn => {
         btn.addEventListener('click', (e) => {
             const mode = (e.target as HTMLElement).dataset.mode as TranscriptionMode;
+            if (!mode) return;
             state.mode = mode;
             savePreferences();
+            render();
+        });
+    });
+
+    // Feedback level buttons
+    document.querySelectorAll('[data-feedback-level]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const level = (e.target as HTMLElement).dataset.feedbackLevel as FeedbackLevel;
+            if (!level) return;
+            state.feedbackLevel = level;
+            savePreferences();
+            render();
+        });
+    });
+
+    // Compare mode buttons
+    document.querySelectorAll('[data-compare-mode]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const mode = (e.target as HTMLElement).dataset.compareMode as CompareMode;
+            if (!mode) return;
+            state.compareMode = mode;
+            savePreferences();
+            render();
+        });
+    });
+
+    // IPA JSON import
+    document.getElementById('ipa-json-file')?.addEventListener('change', async (e) => {
+        const file = (e.target as HTMLInputElement).files?.[0];
+        if (!file) return;
+        try {
+            const text = await file.text();
+            loadIpaPayloadFromText(text);
+        } catch (err) {
+            state.ipaError = err instanceof Error ? err.message : 'No se pudo leer el JSON.';
+            state.ipaPayload = null;
+        }
+        render();
+    });
+
+    document.getElementById('ipa-json-import')?.addEventListener('click', () => {
+        const textarea = document.getElementById('ipa-json-text') as HTMLTextAreaElement | null;
+        const rawText = textarea?.value?.trim() ?? '';
+        if (!rawText) {
+            state.ipaError = 'Pega un JSON valido para importar.';
+            state.ipaPayload = null;
+            render();
+            return;
+        }
+        loadIpaPayloadFromText(rawText);
+        render();
+    });
+
+    document.getElementById('ipa-json-clear')?.addEventListener('click', () => {
+        state.ipaPayload = null;
+        state.ipaError = null;
+        const fileInput = document.getElementById('ipa-json-file') as HTMLInputElement | null;
+        if (fileInput) fileInput.value = '';
+        const textarea = document.getElementById('ipa-json-text') as HTMLTextAreaElement | null;
+        if (textarea) textarea.value = '';
+        render();
+    });
+
+    // IPA example selection
+    document.querySelectorAll('[data-ipa-example]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const index = Number((e.currentTarget as HTMLElement).dataset.ipaExample);
+            const examples = getIpaExamples(state.ipaPayload);
+            const example = examples[index];
+            if (!example?.text) return;
+            state.referenceText = example.text;
             render();
         });
     });
