@@ -4,6 +4,7 @@
  */
 
 import { createApiClient, type CompareRequest } from './api';
+import { RealtimeClient, type StreamState, type TranscriptionResult, type ComparisonResult } from './realtime';
 import type { CompareResponse, FeedbackResponse } from './types/api';
 import type { IpaCliPayload, IpaExample } from './types/ipa';
 
@@ -41,6 +42,12 @@ interface SessionState {
     ipaPayload: IpaCliPayload | null;
     ipaError: string | null;
     error: string | null;
+    // Realtime mode state
+    realtimeEnabled: boolean;
+    realtimeStatus: 'idle' | 'connecting' | 'listening' | 'speaking' | 'processing';
+    realtimeVolume: number;
+    realtimeIpa: string;
+    realtimeScore: number | null;
 }
 
 // ============================================================================
@@ -90,6 +97,12 @@ let state: SessionState = {
     ipaPayload: null,
     ipaError: null,
     error: null,
+    // Realtime mode
+    realtimeEnabled: false,
+    realtimeStatus: 'idle',
+    realtimeVolume: 0,
+    realtimeIpa: '',
+    realtimeScore: null,
 };
 
 let stats: GameStats = loadStats();
@@ -97,6 +110,9 @@ let stats: GameStats = loadStats();
 let mediaRecorder: MediaRecorder | null = null;
 let audioChunks: Blob[] = [];
 let recordingTimer: number | null = null;
+
+// Realtime client instance
+let realtimeClient: RealtimeClient | null = null;
 
 const api = createApiClient();
 
@@ -335,6 +351,167 @@ async function processRecording(): Promise<void> {
     } finally {
         state.isFeedbackLoading = false;
         render();
+    }
+}
+
+// ============================================================================
+// Realtime Mode
+// ============================================================================
+
+function initRealtimeClient(): void {
+    if (realtimeClient) return;
+    
+    realtimeClient = new RealtimeClient({
+        lang: state.lang,
+        referenceText: state.referenceText,
+        mode: state.compareMode,
+    });
+    
+    // Volume updates for visual feedback
+    realtimeClient.onVolume((volume) => {
+        state.realtimeVolume = volume;
+        renderRealtimeVolume();
+    });
+    
+    // State updates from server
+    realtimeClient.onState((streamState: StreamState) => {
+        state.realtimeStatus = streamState.status;
+        renderRealtimeStatus();
+    });
+    
+    // Transcription results (no reference text)
+    realtimeClient.onTranscription((result: TranscriptionResult) => {
+        state.realtimeIpa = result.ipa;
+        state.realtimeStatus = 'listening';
+        renderRealtimeIpa();
+    });
+    
+    // Comparison results (with reference text)
+    realtimeClient.onComparison((result: ComparisonResult) => {
+        state.realtimeIpa = result.userIpa;
+        state.realtimeScore = result.score;
+        state.realtimeStatus = 'listening';
+        
+        // Also update main result for consistency
+        state.lastResult = {
+            user_ipa: result.userIpa,
+            ref_ipa: result.refIpa,
+            per: 1 - result.score,
+            alignment: result.alignment.map(a => [a.ref, a.user]),
+        } as CompareResponse;
+        
+        render();
+    });
+    
+    // Error handling
+    realtimeClient.onError((error) => {
+        console.error('[Realtime] Error:', error);
+        state.error = error.message;
+        state.realtimeStatus = 'idle';
+        render();
+    });
+    
+    // Connection events
+    realtimeClient.onConnected(() => {
+        state.realtimeStatus = 'listening';
+        renderRealtimeStatus();
+    });
+    
+    realtimeClient.onDisconnected(() => {
+        state.realtimeStatus = 'idle';
+        state.realtimeEnabled = false;
+        render();
+    });
+}
+
+async function startRealtimeRecording(): Promise<void> {
+    try {
+        state.error = null;
+        state.realtimeStatus = 'connecting';
+        render();
+        
+        initRealtimeClient();
+        
+        if (realtimeClient) {
+            // Update config before starting
+            realtimeClient.setConfig({
+                lang: state.lang,
+                referenceText: state.referenceText,
+                mode: state.compareMode,
+            });
+            
+            await realtimeClient.startRecording();
+            state.isRecording = true;
+            state.realtimeStatus = 'listening';
+            render();
+        }
+    } catch (err) {
+        state.error = err instanceof Error ? err.message : 'Error iniciando modo realtime';
+        state.realtimeStatus = 'idle';
+        render();
+    }
+}
+
+function stopRealtimeRecording(): void {
+    if (realtimeClient) {
+        realtimeClient.stopRecording();
+    }
+    state.isRecording = false;
+    state.realtimeStatus = 'idle';
+    state.realtimeVolume = 0;
+    render();
+}
+
+function toggleRealtimeMode(): void {
+    state.realtimeEnabled = !state.realtimeEnabled;
+    
+    if (!state.realtimeEnabled && realtimeClient) {
+        // Disconnect when disabling
+        realtimeClient.disconnect();
+        realtimeClient = null;
+    }
+    
+    savePreferences();
+    render();
+}
+
+function renderRealtimeVolume(): void {
+    const volumeBar = document.getElementById('realtime-volume-bar');
+    if (volumeBar) {
+        const percentage = Math.min(100, state.realtimeVolume * 100);
+        volumeBar.style.width = `${percentage}%`;
+        
+        // Color based on volume
+        if (percentage > 70) {
+            volumeBar.style.backgroundColor = COLORS.success;
+        } else if (percentage > 30) {
+            volumeBar.style.backgroundColor = COLORS.primary;
+        } else {
+            volumeBar.style.backgroundColor = COLORS.info;
+        }
+    }
+}
+
+function renderRealtimeStatus(): void {
+    const statusEl = document.getElementById('realtime-status');
+    if (statusEl) {
+        const labels: Record<string, string> = {
+            idle: '⚪ Inactivo',
+            connecting: '🔄 Conectando...',
+            listening: '🎧 Escuchando...',
+            speaking: '🗣️ Voz detectada',
+            processing: '⏳ Procesando...',
+        };
+        statusEl.textContent = labels[state.realtimeStatus] || state.realtimeStatus;
+    }
+}
+
+function renderRealtimeIpa(): void {
+    const ipaEl = document.getElementById('realtime-ipa');
+    if (ipaEl && state.realtimeIpa) {
+        ipaEl.textContent = state.realtimeIpa;
+        ipaEl.classList.add('updated');
+        setTimeout(() => ipaEl.classList.remove('updated'), 300);
     }
 }
 
@@ -631,7 +808,106 @@ function renderReferenceInput(): string {
   `;
 }
 
+function renderRealtimeToggle(): string {
+    return `
+    <div class="option-card realtime-toggle">
+      <label class="label">⚡ Modo Tiempo Real</label>
+      <div class="toggle-container">
+        <button 
+          id="realtime-toggle" 
+          class="toggle-btn ${state.realtimeEnabled ? 'active' : ''}"
+          aria-pressed="${state.realtimeEnabled}"
+        >
+          <span class="toggle-slider"></span>
+          <span class="toggle-label">${state.realtimeEnabled ? 'Activado' : 'Desactivado'}</span>
+        </button>
+      </div>
+      <p class="helper-text">
+        ${state.realtimeEnabled 
+          ? 'Feedback instantáneo mientras hablas (WebSocket)' 
+          : 'Procesa audio completo al detener grabación'}
+      </p>
+    </div>
+  `;
+}
+
+function renderRealtimePanel(): string {
+    if (!state.realtimeEnabled) return '';
+    
+    const statusLabels: Record<string, string> = {
+        idle: '⚪ Listo para grabar',
+        connecting: '🔄 Conectando...',
+        listening: '🎧 Escuchando...',
+        speaking: '🗣️ ¡Voz detectada!',
+        processing: '⏳ Procesando...',
+    };
+    
+    return `
+    <div class="realtime-panel">
+      <div class="realtime-header">
+        <span id="realtime-status" class="realtime-status ${state.realtimeStatus}">
+          ${statusLabels[state.realtimeStatus] || state.realtimeStatus}
+        </span>
+      </div>
+      
+      <div class="volume-meter">
+        <div class="volume-bar-container">
+          <div id="realtime-volume-bar" class="volume-bar" style="width: ${state.realtimeVolume * 100}%"></div>
+        </div>
+        <span class="volume-label">Nivel de voz</span>
+      </div>
+      
+      ${state.realtimeIpa ? `
+        <div class="realtime-ipa-display">
+          <label class="label">Tu pronunciación (IPA):</label>
+          <div id="realtime-ipa" class="ipa-output">${state.realtimeIpa}</div>
+        </div>
+      ` : ''}
+      
+      ${state.realtimeScore !== null ? `
+        <div class="realtime-score">
+          <span class="score-value" style="color: ${getScoreColor(state.realtimeScore)}">
+            ${Math.floor(state.realtimeScore * 100)}%
+          </span>
+          <span class="score-label">Precisión</span>
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
 function renderRecordButton(): string {
+    // Realtime mode recording UI
+    if (state.realtimeEnabled) {
+        if (state.isRecording) {
+            return `
+      <div class="record-section recording realtime-recording">
+        ${renderRealtimePanel()}
+        <div class="recording-indicator">
+          <span class="rec-dot pulse"></span>
+          <span>Grabando en tiempo real...</span>
+        </div>
+        <button id="stop-realtime-btn" class="record-btn stop">
+          <span class="stop-icon">⬛</span>
+        </button>
+        <p class="record-hint">Toca para detener</p>
+      </div>
+    `;
+        }
+        
+        return `
+      <div class="record-section">
+        ${renderRealtimePanel()}
+        <button id="start-realtime-btn" class="record-btn realtime" ${!state.referenceText ? 'disabled' : ''}>
+          <span class="mic-icon">🎤</span>
+          <span class="realtime-badge">⚡</span>
+        </button>
+        <p class="record-hint">${state.referenceText ? 'Toca para grabar (tiempo real)' : 'Primero escribe un texto'}</p>
+      </div>
+    `;
+    }
+    
+    // Standard mode recording UI
     if (state.isRecording) {
         return `
       <div class="record-section recording">
@@ -831,6 +1107,7 @@ function render(): void {
       <div class="practice-column">
         ${renderModeSelector()}
         ${renderCompareModeSelector()}
+        ${renderRealtimeToggle()}
         ${renderIpaImport()}
         ${renderFeedbackLevelSelector()}
         ${renderReferenceInput()}
@@ -941,22 +1218,43 @@ function attachEventListeners(): void {
     document.getElementById('reference-text')?.addEventListener('input', (e) => {
         state.referenceText = (e.target as HTMLInputElement).value;
         // Re-render to update button state
-        const btn = document.getElementById('record-btn');
+        const btn = document.getElementById('record-btn') || document.getElementById('start-realtime-btn');
         if (btn) {
             (btn as HTMLButtonElement).disabled = !state.referenceText;
         }
+        // Update realtime client config if active
+        if (realtimeClient && state.realtimeEnabled) {
+            realtimeClient.setReferenceText(state.referenceText);
+        }
     });
 
-    // Record button
+    // Record button (standard mode)
     document.getElementById('record-btn')?.addEventListener('click', () => {
         if (state.referenceText) {
             startRecording();
         }
     });
 
-    // Stop button
+    // Stop button (standard mode)
     document.getElementById('stop-btn')?.addEventListener('click', () => {
         processRecording();
+    });
+
+    // Realtime mode toggle
+    document.getElementById('realtime-toggle')?.addEventListener('click', () => {
+        toggleRealtimeMode();
+    });
+
+    // Start realtime recording
+    document.getElementById('start-realtime-btn')?.addEventListener('click', () => {
+        if (state.referenceText) {
+            startRealtimeRecording();
+        }
+    });
+
+    // Stop realtime recording
+    document.getElementById('stop-realtime-btn')?.addEventListener('click', () => {
+        stopRealtimeRecording();
     });
 
     // Dismiss error
