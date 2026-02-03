@@ -120,6 +120,9 @@ def load_config(path: str | None = None) -> AppConfig:
         "PRONUNCIAPA_COMPARATOR": ("comparator", "name"),
         "PRONUNCIAPA_PREPROCESSOR": ("preprocessor", "name"),
     }
+    # strict_mode es nivel raíz, no una subsección
+    if "PRONUNCIAPA_STRICT_MODE" in os.environ:
+        data["strict_mode"] = _coerce_env_value(os.environ["PRONUNCIAPA_STRICT_MODE"])
     for env_var, (section, key) in aliases.items():
         if env_var in os.environ:
             data.setdefault(section, {})

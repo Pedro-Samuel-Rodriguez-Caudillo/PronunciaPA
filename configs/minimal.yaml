@@ -1,0 +1,26 @@
+# Configuración mínima de PronunciaPA
+# Usa solo backends stub/grapheme que no requieren modelos externos
+
+version: 1
+strict_mode: false  # Usa fallbacks automáticos si algo falla
+
+backend:
+  name: stub  # Backend ASR de prueba (no requiere modelos)
+  params:
+    require_ipa: false
+
+textref:
+  name: grapheme  # Conversión trivial texto→IPA (no requiere eSpeak)
+  params: {}
+
+comparator:
+  name: levenshtein
+  params: {}
+
+preprocessor:
+  name: basic
+  params: {}
+
+options:
+  lang: es
+  output: json

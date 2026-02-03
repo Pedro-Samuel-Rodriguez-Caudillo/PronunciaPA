@@ -14,6 +14,8 @@ dependencies = [
     "PyYAML>=6.0,<7",
     "typer>=0.9.0,<1",
     "rich>=13.0.0,<14",
+    "allosaurus>=1.0.0,<2",
+    "numpy>=1.26,<3",
 ]
 
 [project.optional-dependencies]
@@ -25,9 +27,7 @@ dev = [
     "mypy>=1.11,<2",
 ]
 speech = [
-    "allosaurus>=1.0.0,<2",
     "sounddevice>=0.4.6,<1",
-    "numpy>=1.26,<3",
     "pydub>=0.25.1,<1",
     "epitran>=1.24,<2",
 ]

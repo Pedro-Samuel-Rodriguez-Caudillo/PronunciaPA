@@ -81,11 +81,13 @@ def create_kernel(cfg: AppConfig) -> Kernel:
     """Crea un `Kernel` resolviendo plugins definidos en la configuración.
     
     Valida que el backend ASR seleccionado produzca IPA si require_ipa=True.
+    Usa strict_mode de la config para determinar comportamiento ante errores.
     """
-    pre = registry.resolve_preprocessor(cfg.preprocessor.name, cfg.preprocessor.params)
-    asr = registry.resolve_asr(cfg.backend.name, cfg.backend.params)
-    textref = registry.resolve_textref(cfg.textref.name, cfg.textref.params)
-    comp = registry.resolve_comparator(cfg.comparator.name, cfg.comparator.params)
+    strict = cfg.strict_mode
+    pre = registry.resolve_preprocessor(cfg.preprocessor.name, cfg.preprocessor.params, strict_mode=strict)
+    asr = registry.resolve_asr(cfg.backend.name, cfg.backend.params, strict_mode=strict)
+    textref = registry.resolve_textref(cfg.textref.name, cfg.textref.params, strict_mode=strict)
+    comp = registry.resolve_comparator(cfg.comparator.name, cfg.comparator.params, strict_mode=strict)
     
     # Validar que ASR produce IPA si es requerido
     require_ipa = cfg.backend.params.get("require_ipa", True)  # Por defecto True
@@ -106,8 +108,8 @@ def create_kernel(cfg: AppConfig) -> Kernel:
     
     language_pack = _load_language_pack(cfg)
     model_pack, model_pack_dir = _load_model_pack(cfg)
-    tts = _resolve_tts(cfg, language_pack)
-    llm = _resolve_llm(cfg, model_pack, model_pack_dir)
+    tts = _resolve_tts(cfg, language_pack, strict_mode=strict)
+    llm = _resolve_llm(cfg, model_pack, model_pack_dir, strict_mode=strict)
     return Kernel(
         pre=pre,
         asr=asr,
@@ -134,20 +136,22 @@ def _load_model_pack(cfg: AppConfig) -> tuple[Optional[ModelPack], Optional[Path
     return load_model_pack(manifest_path), manifest_path.parent
 
 
-def _resolve_tts(cfg: AppConfig, language_pack: Optional[LanguagePack]) -> Optional[TTSProvider]:
+def _resolve_tts(cfg: AppConfig, language_pack: Optional[LanguagePack], *, strict_mode: bool = False) -> Optional[TTSProvider]:
     if cfg.tts is None:
         return None
     name = (cfg.tts.name or "default").lower()
     params = dict(cfg.tts.params or {})
     if language_pack and language_pack.tts:
         name, params = _merge_pack_tts(name, params, language_pack.tts)
-    return registry.resolve_tts(name, params)
+    return registry.resolve_tts(name, params, strict_mode=strict_mode)
 
 
 def _resolve_llm(
     cfg: AppConfig,
     model_pack: Optional[ModelPack],
     model_pack_dir: Optional[Path],
+    *,
+    strict_mode: bool = False,
 ) -> Optional[LLMAdapter]:
     if not model_pack:
         return None
@@ -165,7 +169,7 @@ def _resolve_llm(
         params["prompt_path"] = str(model_pack.prompt.resolve_path(model_pack_dir or Path(".")))
     if "output_schema_path" not in params and model_pack.output_schema:
         params["output_schema_path"] = str(model_pack.output_schema.resolve_path(model_pack_dir or Path(".")))
-    return registry.resolve_llm(name, params)
+    return registry.resolve_llm(name, params, strict_mode=strict_mode)
 
 
 def _merge_pack_tts(name: str, params: dict, pack_tts: TTSConfig) -> Tuple[str, dict]:

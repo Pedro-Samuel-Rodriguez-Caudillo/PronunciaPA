@@ -53,8 +53,22 @@ def register_discovered_plugins() -> None:
     _DISCOVERY_DONE = True
 
 
-def resolve(category: str, name: str, params: dict[str, Any] | None = None) -> Any:
-    """Resuelve e instancia un plugin por categoría y nombre."""
+def resolve(category: str, name: str, params: Optional[Dict[str, Any]] = None, *, strict_mode: bool = False) -> Any:
+    """Resuelve e instancia un plugin por categoría y nombre.
+    
+    Args:
+        category: Categoría del plugin (asr, textref, etc.)
+        name: Nombre del plugin a resolver
+        params: Parámetros de inicialización
+        strict_mode: Si True, falla en errores. Si False, usa fallbacks automáticos.
+    
+    Returns:
+        Instancia del plugin
+        
+    Raises:
+        KeyError: Si plugin no existe y strict_mode=True
+        NotReadyError: Si plugin no está listo y strict_mode=True
+    """
     if category not in _REGISTRY:
         raise ValueError(f"Categoría de plugin inválida: {category}")
     
@@ -68,7 +82,15 @@ def resolve(category: str, name: str, params: dict[str, Any] | None = None) -> A
             register_discovered_plugins()
             
     if name not in _REGISTRY[category]:
-        raise KeyError(f"Plugin '{name}' no encontrado en categoría '{category}'")
+        if strict_mode:
+            raise KeyError(f"Plugin '{name}' no encontrado en categoría '{category}'")
+        # Auto-fallback: Intentar con stub/default según categoría
+        logger.warning(f"⚠️ Plugin '{name}' no encontrado en '{category}'. Usando fallback automático.")
+        fallback_name = _get_fallback(category)
+        if fallback_name and fallback_name in _REGISTRY[category]:
+            name = fallback_name
+        else:
+            raise KeyError(f"Plugin '{name}' no encontrado y sin fallback disponible en '{category}'")
     
     factory = _REGISTRY[category][name]
     return factory(params or {})
@@ -76,11 +98,13 @@ def resolve(category: str, name: str, params: dict[str, Any] | None = None) -> A
 
 def _register_defaults() -> None:
     """Registra las implementaciones por defecto incluidas en el core."""
-    # ASR
+    # ASR - Stub (default ligero)
     from ipa_core.backends.asr_stub import StubASR
     register("asr", "stub", StubASR)
     register("asr", "fake", StubASR)
     register("asr", "default", StubASR)  # En el core ligero, el default es el stub
+    
+    # ASR - ONNX
     try:
         from ipa_core.plugins.asr_onnx import ONNXASRPlugin
     except Exception as exc:
@@ -89,6 +113,30 @@ def _register_defaults() -> None:
         register("asr", "onnx", lambda p: ONNXASRPlugin(p))
         register("asr", "whisper_onnx", lambda p: ONNXASRPlugin(p))
         register("asr", "whisper", lambda p: ONNXASRPlugin(p))
+    
+    # ASR - Allosaurus (IPA directo)
+    try:
+        from ipa_core.plugins.asr_allosaurus import AllosaurusPlugin
+    except Exception as exc:
+        logger.warning("Allosaurus ASR plugin unavailable: %s", exc)
+    else:
+        register("asr", "allosaurus", lambda p: AllosaurusPlugin(p))
+    
+    # ASR - Backend IPA unificado (allosaurus, wav2vec2-ipa, xlsr-ipa)
+    try:
+        from ipa_core.backends.unified_ipa_backend import UnifiedIPABackend
+    except Exception as exc:
+        logger.warning("Unified IPA backend unavailable: %s", exc)
+    else:
+        # Factory que crea y configura el backend
+        def create_unified_backend(p: dict):
+            engine = p.get("engine", "allosaurus")
+            device = p.get("device", "cpu")
+            return UnifiedIPABackend(engine=engine, device=device)
+        
+        register("asr", "unified_ipa", create_unified_backend)
+        register("asr", "wav2vec2-ipa", lambda p: UnifiedIPABackend(engine="wav2vec2-ipa", device=p.get("device", "cpu")))
+        register("asr", "xlsr-ipa", lambda p: UnifiedIPABackend(engine="xlsr-ipa", device=p.get("device", "cpu")))
 
     # TextRef
     from ipa_core.textref.espeak import EspeakTextRef
@@ -146,31 +194,68 @@ def _register_defaults() -> None:
     register_discovered_plugins()
 
 
+def _get_fallback(category: str) -> Optional[str]:
+    """Retorna el nombre de fallback recomendado para cada categoría."""
+    fallbacks = {
+        "asr": "stub",
+        "textref": "grapheme",
+        "comparator": "levenshtein",
+        "preprocessor": "basic",
+        "tts": "default",
+        "llm": "stub",
+    }
+    return fallbacks.get(category)
+
+
 # Resolutores específicos por compatibilidad
-def resolve_asr(name: str, params: dict | None = None) -> Any:
-    return resolve("asr", name, params)
+def resolve_asr(name: str, params: Optional[Dict[str, Any]] = None, *, strict_mode: bool = False) -> Any:
+    """Resuelve backend ASR con auto-fallback opcional.
+    
+    Si strict_mode=False y el backend falla al inicializarse (NotReadyError),
+    retorna automáticamente StubASR y loguea advertencia.
+    """
+    from ipa_core.errors import NotReadyError
+    
+    try:
+        instance = resolve("asr", name, params, strict_mode=strict_mode)
+        return instance
+    except (KeyError, NotReadyError) as e:
+        if strict_mode:
+            raise
+        logger.warning(f"⚠️ ASR backend '{name}' no disponible ({e}). Usando StubASR como fallback.")
+        return resolve("asr", "stub", params)
 
 
-def resolve_textref(name: str, params: dict | None = None) -> Any:
-    return resolve("textref", name, params)
+def resolve_textref(name: str, params: Optional[Dict[str, Any]] = None, *, strict_mode: bool = False) -> Any:
+    """Resuelve proveedor TextRef con auto-fallback opcional."""
+    from ipa_core.errors import NotReadyError
+    
+    try:
+        instance = resolve("textref", name, params, strict_mode=strict_mode)
+        return instance
+    except (KeyError, NotReadyError) as e:
+        if strict_mode:
+            raise
+        logger.warning(f"⚠️ TextRef '{name}' no disponible ({e}). Usando GraphemeTextRef como fallback.")
+        return resolve("textref", "grapheme", params)
 
 
-def resolve_comparator(name: str, params: dict | None = None) -> Any:
-    return resolve("comparator", name, params)
+def resolve_comparator(name: str, params: Optional[Dict[str, Any]] = None, *, strict_mode: bool = False) -> Any:
+    return resolve("comparator", name, params, strict_mode=strict_mode)
 
 
-def resolve_preprocessor(name: str, params: dict | None = None) -> Any:
+def resolve_preprocessor(name: str, params: Optional[Dict[str, Any]] = None, *, strict_mode: bool = False) -> Any:
 
 
-    return resolve("preprocessor", name, params)
+    return resolve("preprocessor", name, params, strict_mode=strict_mode)
 
 
-def resolve_tts(name: str, params: dict | None = None) -> Any:
-    return resolve("tts", name, params)
+def resolve_tts(name: str, params: Optional[Dict[str, Any]] = None, *, strict_mode: bool = False) -> Any:
+    return resolve("tts", name, params, strict_mode=strict_mode)
 
 
-def resolve_llm(name: str, params: dict | None = None) -> Any:
-    return resolve("llm", name, params)
+def resolve_llm(name: str, params: Optional[Dict[str, Any]] = None, *, strict_mode: bool = False) -> Any:
+    return resolve("llm", name, params, strict_mode=strict_mode)
 
 
 

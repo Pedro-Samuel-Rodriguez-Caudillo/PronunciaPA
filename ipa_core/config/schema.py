@@ -67,6 +67,7 @@ class AppConfig(BaseModel):
     """
 
     version: int = CURRENT_SCHEMA_VERSION
+    strict_mode: bool = False  # Si True, falla en errores; si False, usa fallbacks automáticos
     preprocessor: PluginCfg = Field(default_factory=lambda: PluginCfg(name="basic"))
     backend: PluginCfg = Field(default_factory=lambda: PluginCfg(name="stub"))
     textref: PluginCfg = Field(default_factory=lambda: PluginCfg(name="grapheme"))
