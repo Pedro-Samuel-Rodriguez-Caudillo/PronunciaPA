@@ -1,0 +1,685 @@
+# IPA Learning Content for English
+# Educational content to teach users how to produce each sound
+
+language: en
+name: "English (American)"
+
+# Phoneme inventory overview
+inventory:
+  consonants: 24
+  vowels: 14
+  diphthongs: 5
+
+# Learning modules
+modules:
+  - id: "intro-ipa"
+    title: "What is IPA?"
+    description: "The International Phonetic Alphabet is a system to represent speech sounds precisely."
+    content: |
+      IPA uses unique symbols for each sound, unlike regular spelling.
+      For example, 'th' in English represents TWO different sounds:
+      - /θ/ as in 'think' (voiceless)
+      - /ð/ as in 'this' (voiced)
+      
+      Learning IPA helps you:
+      1. Understand exactly what sound to make
+      2. Identify your pronunciation errors
+      3. Learn any language more efficiently
+
+  - id: "consonants-basics"
+    title: "Consonants: Place & Manner"
+    content: |
+      Consonants are described by:
+      - PLACE: Where in your mouth (lips, teeth, tongue position)
+      - MANNER: How air flows (stopped, continuous, etc.)
+      - VOICING: Whether vocal cords vibrate
+
+  - id: "vowels-basics"
+    title: "Vowels: The Vowel Space"
+    content: |
+      Vowels are described by:
+      - HEIGHT: How open your mouth is (close/open)
+      - BACKNESS: Where your tongue is (front/back)
+      - ROUNDING: Whether your lips are rounded
+
+# Detailed sound lessons
+sounds:
+  - id: en/θ
+    ipa: "θ"
+    name: "Voiceless dental fricative"
+    common_name: "TH (as in think)"
+    difficulty: 3
+    
+    articulation:
+      place: "dental"
+      manner: "fricative"
+      voicing: "voiceless"
+      description: |
+        Place tongue TIP between your teeth (or just behind upper teeth).
+        Blow air continuously. Your vocal cords should NOT vibrate.
+    
+    visual_guide:
+      tongue: "Tip touches or goes between upper and lower teeth"
+      teeth: "Slightly open"
+      lips: "Relaxed, slightly open"
+      airflow: "Continuous through the gap"
+    
+    audio_examples:
+      - text: "think"
+        ipa: "/θɪŋk/"
+        focus_position: "initial"
+      - text: "bath"
+        ipa: "/bæθ/"
+        focus_position: "final"
+      - text: "method"
+        ipa: "/ˈmɛθəd/"
+        focus_position: "medial"
+    
+    common_errors:
+      - substitution: "s"
+        example: "think → sink"
+        tip: "Make sure your tongue touches your teeth, not your alveolar ridge"
+      - substitution: "t"
+        example: "think → tink"
+        tip: "Don't stop the air - let it flow continuously"
+      - substitution: "f"
+        example: "think → fink"
+        tip: "Use your tongue, not your lower lip"
+    
+    minimal_pairs:
+      - ["/θɪn/", "thin", "/sɪn/", "sin"]
+      - ["/θɪŋk/", "think", "/sɪŋk/", "sink"]
+      - ["/θri/", "three", "/fri/", "free"]
+      - ["/bæθ/", "bath", "/bæs/", "bass"]
+    
+    drills:
+      - type: "isolation"
+        instruction: "Say just the sound /θ/ by itself"
+        target: "θ"
+      - type: "syllable"
+        instruction: "Practice in simple syllables"
+        targets: ["θa", "θi", "θu", "aθ", "iθ"]
+      - type: "word_initial"
+        instruction: "Words starting with /θ/"
+        targets: ["think", "thin", "three", "throw", "thumb"]
+      - type: "word_final"
+        instruction: "Words ending with /θ/"
+        targets: ["bath", "math", "path", "breath", "truth"]
+      - type: "contrast"
+        instruction: "Distinguish /θ/ from /s/"
+        pairs: [["think", "sink"], ["thick", "sick"], ["path", "pass"]]
+
+  - id: en/ð
+    ipa: "ð"
+    name: "Voiced dental fricative"
+    common_name: "TH (as in this)"
+    difficulty: 3
+    
+    articulation:
+      place: "dental"
+      manner: "fricative"
+      voicing: "voiced"
+      description: |
+        Same tongue position as /θ/, but now VIBRATE your vocal cords.
+        Put your hand on your throat - you should feel vibration.
+    
+    visual_guide:
+      tongue: "Tip touches or goes between upper and lower teeth"
+      teeth: "Slightly open"
+      lips: "Relaxed, slightly open"
+      airflow: "Continuous, with vocal cord vibration"
+    
+    common_errors:
+      - substitution: "d"
+        example: "this → dis"
+        tip: "Don't stop the air - keep it flowing"
+      - substitution: "z"
+        example: "this → zis"
+        tip: "Use your tongue between teeth, not behind them"
+      - substitution: "v"
+        example: "this → vis"
+        tip: "Use your tongue, not your lower lip"
+    
+    minimal_pairs:
+      - ["/ðɪs/", "this", "/dɪs/", "dis"]
+      - ["/ðen/", "then", "/den/", "den"]
+      - ["/briːð/", "breathe", "/briːz/", "breeze"]
+    
+    drills:
+      - type: "contrast_voicing"
+        instruction: "Feel the difference: /θ/ (no vibration) vs /ð/ (vibration)"
+        pairs: [["thin", "this"], ["ether", "either"]]
+      - type: "word_initial"
+        targets: ["this", "that", "the", "then", "there", "they"]
+      - type: "word_medial"
+        targets: ["mother", "father", "brother", "weather", "feather"]
+
+  - id: en/ɹ
+    ipa: "ɹ"
+    name: "Alveolar approximant"
+    common_name: "American R"
+    difficulty: 4
+    
+    articulation:
+      place: "alveolar/postalveolar"
+      manner: "approximant"
+      voicing: "voiced"
+      description: |
+        Curl your tongue tip back (retroflex) OR bunch your tongue in the middle.
+        Lips slightly rounded. Tongue does NOT touch the roof of mouth.
+        This is one of the hardest English sounds for non-native speakers.
+    
+    visual_guide:
+      tongue: "Tip curled back, or tongue bunched, NOT touching roof"
+      teeth: "Slightly apart"
+      lips: "Slightly rounded and protruded"
+      airflow: "Continuous, no friction"
+    
+    common_errors:
+      - substitution: "l"
+        example: "red → led"
+        tip: "Don't let your tongue touch! R is an approximant"
+      - substitution: "w"
+        example: "red → wed"
+        tip: "Pull your tongue back more, less lip rounding"
+      - substitution: "trill/tap"
+        example: "red → (Spanish r)"
+        tip: "English R doesn't tap or trill - tongue stays still"
+    
+    tips:
+      - "Try saying 'uh' and then curling your tongue back"
+      - "Some speakers bunch the tongue instead of curling - both are correct"
+      - "American R is always pronounced; British R only before vowels"
+    
+    drills:
+      - type: "isolation"
+        instruction: "Hold the /ɹ/ sound for 3 seconds"
+        target: "ɹɹɹɹɹ"
+      - type: "vowel_r"
+        instruction: "Practice R after vowels"
+        targets: ["ar", "or", "er", "ir", "ur"]
+      - type: "word_initial"
+        targets: ["red", "right", "run", "road", "rain"]
+      - type: "clusters"
+        targets: ["tree", "train", "grow", "green", "bread"]
+
+  - id: en/æ
+    ipa: "æ"
+    name: "Near-open front unrounded vowel"
+    common_name: "Short A (as in cat)"
+    difficulty: 2
+    
+    articulation:
+      place: "front"
+      height: "near-open"
+      rounding: "unrounded"
+      description: |
+        Open your mouth wide, tongue low and front.
+        It's between 'ah' and 'eh' - a very open 'e' sound.
+        Unique to English - doesn't exist in Spanish, French, etc.
+    
+    visual_guide:
+      tongue: "Low and forward"
+      jaw: "Dropped, mouth fairly open"
+      lips: "Unrounded, spread slightly"
+    
+    common_errors:
+      - substitution: "e"
+        example: "cat → ket"
+        tip: "Open your mouth more - /æ/ is more open than /e/"
+      - substitution: "ɑ"
+        example: "cat → cot"
+        tip: "Keep tongue forward, not back"
+    
+    minimal_pairs:
+      - ["/kæt/", "cat", "/kʌt/", "cut"]
+      - ["/bæd/", "bad", "/bed/", "bed"]
+      - ["/mæn/", "man", "/men/", "men"]
+    
+    drills:
+      - type: "contrast"
+        instruction: "Distinguish /æ/ from /e/"
+        pairs: [["bad", "bed"], ["man", "men"], ["sat", "set"]]
+
+# Additional consonants
+  - id: en/ʃ
+    ipa: "ʃ"
+    name: "Voiceless postalveolar fricative"
+    common_name: "SH (as in ship)"
+    difficulty: 2
+    
+    articulation:
+      place: "postalveolar"
+      manner: "fricative"
+      voicing: "voiceless"
+      description: |
+        Tongue blade near the roof of mouth behind alveolar ridge.
+        Lips slightly rounded. Air flows continuously making a 'shushing' sound.
+    
+    visual_guide:
+      tongue: "Blade raised toward postalveolar region"
+      teeth: "Close together"
+      lips: "Slightly rounded and protruded"
+      airflow: "Continuous friction"
+    
+    common_errors:
+      - substitution: "s"
+        example: "ship → sip"
+        tip: "Pull your tongue back more and round your lips"
+      - substitution: "tʃ"
+        example: "ship → chip"
+        tip: "Don't stop the air - /ʃ/ is continuous, not a stop"
+    
+    minimal_pairs:
+      - ["/ʃɪp/", "ship", "/sɪp/", "sip"]
+      - ["/ʃiːt/", "sheet", "/siːt/", "seat"]
+      - ["/wɒʃ/", "wash", "/wɒs/", "was"]
+    
+    drills:
+      - type: "word_initial"
+        targets: ["ship", "shop", "shoe", "she", "show"]
+      - type: "word_final"
+        targets: ["wash", "fish", "push", "wish", "rush"]
+      - type: "word_medial"
+        targets: ["washing", "fashion", "nation", "ocean"]
+
+  - id: en/ʒ
+    ipa: "ʒ"
+    name: "Voiced postalveolar fricative"
+    common_name: "ZH (as in measure)"
+    difficulty: 3
+    
+    articulation:
+      place: "postalveolar"
+      manner: "fricative"
+      voicing: "voiced"
+      description: |
+        Same position as /ʃ/ but with vocal cord vibration.
+        Rare in English - mostly in French loanwords.
+    
+    common_errors:
+      - substitution: "ʃ"
+        example: "measure → mesher"
+        tip: "Add voicing - feel your throat vibrate"
+      - substitution: "dʒ"
+        example: "measure → med-jure"
+        tip: "Don't stop the air - keep it flowing"
+    
+    drills:
+      - type: "word_medial"
+        targets: ["measure", "pleasure", "treasure", "vision", "decision"]
+
+  - id: en/tʃ
+    ipa: "tʃ"
+    name: "Voiceless postalveolar affricate"
+    common_name: "CH (as in church)"
+    difficulty: 1
+    
+    articulation:
+      place: "postalveolar"
+      manner: "affricate"
+      voicing: "voiceless"
+      description: |
+        Starts like /t/ (stopped) then releases into /ʃ/.
+        A combination of stop + fricative.
+    
+    drills:
+      - type: "words"
+        targets: ["church", "cheese", "child", "watch", "catch", "teacher"]
+      - type: "contrast"
+        instruction: "Distinguish /tʃ/ from /ʃ/"
+        pairs: [["chip", "ship"], ["cheap", "sheep"], ["watch", "wash"]]
+
+  - id: en/dʒ
+    ipa: "dʒ"
+    name: "Voiced postalveolar affricate"
+    common_name: "J (as in judge)"
+    difficulty: 1
+    
+    articulation:
+      place: "postalveolar"
+      manner: "affricate"
+      voicing: "voiced"
+      description: |
+        Voiced version of /tʃ/. Starts like /d/ then releases into /ʒ/.
+    
+    drills:
+      - type: "words"
+        targets: ["judge", "jump", "job", "age", "edge", "large"]
+      - type: "contrast"
+        pairs: [["gin", "chin"], ["jello", "cello"]]
+
+  - id: en/ŋ
+    ipa: "ŋ"
+    name: "Velar nasal"
+    common_name: "NG (as in sing)"
+    difficulty: 2
+    
+    articulation:
+      place: "velar"
+      manner: "nasal"
+      voicing: "voiced"
+      description: |
+        Back of tongue touches velum (soft palate).
+        Air flows through nose. Like /n/ but further back.
+    
+    common_errors:
+      - substitution: "n"
+        example: "sing → sin"
+        tip: "Pull your tongue back - touch the SOFT palate"
+      - insertion: "ŋg"
+        example: "singer → sing-ger"
+        tip: "Don't add a /g/ sound after - just /ŋ/"
+    
+    minimal_pairs:
+      - ["/sɪŋ/", "sing", "/sɪn/", "sin"]
+      - ["/θɪŋ/", "thing", "/θɪn/", "thin"]
+    
+    drills:
+      - type: "words"
+        targets: ["sing", "ring", "thing", "long", "wrong", "singing"]
+
+  - id: en/w
+    ipa: "w"
+    name: "Labial-velar approximant"
+    common_name: "W (as in water)"
+    difficulty: 1
+    
+    articulation:
+      place: "labial-velar"
+      manner: "approximant"
+      voicing: "voiced"
+      description: |
+        Round your lips strongly. Back of tongue raised toward velum.
+        A quick glide from this position to the following vowel.
+    
+    drills:
+      - type: "words"
+        targets: ["water", "want", "way", "week", "world", "would"]
+      - type: "contrast"
+        pairs: [["wine", "vine"], ["west", "vest"], ["wet", "vet"]]
+
+  - id: en/j
+    ipa: "j"
+    name: "Palatal approximant"
+    common_name: "Y (as in yes)"
+    difficulty: 1
+    
+    articulation:
+      place: "palatal"
+      manner: "approximant"
+      voicing: "voiced"
+      description: |
+        Tongue high and front, close to /i/ position.
+        A quick glide from this position to the following vowel.
+    
+    drills:
+      - type: "words"
+        targets: ["yes", "you", "year", "young", "yellow"]
+
+  # VOWELS
+  - id: en/iː
+    ipa: "iː"
+    name: "Close front unrounded vowel"
+    common_name: "Long EE (as in sheep)"
+    difficulty: 1
+    
+    articulation:
+      height: "close"
+      backness: "front"
+      rounding: "unrounded"
+      description: |
+        Tongue high and front. Lips spread (smile).
+        Hold the sound longer than short /ɪ/.
+    
+    minimal_pairs:
+      - ["/ʃiːp/", "sheep", "/ʃɪp/", "ship"]
+      - ["/siːt/", "seat", "/sɪt/", "sit"]
+    
+    drills:
+      - type: "words"
+        targets: ["see", "sheep", "eat", "beach", "team"]
+      - type: "contrast"
+        pairs: [["sheep", "ship"], ["seat", "sit"], ["beat", "bit"]]
+
+  - id: en/ɪ
+    ipa: "ɪ"
+    name: "Near-close front unrounded vowel"
+    common_name: "Short I (as in ship)"
+    difficulty: 2
+    
+    articulation:
+      height: "near-close"
+      backness: "front"
+      rounding: "unrounded"
+      description: |
+        Similar to /iː/ but shorter and more relaxed.
+        Tongue slightly lower and more central.
+    
+    drills:
+      - type: "words"
+        targets: ["ship", "sit", "bit", "will", "give", "this"]
+
+  - id: en/uː
+    ipa: "uː"
+    name: "Close back rounded vowel"
+    common_name: "Long OO (as in food)"
+    difficulty: 1
+    
+    articulation:
+      height: "close"
+      backness: "back"
+      rounding: "rounded"
+      description: |
+        Tongue high and back. Lips strongly rounded.
+    
+    drills:
+      - type: "words"
+        targets: ["food", "moon", "school", "true", "blue"]
+
+  - id: en/ʊ
+    ipa: "ʊ"
+    name: "Near-close back rounded vowel"
+    common_name: "Short OO (as in book)"
+    difficulty: 2
+    
+    articulation:
+      height: "near-close"
+      backness: "back"
+      rounding: "rounded"
+      description: |
+        Similar to /uː/ but shorter and more relaxed.
+    
+    minimal_pairs:
+      - ["/fuːl/", "fool", "/fʊl/", "full"]
+      - ["/puːl/", "pool", "/pʊl/", "pull"]
+    
+    drills:
+      - type: "words"
+        targets: ["book", "good", "look", "put", "foot"]
+
+  - id: en/ʌ
+    ipa: "ʌ"
+    name: "Open-mid back unrounded vowel"
+    common_name: "Short U (as in cup)"
+    difficulty: 2
+    
+    articulation:
+      height: "open-mid"
+      backness: "back"
+      rounding: "unrounded"
+      description: |
+        Mouth fairly open, tongue central-back.
+        Like saying "uh" naturally.
+    
+    minimal_pairs:
+      - ["/kʌt/", "cut", "/kæt/", "cat"]
+      - ["/bʌt/", "but", "/bæt/", "bat"]
+    
+    drills:
+      - type: "words"
+        targets: ["cup", "but", "love", "some", "come", "up"]
+
+  - id: en/ɑː
+    ipa: "ɑː"
+    name: "Open back unrounded vowel"
+    common_name: "AH (as in father)"
+    difficulty: 1
+    
+    articulation:
+      height: "open"
+      backness: "back"
+      rounding: "unrounded"
+      description: |
+        Mouth wide open, tongue low and back.
+        Like saying "ahh" at the doctor.
+    
+    drills:
+      - type: "words"
+        targets: ["father", "car", "heart", "start", "calm"]
+
+  - id: en/ɔː
+    ipa: "ɔː"
+    name: "Open-mid back rounded vowel"
+    common_name: "AW (as in thought)"
+    difficulty: 2
+    
+    articulation:
+      height: "open-mid"
+      backness: "back"
+      rounding: "rounded"
+      description: |
+        Mouth open, tongue back, lips rounded.
+    
+    drills:
+      - type: "words"
+        targets: ["thought", "law", "call", "caught", "bought"]
+
+  - id: en/ə
+    ipa: "ə"
+    name: "Schwa (mid central vowel)"
+    common_name: "Schwa (as in about)"
+    difficulty: 3
+    
+    articulation:
+      height: "mid"
+      backness: "central"
+      rounding: "unrounded"
+      description: |
+        The most common English vowel! Completely relaxed, neutral position.
+        Occurs in unstressed syllables. Like a quick "uh".
+    
+    tips:
+      - "Schwa is NEVER stressed - it only appears in weak syllables"
+      - "Many vowel letters become schwa when unstressed: 'a' in about, 'o' in lemon"
+      - "Mastering schwa is key to natural English rhythm"
+    
+    drills:
+      - type: "words"
+        instruction: "The underlined syllables contain schwa"
+        targets: ["about", "banana", "lemon", "woman", "focus"]
+
+  - id: en/eɪ
+    ipa: "eɪ"
+    name: "Diphthong"
+    common_name: "AY (as in say)"
+    difficulty: 1
+    
+    articulation:
+      description: |
+        Starts at /e/ and glides toward /ɪ/.
+        A smooth movement between two vowel positions.
+    
+    drills:
+      - type: "words"
+        targets: ["say", "day", "make", "late", "rain", "eight"]
+
+  - id: en/aɪ
+    ipa: "aɪ"
+    name: "Diphthong"
+    common_name: "I (as in my)"
+    difficulty: 1
+    
+    articulation:
+      description: |
+        Starts at /a/ (open) and glides up toward /ɪ/.
+    
+    drills:
+      - type: "words"
+        targets: ["my", "time", "like", "right", "fly", "buy"]
+
+  - id: en/ɔɪ
+    ipa: "ɔɪ"
+    name: "Diphthong"
+    common_name: "OY (as in boy)"
+    difficulty: 1
+    
+    articulation:
+      description: |
+        Starts at /ɔ/ (rounded) and glides toward /ɪ/.
+    
+    drills:
+      - type: "words"
+        targets: ["boy", "toy", "oil", "coin", "noise", "enjoy"]
+
+  - id: en/aʊ
+    ipa: "aʊ"
+    name: "Diphthong"
+    common_name: "OW (as in now)"
+    difficulty: 2
+    
+    articulation:
+      description: |
+        Starts at /a/ and glides toward /ʊ/.
+        Mouth opens then rounds.
+    
+    drills:
+      - type: "words"
+        targets: ["now", "how", "out", "house", "down", "about"]
+
+  - id: en/əʊ
+    ipa: "əʊ"
+    name: "Diphthong"
+    common_name: "OH (as in go)"
+    difficulty: 2
+    
+    articulation:
+      description: |
+        Starts at /ə/ and glides toward /ʊ/.
+        Lips progressively round.
+    
+    drills:
+      - type: "words"
+        targets: ["go", "no", "so", "home", "road", "snow"]
+
+# Practice progression
+progression:
+  beginner:
+    - "intro-ipa"
+    - "consonants-basics"
+    - "en/tʃ"
+    - "en/dʒ"
+    - "en/w"
+    - "en/j"
+    - "en/iː"
+    - "en/uː"
+    - "en/eɪ"
+    - "en/aɪ"
+  intermediate:
+    - "en/θ"  # High-value for most learners
+    - "en/ð"
+    - "en/ʃ"
+    - "en/ʒ"
+    - "en/ŋ"
+    - "en/æ"
+    - "en/ɪ"
+    - "en/ʊ"
+    - "en/ʌ"
+  advanced:
+    - "en/ɹ"  # American R is hard
+    - "en/ə"  # Schwa mastery
+    - "en/aʊ"
+    - "en/əʊ"
+    - "vowel_reduction"
+    - "connected_speech"
+    - "stress_patterns"

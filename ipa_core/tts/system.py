@@ -211,21 +211,32 @@ class SystemTTS(BasePlugin):
 
 
 async def _run_command(cmd: list[str], backend: str) -> None:
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.debug(f"Running TTS command: {cmd}")
+    
     try:
         proc = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        _, stderr = await proc.communicate()
+        stdout, stderr = await proc.communicate()
     except FileNotFoundError as exc:
-        raise NotReadyError(f"Failed to execute {backend} backend.") from exc
+        logger.error(f"TTS binary not found: {cmd[0]}")
+        raise NotReadyError(f"Failed to execute {backend} backend: binary not found.") from exc
+    except OSError as exc:
+        logger.error(f"TTS OS error: {exc}")
+        raise ValidationError(f"{backend} invocation failed (OS error): {exc}") from exc
     except Exception as exc:
-        raise ValidationError(f"{backend} invocation failed: {exc}") from exc
+        logger.error(f"TTS unexpected error: {type(exc).__name__}: {exc}")
+        raise ValidationError(f"{backend} invocation failed: {type(exc).__name__}: {exc}") from exc
 
     if proc.returncode != 0:
         detail = stderr.decode(errors="ignore").strip()
-        raise ValidationError(f"{backend} failed with code {proc.returncode}: {detail}")
+        stdout_detail = stdout.decode(errors="ignore").strip()
+        logger.error(f"TTS command failed with code {proc.returncode}: stderr={detail}, stdout={stdout_detail}")
+        raise ValidationError(f"{backend} failed with code {proc.returncode}: {detail or stdout_detail or 'no output'}")
 
 
 def _build_result(

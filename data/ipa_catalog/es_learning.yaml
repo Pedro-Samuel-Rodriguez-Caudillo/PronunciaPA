@@ -1,0 +1,414 @@
+# IPA Learning Content for Spanish (Latin American)
+# Contenido educativo para enseñar a pronunciar cada sonido en español
+
+language: es
+name: "Español (Latinoamérica)"
+
+# Inventario fonético
+inventory:
+  consonants: 18
+  vowels: 5
+  diphthongs: 8
+
+# Módulos de aprendizaje
+modules:
+  - id: "intro-ipa-es"
+    title: "¿Qué es el IPA?"
+    description: "El Alfabeto Fonético Internacional representa sonidos del habla con precisión."
+    content: |
+      El IPA usa símbolos únicos para cada sonido, a diferencia de la ortografía.
+      
+      Por ejemplo, la 'c' en español tiene diferentes sonidos:
+      - /k/ como en 'casa'
+      - /s/ como en 'cena' (en Latinoamérica)
+      - /θ/ como en 'cena' (en España)
+      
+      Aprender IPA te ayuda a:
+      1. Entender exactamente qué sonido producir
+      2. Identificar tus errores de pronunciación
+      3. Aprender cualquier idioma más eficientemente
+
+  - id: "consonantes-basicas"
+    title: "Consonantes: Lugar y Modo"
+    content: |
+      Las consonantes se describen por:
+      - LUGAR: Dónde en la boca (labios, dientes, lengua)
+      - MODO: Cómo fluye el aire (oclusivo, fricativo, etc.)
+      - SONORIDAD: Si vibran las cuerdas vocales
+
+  - id: "vocales-espanol"
+    title: "Las 5 Vocales del Español"
+    content: |
+      El español tiene solo 5 vocales puras (comparado con ~14 en inglés):
+      - /a/ - abierta central
+      - /e/ - media anterior  
+      - /i/ - cerrada anterior
+      - /o/ - media posterior
+      - /u/ - cerrada posterior
+      
+      ¡Esto hace al español más fácil de pronunciar para muchos!
+
+# Lecciones de sonidos
+sounds:
+  # VOCALES
+  - id: es/a
+    ipa: "a"
+    name: "Vocal abierta central"
+    common_name: "A (como en casa)"
+    difficulty: 1
+    
+    articulation:
+      height: "open"
+      backness: "central"
+      rounding: "unrounded"
+      description: |
+        Boca bien abierta, lengua baja y centrada.
+        Es la vocal más abierta del español.
+    
+    visual_guide:
+      tongue: "Baja y centrada"
+      jaw: "Bien abierta"
+      lips: "Relajados, sin redondear"
+    
+    audio_examples:
+      - text: "casa"
+        ipa: "/ˈka.sa/"
+      - text: "mapa"
+        ipa: "/ˈma.pa/"
+    
+    drills:
+      - type: "isolation"
+        instruction: "Di solo el sonido /a/"
+        target: "aaa"
+      - type: "syllables"
+        targets: ["pa", "ta", "ka", "ma", "na"]
+
+  - id: es/e
+    ipa: "e"
+    name: "Vocal media anterior"
+    common_name: "E (como en mesa)"
+    difficulty: 1
+    
+    articulation:
+      height: "mid"
+      backness: "front"
+      rounding: "unrounded"
+      description: |
+        Lengua hacia adelante, a media altura.
+        Boca menos abierta que para /a/.
+    
+    drills:
+      - type: "contrast"
+        instruction: "Distingue /e/ de /i/"
+        pairs: [["peso", "piso"], ["mesa", "misa"]]
+
+  - id: es/i
+    ipa: "i"
+    name: "Vocal cerrada anterior"
+    common_name: "I (como en misa)"
+    difficulty: 1
+    
+    articulation:
+      height: "close"
+      backness: "front"
+      rounding: "unrounded"
+      description: |
+        Lengua alta y hacia adelante.
+        Labios estirados, sonrisa.
+
+  - id: es/o
+    ipa: "o"
+    name: "Vocal media posterior"
+    common_name: "O (como en solo)"
+    difficulty: 1
+    
+    articulation:
+      height: "mid"
+      backness: "back"
+      rounding: "rounded"
+      description: |
+        Lengua hacia atrás, a media altura.
+        Labios redondeados.
+
+  - id: es/u
+    ipa: "u"
+    name: "Vocal cerrada posterior"
+    common_name: "U (como en luna)"
+    difficulty: 1
+    
+    articulation:
+      height: "close"
+      backness: "back"
+      rounding: "rounded"
+      description: |
+        Lengua alta y hacia atrás.
+        Labios muy redondeados y protruidos.
+
+  # CONSONANTES DIFÍCILES
+  - id: es/r
+    ipa: "r"
+    name: "Vibrante múltiple alveolar"
+    common_name: "RR (como en perro)"
+    difficulty: 5
+    
+    articulation:
+      place: "alveolar"
+      manner: "trill"
+      voicing: "voiced"
+      description: |
+        La punta de la lengua vibra contra el paladar alveolar.
+        Requiere flujo de aire constante para mantener la vibración.
+        Es uno de los sonidos más difíciles de aprender.
+    
+    visual_guide:
+      tongue: "Punta toca ligeramente los alvéolos y vibra"
+      teeth: "Ligeramente separados"
+      lips: "Relajados"
+      airflow: "Continuo, hace vibrar la lengua"
+    
+    common_errors:
+      - substitution: "ɹ"
+        example: "perro → (R inglesa)"
+        tip: "La lengua debe VIBRAR, no quedarse quieta"
+      - substitution: "ɾ"
+        example: "perro → pero"
+        tip: "Debe haber MÚLTIPLES vibraciones, no solo una"
+      - substitution: "l"
+        example: "perro → pelo"
+        tip: "El aire pasa por el centro, no por los lados"
+    
+    tips:
+      - "Practica diciendo 'tt' muy rápido: ttttttt"
+      - "Intenta imitar el sonido de un motor: brrrrrm"
+      - "Relaja la lengua - demasiada tensión impide la vibración"
+    
+    minimal_pairs:
+      - ["/ˈpe.ro/", "pero", "/ˈpe.ro/", "perro"]
+      - ["/ˈka.ɾo/", "caro", "/ˈka.ro/", "carro"]
+    
+    drills:
+      - type: "isolation"
+        instruction: "Intenta hacer vibrar la lengua"
+        target: "rrrrrr"
+      - type: "syllable"
+        targets: ["ra", "re", "ri", "ro", "ru"]
+      - type: "word_initial"
+        targets: ["ratón", "rojo", "reír", "rico", "ruta"]
+      - type: "word_medial"
+        targets: ["perro", "carro", "tierra", "guerra"]
+
+  - id: es/ɾ
+    ipa: "ɾ"
+    name: "Vibrante simple alveolar"
+    common_name: "R simple (como en pero)"
+    difficulty: 3
+    
+    articulation:
+      place: "alveolar"
+      manner: "tap"
+      voicing: "voiced"
+      description: |
+        UN solo toque rápido de la lengua contra los alvéolos.
+        Como una 'd' muy rápida, o como 't' en "butter" (inglés americano).
+    
+    common_errors:
+      - substitution: "r"
+        example: "pero → perro"
+        tip: "Solo UN toque, no múltiples vibraciones"
+      - substitution: "ɹ"
+        example: "pero → (R inglesa)"
+        tip: "La lengua debe TOCAR el paladar brevemente"
+    
+    drills:
+      - type: "contrast"
+        instruction: "Distingue /ɾ/ de /r/"
+        pairs: [["pero", "perro"], ["caro", "carro"], ["para", "parra"]]
+
+  - id: es/ɲ
+    ipa: "ɲ"
+    name: "Nasal palatal"
+    common_name: "Ñ (como en niño)"
+    difficulty: 3
+    
+    articulation:
+      place: "palatal"
+      manner: "nasal"
+      voicing: "voiced"
+      description: |
+        El dorso de la lengua toca el paladar duro.
+        El aire sale por la nariz.
+        Similar a 'ny' en inglés "canyon".
+    
+    visual_guide:
+      tongue: "Parte media toca el paladar duro"
+      lips: "Relajados"
+      airflow: "Por la nariz"
+    
+    common_errors:
+      - substitution: "nj"
+        example: "niño → ni-nyo"
+        tip: "Es UN solo sonido, no 'n' + 'y'"
+    
+    drills:
+      - type: "words"
+        targets: ["niño", "año", "España", "mañana", "pequeño"]
+
+  - id: es/x
+    ipa: "x"
+    name: "Fricativa velar sorda"
+    common_name: "J (como en jota)"
+    difficulty: 2
+    
+    articulation:
+      place: "velar"
+      manner: "fricative"
+      voicing: "voiceless"
+      description: |
+        La parte posterior de la lengua se acerca al velo.
+        Aire fricativo (como aclararse la garganta suavemente).
+    
+    audio_examples:
+      - text: "jota"
+        ipa: "/ˈxo.ta/"
+      - text: "gente"
+        ipa: "/ˈxen.te/"
+      - text: "México"
+        ipa: "/ˈme.xi.ko/"
+    
+    drills:
+      - type: "words"
+        targets: ["jugo", "jefe", "gente", "girar", "México"]
+
+  - id: es/ʎ
+    ipa: "ʎ"
+    name: "Lateral palatal"
+    common_name: "LL (como en llamar - España)"
+    difficulty: 4
+    
+    articulation:
+      place: "palatal"
+      manner: "lateral"
+      voicing: "voiced"
+      description: |
+        Lengua toca el paladar como para /ɲ/, pero aire por los lados.
+        En la mayoría de Latinoamérica se pronuncia como /ʝ/ (yeísmo).
+    
+    note: |
+      En la mayoría de países hispanohablantes, LL se pronuncia igual que Y.
+      Esto se llama "yeísmo" y es completamente estándar.
+
+  - id: es/ʝ
+    ipa: "ʝ"
+    name: "Fricativa palatal sonora"
+    common_name: "Y/LL (como en yo)"
+    difficulty: 2
+    
+    articulation:
+      place: "palatal"
+      manner: "fricative"
+      voicing: "voiced"
+      description: |
+        El dorso de la lengua se acerca al paladar.
+        Pronunciación estándar de Y y LL en Latinoamérica.
+    
+    drills:
+      - type: "words"
+        targets: ["yo", "ya", "llamar", "calle", "pollo", "mayo"]
+
+  - id: es/β
+    ipa: "β"
+    name: "Fricativa bilabial sonora"
+    common_name: "B/V suave (entre vocales)"
+    difficulty: 2
+    
+    articulation:
+      place: "bilabial"
+      manner: "fricative"
+      voicing: "voiced"
+      description: |
+        Labios casi juntos pero SIN cerrarse completamente.
+        Ocurre cuando B/V está entre vocales.
+        No existe en inglés.
+    
+    common_errors:
+      - substitution: "b"
+        example: "saber → (B oclusiva)"
+        tip: "Los labios NO deben tocarse completamente"
+      - substitution: "v"
+        example: "saber → (V labiodental inglesa)"
+        tip: "Los dientes NO tocan el labio - es bilabial"
+    
+    audio_examples:
+      - text: "saber"
+        ipa: "/saˈβeɾ/"
+      - text: "lavar"
+        ipa: "/laˈβaɾ/"
+    
+    drills:
+      - type: "contrast"
+        instruction: "B oclusiva vs B fricativa"
+        pairs: [["boca (inicio)", "saber (entre vocales)"]]
+
+  - id: es/ð
+    ipa: "ð"
+    name: "Fricativa dental sonora"
+    common_name: "D suave (entre vocales)"
+    difficulty: 2
+    
+    articulation:
+      place: "dental"
+      manner: "fricative"
+      voicing: "voiced"
+      description: |
+        Lengua entre los dientes, pero SIN cerrar completamente.
+        Ocurre cuando D está entre vocales.
+        Similar al "th" de "this" en inglés.
+    
+    audio_examples:
+      - text: "nada"
+        ipa: "/ˈna.ða/"
+      - text: "todo"
+        ipa: "/ˈto.ðo/"
+
+  - id: es/ɣ
+    ipa: "ɣ"
+    name: "Fricativa velar sonora"
+    common_name: "G suave (entre vocales)"
+    difficulty: 2
+    
+    articulation:
+      place: "velar"
+      manner: "fricative"
+      voicing: "voiced"
+      description: |
+        Parte posterior de lengua cerca del velo, pero sin cerrar.
+        Ocurre cuando G está entre vocales.
+    
+    audio_examples:
+      - text: "lago"
+        ipa: "/ˈla.ɣo/"
+      - text: "fuego"
+        ipa: "/ˈfwe.ɣo/"
+
+# Progresión de práctica
+progression:
+  beginner:
+    - "intro-ipa-es"
+    - "vocales-espanol"
+    - "es/a"
+    - "es/e"
+    - "es/i"
+    - "es/o"
+    - "es/u"
+  intermediate:
+    - "consonantes-basicas"
+    - "es/ɾ"
+    - "es/ɲ"
+    - "es/x"
+    - "es/ʝ"
+  advanced:
+    - "es/r"  # La vibrante múltiple es difícil
+    - "es/β"
+    - "es/ð"
+    - "es/ɣ"
+    - "es/ʎ"

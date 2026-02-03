@@ -2,6 +2,7 @@
 
 from ipa_core.audio.vad import VADResult, analyze_vad
 from ipa_core.audio.quality_gates import QualityIssue, QualityGateResult, check_quality
+from ipa_core.audio.stream import AudioBuffer, AudioSegment, StreamConfig, StreamState
 
 __all__ = [
     "VADResult",
@@ -9,4 +10,8 @@ __all__ = [
     "QualityIssue",
     "QualityGateResult",
     "check_quality",
+    "AudioBuffer",
+    "AudioSegment",
+    "StreamConfig",
+    "StreamState",
 ]
