@@ -1,4 +1,4 @@
-.PHONY: test-unit test-int
+.PHONY: test-unit test-int sync-types
 
 test-unit:
 	PRONUNCIAPA_ASR=stub PYTHONPATH=. pytest \
@@ -15,3 +15,8 @@ test-int:
 		ipa_core/api/tests/test_http_transcription.py \
 		scripts/tests/test_cli_transcribe_stub.py \
 		scripts/tests/test_cli_transcribe_errors.py
+
+sync-types:
+	@echo "🔄 Synchronizing TypeScript API types from OpenAPI schema..."
+	python scripts/sync_api_types.py
+	@echo "✅ Type synchronization complete"
