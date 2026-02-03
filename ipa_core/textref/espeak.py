@@ -57,7 +57,7 @@ class EspeakTextRef(BasePlugin):
         lang = lang or self._default_lang
         return self._VOICE_MAP.get(lang, lang)
 
-    async def to_ipa(self, text: str, *, lang: str, **kw: Any) -> TextRefResult:  # noqa: D401
+    async def to_ipa(self, text: str, *, lang: Optional[str] = None, **kw: Any) -> TextRefResult:  # noqa: D401
         """Convertir texto a IPA usando el binario externo de forma asíncrona."""
         cleaned = text.strip()
         if not cleaned:

@@ -1,4 +1,4 @@
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from pydantic import BaseModel, Field
 
 class TranscriptionResponse(BaseModel):
@@ -6,14 +6,14 @@ class TranscriptionResponse(BaseModel):
     ipa: str = Field(..., description="Transcripción completa en formato IPA", json_schema_extra={"example": "o l a"})
     tokens: List[str] = Field(..., description="Lista de tokens fonéticos extraídos", json_schema_extra={"example": ["o", "l", "a"]})
     lang: str = Field(..., description="Código de idioma utilizado", json_schema_extra={"example": "es"})
-    meta: dict[str, Any] = Field(default_factory=dict, description="Metadatos adicionales del backend")
+    meta: Dict[str, Any] = Field(default_factory=dict, description="Metadatos adicionales del backend")
 
 class TextRefResponse(BaseModel):
     """Respuesta de conversion texto a IPA."""
     ipa: str = Field(..., description="Transcripción en formato IPA", json_schema_extra={"example": "o l a"})
     tokens: List[str] = Field(..., description="Lista de tokens IPA generados", json_schema_extra={"example": ["o", "l", "a"]})
     lang: str = Field(..., description="Código de idioma utilizado", json_schema_extra={"example": "es"})
-    meta: dict[str, Any] = Field(default_factory=dict, description="Metadatos adicionales del proveedor")
+    meta: Dict[str, Any] = Field(default_factory=dict, description="Metadatos adicionales del proveedor")
 
 class EditOp(BaseModel):
     """Operación de edición individual."""
@@ -50,21 +50,21 @@ class CompareResponse(BaseModel):
         json_schema_extra={"example": ["o", "l", "a"]},
     )
     ops: List[EditOp] = Field(..., description="Lista de operaciones de edición realizadas")
-    alignment: List[List[Optional[str]]] = Field(
+    alignment: List[Tuple[Optional[str], Optional[str]]] = Field(
         ...,
         description="Pares de tokens alineados [ref, hyp]",
         json_schema_extra={"example": [["h", "h"], ["o", "u"]]}
     )
-    meta: dict[str, Any] = Field(default_factory=dict, description="Metadatos adicionales de la comparación")
+    meta: Dict[str, Any] = Field(default_factory=dict, description="Metadatos adicionales de la comparación")
 
 class ErrorReport(BaseModel):
     """Reporte canonico de errores usado como input para el LLM."""
     target_text: str = Field(..., description="Texto objetivo")
     target_ipa: str = Field(..., description="IPA objetivo")
     observed_ipa: str = Field(..., description="IPA observado")
-    metrics: dict[str, Any] = Field(default_factory=dict, description="Metricas de comparacion")
+    metrics: Dict[str, Any] = Field(default_factory=dict, description="Metricas de comparacion")
     ops: List[EditOp] = Field(default_factory=list, description="Operaciones de edicion")
-    alignment: List[List[Optional[str]]] = Field(
+    alignment: List[Tuple[Optional[str], Optional[str]]] = Field(
         default_factory=list,
         description="Pares de tokens alineados [ref, hyp]",
     )
@@ -93,13 +93,13 @@ class ErrorReport(BaseModel):
         description="Advertencias sobre confiabilidad o datos incompletos",
     )
     lang: str = Field(..., description="Codigo de idioma")
-    meta: dict[str, Any] = Field(default_factory=dict, description="Metadatos adicionales")
+    meta: Dict[str, Any] = Field(default_factory=dict, description="Metadatos adicionales")
 
 class FeedbackResponse(BaseModel):
     """Respuesta con analisis y feedback generado."""
     report: ErrorReport = Field(..., description="Reporte canonico de errores")
     compare: CompareResponse = Field(..., description="Resultado de comparacion")
-    feedback: dict[str, Any] = Field(..., description="Salida del modelo LLM")
+    feedback: Dict[str, Any] = Field(..., description="Salida del modelo LLM")
 
 class ErrorResponse(BaseModel):
     """Estructura estandarizada para respuestas de error."""

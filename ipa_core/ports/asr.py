@@ -51,6 +51,8 @@ class ASRBackend(Protocol):
         texto que requiere G2P ("text"), o ninguno ("none").
         El kernel rechaza backends con output_type != "ipa" por defecto.
     """
+    
+    output_type: str  # Should be Literal["ipa", "text", "none"] in implementations
 
     async def setup(self) -> None:
         """Configuración inicial del plugin (asíncrona)."""

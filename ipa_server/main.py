@@ -244,6 +244,7 @@ def get_app() -> FastAPI:
         textref: Optional[str] = Form(None, description="Nombre del proveedor texto→IPA"),
         comparator: Optional[str] = Form(None, description="Nombre del comparador"),
         pack: Optional[str] = Form(None, description="Language pack (dialecto) a usar"),
+        persist: Optional[bool] = Form(False, description="Si True, guarda el audio procesado"),
         kernel: Kernel = Depends(_get_kernel)
     ) -> dict[str, Any]:
         """Comparación de audio contra texto de referencia.
@@ -252,6 +253,19 @@ def get_app() -> FastAPI:
         - mode: casual (permisivo), objective (balance), phonetic (estricto)
         - evaluation_level: phonemic (subyacente) o phonetic (superficial)
         """
+        import logging
+        logger = logging.getLogger("ipa_server")
+        logger.info(f"=== /v1/compare REQUEST ===")
+        logger.info(f"audio: {audio.filename if audio else 'None'}")
+        logger.info(f"text: {text}")
+        logger.info(f"lang: {lang}")
+        logger.info(f"mode: {mode}")
+        logger.info(f"evaluation_level: {evaluation_level}")
+        logger.info(f"backend: {backend}")
+        logger.info(f"textref: {textref}")
+        logger.info(f"comparator: {comparator}")
+        logger.info(f"pack: {pack}")
+        
         tmp_path = await _process_upload(audio)
         try:
             if backend:
@@ -260,10 +274,22 @@ def get_app() -> FastAPI:
                 kernel.textref = registry.resolve_textref(textref.lower(), {"default_lang": lang})
             if comparator:
                 kernel.comp = registry.resolve_comparator(comparator.lower(), {})
+            
+            # Cargar language pack si se especifica
+            language_pack = None
             if pack:
-                kernel.pack = registry.resolve_pack(pack.lower())
+                from ipa_core.packs.loader import load_language_pack
+                try:
+                    language_pack = load_language_pack(pack.lower())
+                    kernel.language_pack = language_pack
+                except Exception as e:
+                    import logging
+                    logger = logging.getLogger("ipa_server")
+                    logger.warning(f"No se pudo cargar language pack '{pack}': {e}")
+            
             await kernel.setup()
-            if pack and getattr(kernel, "pack", None):
+            
+            if language_pack:
                 # Comparación usando language pack (derive/collapse + scoring profile)
                 comp_res = await run_pipeline_with_pack(
                     pre=kernel.pre,
@@ -271,7 +297,7 @@ def get_app() -> FastAPI:
                     textref=kernel.textref,
                     audio={"path": str(tmp_path), "sample_rate": 16000, "channels": 1},
                     text=text,
-                    pack=kernel.pack,
+                    pack=language_pack,
                     lang=lang,
                     mode=EvaluationMode(mode),
                     evaluation_level=RepresentationLevel(evaluation_level),
@@ -286,7 +312,8 @@ def get_app() -> FastAPI:
                     "tokens": comp_res.observed.segments,
                     "target": comp_res.target.to_ipa(with_delimiters=False),
                 }
-            # Fallback al comparador clásico
+            
+            # Fallback al comparador clásico (sin language pack)
             service = ComparisonService(
                 preprocessor=kernel.pre,
                 asr=kernel.asr,
@@ -297,19 +324,31 @@ def get_app() -> FastAPI:
             payload = await service.compare_file_detail(str(tmp_path), text, lang=lang)
             res = payload.result
             hyp_tokens = payload.hyp_tokens
+            ref_tokens = payload.ref_tokens  # Get reference tokens
             meta = payload.meta
+            
+            logger.info(f"=== /v1/compare RESULT ===")
+            logger.info(f"ref_tokens: {ref_tokens}")
+            logger.info(f"hyp_tokens: {hyp_tokens}")
+            logger.info(f"per: {res.get('per')}")
+            logger.info(f"ops: {res.get('ops')}")
             
             # Calcular score basado en PER y modo
             per = res.get("per", 0.0)
             base_score = max(0.0, (1.0 - per) * 100.0)
             
+            # Convertir alignment de tuples a lists para JSON
+            alignment = [list(pair) for pair in res.get("alignment", [])]
+            
             return {
                 **res,
+                "alignment": alignment,
                 "score": base_score,
                 "mode": mode,
                 "evaluation_level": evaluation_level,
                 "ipa": " ".join(hyp_tokens),
                 "tokens": hyp_tokens,
+                "target_ipa": " ".join(ref_tokens),  # Add target IPA
                 "meta": meta,
             }
         finally:

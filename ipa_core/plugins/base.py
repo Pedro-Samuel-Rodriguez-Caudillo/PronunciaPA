@@ -1,7 +1,7 @@
 """Base para plugins del sistema.
 """
 from __future__ import annotations
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, Optional
 
 if TYPE_CHECKING:
     from ipa_core.plugins.model_manager import ModelManager
@@ -21,7 +21,7 @@ class BasePlugin:
     output_type: Literal["ipa", "text", "none"] = "none"
 
     def __init__(self) -> None:
-        self._model_manager: ModelManager | None = None
+        self._model_manager: Optional["ModelManager"] = None
 
     @property
     def model_manager(self) -> ModelManager:

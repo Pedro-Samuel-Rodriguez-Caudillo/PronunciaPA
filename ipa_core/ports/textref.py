@@ -54,7 +54,7 @@ class TextRefProvider(Protocol):
         """Limpieza de recursos del plugin (asíncrona)."""
         ...
 
-    async def to_ipa(self, text: str, *, lang: str, **kw) -> TextRefResult:  # noqa: D401
+    async def to_ipa(self, text: str, *, lang: Optional[str] = None, **kw) -> TextRefResult:  # noqa: D401
         """Convertir texto a tokens IPA.
 
         Parámetros
@@ -62,8 +62,9 @@ class TextRefProvider(Protocol):
         text : str
             Texto de entrada a convertir. Se normalizará automáticamente
             (minúsculas, sin puntuación, números expandidos).
-        lang : str
+        lang : Optional[str]
             Idioma objetivo (por ejemplo, "es", "en").
+            Si es None, usa el idioma por defecto de la configuración.
 
         Retorna
         -------

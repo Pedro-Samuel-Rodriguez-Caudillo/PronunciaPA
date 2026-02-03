@@ -176,6 +176,31 @@ class ComparisonResult:
     distance: float = 0.0
     score: float = 100.0
     operations: List[dict] = field(default_factory=list)
+    
+    def to_dict(self) -> dict:
+        """Convert to CompareResult-compatible dict for API responses.
+        
+        Maps ComparisonResult fields to CompareResult format:
+        - operations -> ops
+        - distance included in meta
+        - PhonologicalRepresentation serialized to IPA strings
+        """
+        return {
+            "per": self.distance / max(len(self.target.segments), 1),
+            "ops": self.operations,
+            "alignment": [
+                (self.target.segments[i] if i < len(self.target.segments) else None,
+                 self.observed.segments[i] if i < len(self.observed.segments) else None)
+                for i in range(max(len(self.target.segments), len(self.observed.segments)))
+            ],
+            "meta": {
+                "distance": self.distance,
+                "mode": self.mode,
+                "evaluation_level": self.evaluation_level,
+                "target_ipa": self.target.to_ipa(with_delimiters=False),
+                "observed_ipa": self.observed.to_ipa(with_delimiters=False),
+            },
+        }
 
 
 __all__ = [

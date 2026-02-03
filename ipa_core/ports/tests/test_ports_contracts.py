@@ -69,6 +69,7 @@ def test_llm_adapter_contract() -> None:
 def test_protocols_are_runtime_checkable() -> None:
     """Valida que los protocolos permitan comprobación en tiempo de ejecución."""
     class Dummy:
+        output_type = "ipa"  # Required for ASRBackend
         async def setup(self): pass
         async def teardown(self): pass
         async def transcribe(self, audio, **kw): pass
@@ -89,3 +90,89 @@ def test_protocols_are_runtime_checkable() -> None:
     assert isinstance(d, Preprocessor)
     assert isinstance(d, TTSProvider)
     assert isinstance(d, LLMAdapter)
+
+
+def test_asr_backend_output_type() -> None:
+    """Valida que ASRBackend requiere output_type."""
+    from ipa_core.plugins import registry
+    
+    # Verificar que backends registrados tienen output_type
+    registry._register_defaults()
+    
+    for name in ["stub", "default"]:
+        try:
+            backend = registry.resolve_asr(name, {})
+            assert hasattr(backend, "output_type"), f"Backend '{name}' debe tener atributo output_type"
+            assert backend.output_type in ("ipa", "text", "none"), \
+                f"Backend '{name}' output_type debe ser 'ipa', 'text' o 'none', got '{backend.output_type}'"
+        except KeyError:
+            pass  # Backend no disponible
+
+
+def test_compare_result_types() -> None:
+    """Valida que los resultados de comparación tienen tipos correctos."""
+    from ipa_core.types import CompareResult, EditOp
+    from ipa_core.compare.levenshtein import LevenshteinComparator
+    import asyncio
+    
+    async def check_types():
+        comp = LevenshteinComparator()
+        result = await comp.compare(["a", "b"], ["a", "c"])
+        
+        # Verificar que result cumple con CompareResult
+        assert "per" in result
+        assert isinstance(result["per"], float)
+        assert "ops" in result
+        assert isinstance(result["ops"], list)
+        assert "alignment" in result
+        assert isinstance(result["alignment"], list)
+        
+        # Verificar tipos de alignment (debe ser list[tuple[...]])
+        for pair in result["alignment"]:
+            assert isinstance(pair, tuple)
+            assert len(pair) == 2
+        
+        # Verificar tipos de ops
+        for op in result["ops"]:
+            assert "op" in op
+            assert op["op"] in ("eq", "sub", "ins", "del")
+    
+    asyncio.run(check_types())
+
+
+def test_comparison_result_to_dict() -> None:
+    """Valida que ComparisonResult.to_dict() es compatible con CompareResult."""
+    from ipa_core.phonology.representation import PhonologicalRepresentation, ComparisonResult
+    
+    target = PhonologicalRepresentation.phonemic("ola")
+    observed = PhonologicalRepresentation.phonemic("ula")
+    
+    comp_result = ComparisonResult(
+        target=target,
+        observed=observed,
+        mode="objective",
+        evaluation_level="phonemic",
+        distance=1.0,
+        score=66.7,
+        operations=[
+            {"op": "sub", "ref": "o", "hyp": "u"},
+            {"op": "eq", "ref": "l", "hyp": "l"},
+            {"op": "eq", "ref": "a", "hyp": "a"},
+        ]
+    )
+    
+    dict_result = comp_result.to_dict()
+    
+    # Verificar estructura compatible con CompareResult
+    assert "per" in dict_result
+    assert "ops" in dict_result
+    assert "alignment" in dict_result
+    assert "meta" in dict_result
+    assert isinstance(dict_result["per"], float)
+    assert isinstance(dict_result["ops"], list)
+    assert isinstance(dict_result["alignment"], list)
+    
+    # Verificar que alignment son tuplas
+    for pair in dict_result["alignment"]:
+        assert isinstance(pair, tuple)
+        assert len(pair) == 2

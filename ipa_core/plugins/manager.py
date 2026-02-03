@@ -2,7 +2,7 @@
 """
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import List
+from typing import List, Optional
 import sys
 import subprocess
 from ipa_core.plugins import discovery
@@ -26,7 +26,7 @@ class PluginManager:
     
     PROTECTED_PACKAGES = {"ipa-core", "pronunciapa", "ipa_core"}
 
-    def __init__(self, config_path: str | None = None) -> None:
+    def __init__(self, config_path: Optional[str] = None) -> None:
         self.config_path = config_path
         self._config = None
 

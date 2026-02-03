@@ -1,0 +1,99 @@
+# Suggested Commit Message
+
+```
+fix: Corregir inconsistencias de contratos en arquitectura microkernel
+
+Fixes #[ISSUE_NUMBER]
+
+## Cambios Principales
+
+### 1. Unificación de tipos alignment
+- Cambiar `List[List[Optional[str]]]` a `List[Tuple[Optional[str], Optional[str]]]` en models.py
+- Añadir conversión tuple→list en endpoints para serialización JSON
+- Mantiene compatibilidad con tipos internos (CompareResult usa tuples)
+
+### 2. Método to_dict() en ComparisonResult
+- Permite conversión entre ComparisonResult (rico) y CompareResult (simple)
+- Facilita uso de ambos tipos según contexto (dominio vs API)
+- Mapea operations→ops, serializa PhonologicalRepresentation
+
+### 3. Formalización de output_type en ASRBackend
+- Añadir output_type como atributo de clase en Protocol
+- Mejora type checking estático y runtime
+- Documentación ahora respaldada por código
+
+### 4. Parámetro lang opcional en TextRefProvider
+- Cambiar `lang: str` a `lang: Optional[str] = None`
+- Todas las implementaciones usan fallback a default_lang
+- Simplifica casos de uso con idioma fijo
+
+### 5. Tests de contrato extendidos
+- test_asr_backend_output_type(): Verifica backends registrados
+- test_compare_result_types(): Valida estructura CompareResult
+- test_comparison_result_to_dict(): Compatibilidad entre tipos
+- 10/10 tests pasan ✅
+
+### 6. Infraestructura de sincronización de tipos
+- scripts/sync_api_types.py: Genera TypeScript desde OpenAPI
+- make sync-types / npm run sync-types
+- Single source of truth: Pydantic models → OpenAPI → TypeScript
+
+### 7. Verificación CI de tipos
+- Job verify-api-types en GitHub Actions
+- Falla si tipos frontend desincronizados
+- Previene divergencia API/frontend en PRs
+
+## Testing
+
+```bash
+# Contract tests
+pytest ipa_core/ports/tests/test_ports_contracts.py -v
+# ✅ 10 passed in 21.85s
+
+# Integration tests
+pytest ipa_core/tests/test_stubs_integration.py -v
+# ✅ 4 passed in 3.38s
+```
+
+## Archivos Modificados
+- Core: 5 archivos (ports/, phonology/)
+- Implementaciones: 3 archivos (textref/)
+- API: 2 archivos (ipa_server/)
+- Tests: 1 archivo extendido
+- Infraestructura: 4 archivos (scripts/, Makefile, CI)
+
+Total: 15 archivos modificados, 1 script nuevo
+
+## Breaking Changes
+Ninguno - todos los cambios son internos o backwards-compatible
+
+## Documentación
+- docs/CONTRACT_FIXES_SUMMARY.md: Resumen completo de cambios
+
+Co-authored-by: GitHub Copilot <copilot@github.com>
+```
+
+---
+
+## Instrucciones Post-Merge
+
+1. **Instalar dependencia frontend**:
+   ```bash
+   cd frontend
+   npm install
+   ```
+
+2. **Sincronizar tipos (primera vez)**:
+   ```bash
+   make sync-types
+   # o desde frontend: npm run sync-types
+   ```
+
+3. **Verificar que CI pasa**:
+   - Job `test` debe pasar
+   - Job `verify-api-types` debe pasar
+
+4. **En desarrollo futuro**:
+   - Después de cambios en `ipa_server/models.py`, ejecutar `make sync-types`
+   - Commitear cambios en `frontend/src/types/api.ts` junto con cambios backend
+   - CI fallará si olvidas sincronizar tipos
