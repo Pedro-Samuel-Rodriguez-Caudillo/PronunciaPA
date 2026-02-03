@@ -98,6 +98,171 @@ Visita `http://localhost:5173` para subir audio desde el navegador.
 
 ---
 
+## 🔧 Instalación Completa con Modelos de Producción
+
+### Requisitos del Sistema
+
+- Python 3.9+
+- 4GB RAM mínimo (8GB recomendado con LLM)
+- **Windows**: eSpeak-NG debe instalarse manualmente (ver abajo)
+- **Linux/macOS**: eSpeak-NG disponible via package manager
+
+### Paso 1: Instalar dependencias Python
+
+```bash
+# Activar entorno virtual
+python -m venv .venv
+source .venv/bin/activate  # En Windows: .venv\Scripts\activate
+
+# Instalar PronunciaPA con dependencias de speech
+pip install -e ".[dev,speech]"
+```
+
+### Paso 2: Instalar eSpeak-NG (TextRef provider)
+
+#### Windows
+1. Descargar instalador desde [GitHub Releases](https://github.com/espeak-ng/espeak-ng/releases)
+2. Ejecutar el instalador (típicamente se instala en `C:\Program Files\eSpeak NG\`)
+3. Configurar variable de entorno:
+   ```powershell
+   $env:PRONUNCIAPA_ESPEAK_BIN = "C:\Program Files\eSpeak NG\espeak-ng.exe"
+   ```
+   
+   O agregar permanentemente en Variables de Sistema.
+
+#### Linux
+```bash
+sudo apt-get install espeak-ng
+```
+
+#### macOS
+```bash
+brew install espeak-ng
+```
+
+### Paso 3: Descargar modelos de Allosaurus
+
+```bash
+# Descarga modelos básicos (Allosaurus)
+python scripts/download_models.py
+
+# Con soporte de LLM (TinyLlama)
+python scripts/download_models.py --with-llms
+
+# Con LLM más avanzado (Phi-3)
+python scripts/download_models.py --with-llms --with-phi3
+```
+
+Este script:
+- Descarga el modelo Allosaurus (reconocimiento fonético universal)
+- Configura el cache de modelos en `~/.cache/allosaurus/`
+- Opcionalmente instala modelos LLM via Ollama
+
+### Paso 4: (Opcional) Instalar Ollama para LLM
+
+Si quieres feedback inteligente generado por LLM:
+
+1. Descargar e instalar Ollama desde [ollama.ai/download](https://ollama.ai/download)
+2. Descargar modelo TinyLlama:
+   ```bash
+   ollama pull tinyllama
+   ```
+3. Iniciar servidor Ollama:
+   ```bash
+   ollama serve
+   ```
+
+### Paso 5: Configurar el sistema
+
+Crear `configs/local.yaml` o usar variables de entorno:
+
+```yaml
+version: 1
+strict_mode: false  # Auto-fallback a stubs si algo falla
+
+backend:
+  name: allosaurus  # ASR backend (requiere modelos descargados)
+  params:
+    lang: eng        # Idioma por defecto
+
+textref:
+  name: espeak      # Requiere eSpeak-NG instalado
+  params:
+    default_lang: es
+
+llm:
+  name: ollama      # Requiere Ollama corriendo
+  params:
+    base_url: http://localhost:11434
+    model: tinyllama
+```
+
+**Variables de entorno equivalentes:**
+
+```bash
+export PRONUNCIAPA_STRICT_MODE=false
+export PRONUNCIAPA_ASR=allosaurus
+export PRONUNCIAPA_TEXTREF=espeak
+export PRONUNCIAPA_ESPEAK_BIN="/usr/bin/espeak-ng"  # Solo si no está en PATH
+```
+
+### Paso 6: Verificar instalación
+
+```bash
+# Iniciar servidor
+uvicorn ipa_server.main:get_app --reload --port 8000
+
+# En otro terminal, verificar health
+curl http://localhost:8000/health
+```
+
+**Respuesta esperada:**
+```json
+{
+  "status": "ok",
+  "version": "0.1.0",
+  "strict_mode": false,
+  "components": {
+    "asr": {
+      "name": "allosaurus",
+      "ready": true,
+      "output_type": "ipa"
+    },
+    "textref": {
+      "name": "espeak",
+      "ready": true
+    }
+  },
+  "language_packs": ["en-us"],
+  "local_models": 1
+}
+```
+
+### Modo Strict vs Flexible
+
+- **`strict_mode: false`** (default): Si falta un componente, usa fallback automático (stub/grapheme). Ideal para desarrollo.
+- **`strict_mode: true`**: Falla inmediatamente si falta algún componente. Ideal para producción.
+
+```bash
+# Modo flexible (recomendado para empezar)
+export PRONUNCIAPA_STRICT_MODE=false
+uvicorn ipa_server.main:get_app --reload
+
+# Modo estricto (producción)
+export PRONUNCIAPA_STRICT_MODE=true
+uvicorn ipa_server.main:get_app --reload
+```
+
+### Wizard de Configuración Automático
+
+Al abrir el frontend (`http://localhost:5173`), si detecta componentes faltantes, mostrará automáticamente un wizard que:
+- ✅ Verifica qué está instalado
+- ❌ Muestra qué falta
+- 📋 Proporciona comandos específicos para tu OS
+- 📂 Permite copiar comandos con un click
+
+---
+
 ## 📖 Referencia de API HTTP
 
 ### Endpoints disponibles
