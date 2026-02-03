@@ -1,6 +1,47 @@
 import './style.css';
+import { SetupWizard } from './wizard';
+
+// Auto-verificar health del backend al cargar
+async function checkBackendHealth() {
+  try {
+    const baseUrl = (window as any).PRONUNCIAPA_API_BASE ?? document.body?.dataset?.apiBase ?? 'http://localhost:8000';
+    const response = await fetch(`${baseUrl}/health`, { 
+      method: 'GET',
+      headers: { 'Accept': 'application/json' }
+    });
+    
+    if (!response.ok) {
+      console.warn('Backend health check failed:', response.statusText);
+      return null;
+    }
+    
+    const health = await response.json();
+    
+    // Verificar si hay componentes no listos
+    const hasIssues = !health.components?.asr?.ready || 
+                      !health.components?.textref?.ready;
+    
+    if (hasIssues) {
+      // Mostrar wizard automáticamente
+      const wizard = new SetupWizard('setupWizardContainer', baseUrl);
+      await wizard.show();
+    }
+    
+    return health;
+  } catch (error) {
+    console.error('Failed to check backend health:', error);
+    // Si el backend no responde, también mostrar wizard
+    const baseUrl = 'http://localhost:8000';
+    const wizard = new SetupWizard('setupWizardContainer', baseUrl);
+    await wizard.show();
+    return null;
+  }
+}
+
 // Envolver la lógica que interactúa con el DOM para asegurarnos que el DOM esté cargado
 document.addEventListener('DOMContentLoaded', () => {
+  // Verificar salud del backend al cargar
+  checkBackendHealth().catch(console.error);
   // Mobile menu toggle
   const menuBtn = document.getElementById('menuBtn') as HTMLButtonElement | null;
   const mobileMenu = document.getElementById('mobileMenu') as HTMLElement | null;
