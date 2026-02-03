@@ -8,7 +8,11 @@ import '../providers/api_provider.dart';
 import '../../domain/entities/ipa_cli.dart';
 import 'settings_page.dart';
 import 'results_page.dart';
+import 'ipa_practice_page.dart';
+import 'ipa_learn_page.dart';
+import 'models_page.dart';
 import '../theme/app_theme.dart';
+import '../widgets/app_background.dart';
 
 class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
@@ -33,9 +37,37 @@ class _HomePageState extends ConsumerState<HomePage> {
     final theme = Theme.of(context);
 
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
         title: const Text('PronunciaPA'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.school),
+            onPressed: () {
+               Navigator.of(context).push(
+                 MaterialPageRoute(builder: (_) => const IpaLearnPage()),
+               );
+            },
+            tooltip: 'Learn IPA',
+          ),
+          IconButton(
+            icon: const Icon(Icons.psychology),
+            onPressed: () {
+               Navigator.of(context).push(
+                 MaterialPageRoute(builder: (_) => const IpaPracticePage()),
+               );
+            },
+            tooltip: 'Práctica IPA',
+          ),
+          IconButton(
+            icon: const Icon(Icons.extension),
+            onPressed: () {
+               Navigator.of(context).push(
+                 MaterialPageRoute(builder: (_) => const ModelsPage()),
+               );
+            },
+            tooltip: 'Gestión de Modelos',
+          ),
           IconButton(
             icon: const Icon(Icons.settings),
             onPressed: () {
@@ -46,39 +78,46 @@ class _HomePageState extends ConsumerState<HomePage> {
           )
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _buildTargetCard(theme),
-            const SizedBox(height: 24),
-            
-            // Recorders & Actions
-            Center(
-              child: RecorderWidget(
-                referenceText: _textController.text.isNotEmpty 
-                    ? _textController.text 
-                    : null,
+      body: Stack(
+        children: [
+          const AppBackground(),
+          SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, kToolbarHeight + 24, 20, 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _buildTargetCard(theme),
+                  const SizedBox(height: 24),
+
+                  // Recorders & Actions
+                  Center(
+                    child: RecorderWidget(
+                      referenceText: _textController.text.isNotEmpty
+                          ? _textController.text
+                          : null,
+                    ),
+                  ),
+
+                  const SizedBox(height: 32),
+
+                  // Results Section
+                  if (apiState.isLoading)
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(vertical: 32),
+                        child: CircularProgressIndicator(),
+                      ),
+                    )
+                  else if (apiState.error != null)
+                    _buildErrorCard(theme, apiState.error!)
+                  else if (apiState.result != null)
+                    _buildResultTrigger(context, apiState.result!),
+                ],
               ),
             ),
-            
-            const SizedBox(height: 32),
-            
-            // Results Section
-            if (apiState.isLoading)
-              const Center(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(vertical: 32),
-                  child: CircularProgressIndicator(),
-                ),
-              )
-            else if (apiState.error != null)
-              _buildErrorCard(theme, apiState.error!)
-            else if (apiState.result != null)
-              _buildResultTrigger(context, apiState.result!),
-          ],
-        ),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showIpaImportDialog(context),
@@ -93,55 +132,63 @@ class _HomePageState extends ConsumerState<HomePage> {
     // Para simplificar, mostramos el botón de resultados aquí.
     return Padding(
       padding: const EdgeInsets.only(top: 24),
-      child: ElevatedButton.icon(
+      child: GradientButton(
         onPressed: () => _navigateToResults(context, result),
-        icon: const Icon(Icons.insights),
-        label: const Text('Ver Análisis Detallado'),
-        style: ElevatedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-          foregroundColor: Theme.of(context).colorScheme.onPrimaryContainer,
+        gradient: AppTheme.coolGradient,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: const [
+            Icon(Icons.insights, color: Colors.white),
+            SizedBox(width: 8),
+            Text(
+              'Ver análisis detallado',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+            ),
+          ],
         ),
       ),
     );
   }
 
   void _navigateToResults(BuildContext context, TranscriptionResult result) {
-    // Convertir alignment a PhonemeResult si existe
+    // Convertir ops a PhonemeResult si existe
     List<PhonemeResult> phonemes = [];
-    if (result.alignment != null) {
-      for (var item in (result.alignment as List)) {
-        if (item is List && item.length >= 2) {
-          final ref = item[0]?.toString();
-          final hyp = item[1]?.toString();
-          
-          PhonemeOperation op;
-          String phoneme;
-          
-          if (ref == hyp) {
-            op = PhonemeOperation.correct;
-            phoneme = ref ?? '';
-          } else if (ref == null) {
-            op = PhonemeOperation.insert;
-            phoneme = hyp ?? '';
-          } else if (hyp == null) {
-            op = PhonemeOperation.delete;
-            phoneme = ref ?? '';
-          } else {
-            op = PhonemeOperation.substitute;
-            phoneme = hyp ?? ''; // Mostramos lo que dijo el usuario
-          }
-          
-          phonemes.add(PhonemeResult(phoneme: phoneme, operation: op));
+    if (result.ops != null) {
+      for (var op in result.ops!) {
+        PhonemeOperation operation;
+        String phoneme;
+        
+        switch (op.op) {
+          case 'eq':
+            operation = PhonemeOperation.correct;
+            phoneme = op.hyp ?? op.ref ?? '';
+            break;
+          case 'sub':
+            operation = PhonemeOperation.substitute;
+            phoneme = op.hyp ?? ''; // Mostramos lo que dijo el usuario
+            break;
+          case 'del':
+            operation = PhonemeOperation.delete;
+            phoneme = op.ref ?? '';
+            break;
+          case 'ins':
+            operation = PhonemeOperation.insert;
+            phoneme = op.hyp ?? '';
+            break;
+          default:
+            operation = PhonemeOperation.correct;
+            phoneme = op.hyp ?? op.ref ?? '';
         }
+        
+        phonemes.add(PhonemeResult(phoneme: phoneme, operation: operation));
       }
     }
 
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => ResultsPage(
-          score: result.score != null ? (1.0 - result.score!) * 100 : 0.0,
-          targetIpa: result.meta?['target_ipa'] ?? '',
+          score: result.score ?? 0.0, // Backend now returns 0-100
+          targetIpa: result.targetIpa ?? result.meta?['target_ipa'] ?? '',
           observedIpa: result.ipa,
           phonemes: phonemes,
           feedback: result.meta?['feedback']?['summary'],
@@ -151,39 +198,35 @@ class _HomePageState extends ConsumerState<HomePage> {
   }
 
   Widget _buildTargetCard(ThemeData theme) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              "Target Phrase",
-              style: theme.textTheme.labelMedium?.copyWith(
-                color: theme.colorScheme.primary,
-                fontWeight: FontWeight.bold,
+    return GlassCard(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Frase objetivo',
+            style: theme.textTheme.labelLarge?.copyWith(
+              color: theme.colorScheme.primary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _textController,
+            style: theme.textTheme.headlineSmall,
+            decoration: InputDecoration(
+              hintText: 'Escribe lo que vas a decir...',
+              hintStyle: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _textController,
-              style: theme.textTheme.headlineSmall,
-              decoration: const InputDecoration(
-                hintText: 'Type what to say...',
-                border: InputBorder.none,
-                hintStyle: TextStyle(color: Colors.black26),
-              ),
-              maxLines: null,
-              onChanged: (_) => setState(() {}),
-            ),
-            if (_ipaPayload != null) ...[
-              const Divider(height: 32),
-              _buildPayloadInfo(theme),
-            ]
-          ],
-        ),
+            maxLines: null,
+            onChanged: (_) => setState(() {}),
+          ),
+          if (_ipaPayload != null) ...[
+            const Divider(height: 32),
+            _buildPayloadInfo(theme),
+          ]
+        ],
       ),
     );
   }
@@ -218,88 +261,110 @@ class _HomePageState extends ConsumerState<HomePage> {
   }
 
   Widget _buildErrorCard(ThemeData theme, String error) {
-    return Card(
-      color: theme.colorScheme.errorContainer,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Icon(Icons.error_outline, color: theme.colorScheme.error),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                error,
-                style: TextStyle(color: theme.colorScheme.error),
-              ),
+    return GlassCard(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          Icon(Icons.error_outline, color: theme.colorScheme.error),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              error,
+              style: TextStyle(color: theme.colorScheme.error),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildResultCard(ThemeData theme, TranscriptionResult result) {
-    final score = result.score != null ? ((1 - result.score!) * 100) : 0.0;
+    final score = result.score ?? 0.0; // Backend now returns 0-100
     final isGood = score > 80;
 
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text("Result", style: theme.textTheme.titleMedium),
-                    if (result.score != null)
-                      Text(
-                        "${score.toStringAsFixed(0)}% Match",
-                        style: theme.textTheme.headlineMedium?.copyWith(
-                          color: isGood ? Colors.green : Colors.orange,
-                          fontWeight: FontWeight.bold,
-                        ),
+    return GlassCard(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text("Resultado", style: theme.textTheme.titleMedium),
+                  if (result.score != null)
+                    Text(
+                      "${score.toStringAsFixed(0)}% Match",
+                      style: theme.textTheme.headlineMedium?.copyWith(
+                        color: isGood ? AppTheme.success : AppTheme.warning,
+                        fontWeight: FontWeight.bold,
                       ),
-                  ],
-                ),
-                Icon(
-                  isGood ? Icons.check_circle : Icons.warning_amber,
-                  size: 48,
-                  color: isGood ? Colors.green.shade300 : Colors.orange.shade300,
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            Text("Phonetic Breakdown", style: theme.textTheme.labelLarge),
-            const SizedBox(height: 12),
-            
-            if (result.alignment != null)
-              DiffViewerWidget(
-                tokens: (result.alignment as List).map((item) {
-                  final text = item[0].toString();
-                  final tagStr = item[1].toString();
-                  DiffTag tag;
-                  if (tagStr == 'correct' || tagStr == 'match') {
+                    ),
+                ],
+              ),
+              Icon(
+                isGood ? Icons.check_circle : Icons.warning_amber,
+                size: 48,
+                color: isGood ? AppTheme.success : AppTheme.warning,
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          Text("Phonetic Breakdown", style: theme.textTheme.labelLarge),
+          const SizedBox(height: 12),
+
+          if (result.ops != null && result.ops!.isNotEmpty)
+            DiffViewerWidget(
+              tokens: result.ops!.map((op) {
+                DiffTag tag;
+                switch (op.op) {
+                  case 'eq':
                     tag = DiffTag.match;
-                  } else if (tagStr == 'substitute') {
+                    break;
+                  case 'sub':
                     tag = DiffTag.substitution;
-                  } else if (tagStr == 'delete') {
+                    break;
+                  case 'del':
                     tag = DiffTag.deletion;
-                  } else {
+                    break;
+                  case 'ins':
                     tag = DiffTag.insertion;
-                  }
-                  return DiffToken(text, tag);
-                }).toList(),
-              )
-            else
-               IpaDisplayWidget(label: "Raw IPA", ipa: result.ipa),
-          ],
-        ),
+                    break;
+                  default:
+                    tag = DiffTag.match;
+                }
+                return DiffToken(op.hyp ?? op.ref ?? '', tag);
+              }).toList(),
+            )
+          else if (result.alignment != null)
+            _buildLegacyAlignment(result.alignment!)
+          else
+            IpaDisplayWidget(label: "Raw IPA", ipa: result.ipa),
+        ],
       ),
+    );
+  }
+
+  Widget _buildLegacyAlignment(List<List<String?>> alignment) {
+    // Fallback for old-style alignment display
+    return Wrap(
+      spacing: 8,
+      runSpacing: 12,
+      alignment: WrapAlignment.center,
+      children: alignment.map((pair) {
+        final ref = pair[0];
+        final hyp = pair[1];
+        final match = ref == hyp;
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: match ? Colors.green.withOpacity(0.15) : Colors.red.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(hyp ?? ref ?? '', style: const TextStyle(fontFamily: 'monospace')),
+        );
+      }).toList(),
     );
   }
 
