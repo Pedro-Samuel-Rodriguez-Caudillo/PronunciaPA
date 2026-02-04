@@ -194,6 +194,7 @@
               <div>
                 <label for="feedbackEvaluationLevel" class="block text-sm font-medium text-gray-700 mb-2">Nivel de evaluacion</label>
                 <select id="feedbackEvaluationLevel" name="evaluation_level" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-400">
+                  <option value="auto" selected>Auto (adaptativo)</option>
                   <option value="phonemic">Fonemico (general)</option>
                   <option value="phonetic">Fonetico (detallado)</option>
                 </select>
@@ -201,8 +202,9 @@
               <div>
                 <label for="feedbackMode" class="block text-sm font-medium text-gray-700 mb-2">Modo de comparacion</label>
                 <select id="feedbackMode" name="mode" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-400">
+                  <option value="auto" selected>Auto (adaptativo)</option>
                   <option value="casual">Casual (permisivo)</option>
-                  <option value="objective" selected>Objetivo (balance)</option>
+                  <option value="objective">Objetivo (balance)</option>
                   <option value="phonetic">Estricto (detallado)</option>
                 </select>
               </div>
@@ -312,6 +314,19 @@
           </p>
         </div>
         <div class="space-y-8">
+          <div class="bg-white border border-gray-200 rounded-2xl shadow-xl p-6">
+            <div class="flex items-start justify-between gap-4">
+              <div>
+                <h3 class="text-xl font-semibold text-gray-800">Perfil adaptativo</h3>
+                <p class="text-sm text-gray-600">Se calibra con tu micrófono y ajusta el análisis automáticamente.</p>
+              </div>
+            </div>
+            <div class="mt-4 flex flex-col sm:flex-row gap-3">
+              <input id="userIdInput" type="text" readonly class="flex-1 border border-gray-200 rounded-xl px-4 py-2 text-sm font-mono text-gray-700 bg-gray-50" value="">
+              <button id="resetProfileBtn" type="button" class="bg-white border border-purple-300 text-purple-700 px-4 py-2 rounded-xl font-semibold hover:bg-purple-50 transition-colors">Recalibrar</button>
+            </div>
+            <p id="userProfileHint" class="mt-2 text-xs text-gray-500">Calibrando tu perfil...</p>
+          </div>
           <div class="bg-white border border-gray-200 rounded-2xl shadow-xl p-8">
           <h3 class="text-2xl font-semibold text-gray-800 mb-4">Sube o graba tu audio</h3>
           <p class="text-gray-600 mb-6">Aceptamos WAV/MP3 y también puedes usar el micrófono para generar un clip rápido.</p>
@@ -789,6 +804,9 @@
     const recordBtn = document.getElementById('recordBtn');
     const stopRecordBtn = document.getElementById('stopRecordBtn');
     const recordingBadge = document.getElementById('recordingBadge');
+    const userIdInput = document.getElementById('userIdInput');
+    const resetProfileBtn = document.getElementById('resetProfileBtn');
+    const userProfileHint = document.getElementById('userProfileHint');
     const feedbackForm = document.getElementById('feedbackForm');
     const feedbackFileInput = document.getElementById('feedbackFile');
     const feedbackTextInput = document.getElementById('feedbackText');
@@ -817,6 +835,69 @@
     let lastRecordingBlob = null;
     let lastRecordingName = null;
     let lastRecordingAt = null;
+    let activeUserId = null;
+
+    const USER_ID_KEY = 'pronunciapa_user_id';
+
+    function generateUserId() {
+      if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+        return window.crypto.randomUUID();
+      }
+      return `user_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+    }
+
+    function setUserId(id) {
+      activeUserId = id;
+      try {
+        localStorage.setItem(USER_ID_KEY, id);
+      } catch (_err) {
+        // noop
+      }
+      if (userIdInput) {
+        userIdInput.value = id;
+      }
+      if (userProfileHint) {
+        userProfileHint.textContent = 'Calibrando tu perfil...';
+      }
+    }
+
+    function ensureUserId() {
+      if (activeUserId) return activeUserId;
+      let stored = null;
+      try {
+        stored = localStorage.getItem(USER_ID_KEY);
+      } catch (_err) {
+        stored = null;
+      }
+      if (!stored) {
+        stored = generateUserId();
+      }
+      setUserId(stored);
+      return stored;
+    }
+
+    function updateUserProfileHint(userProfile) {
+      if (!userProfileHint) return;
+      const profile = userProfile?.profile || userProfile;
+      const samples = profile?.samples ?? null;
+      if (typeof samples === 'number') {
+        if (samples < 3) {
+          userProfileHint.textContent = `Calibrando: ${samples}/3 muestras.`;
+        } else {
+          userProfileHint.textContent = `Perfil calibrado: ${samples} muestras.`;
+        }
+        return;
+      }
+      userProfileHint.textContent = 'Perfil listo para calibrar.';
+    }
+
+    ensureUserId();
+    if (resetProfileBtn) {
+      resetProfileBtn.addEventListener('click', () => {
+        setUserId(generateUserId());
+        updateUserProfileHint(null);
+      });
+    }
 
     if (apiBaseHint) {
       apiBaseHint.textContent = `${TRANSCRIBE_ENDPOINT} | ${TEXTREF_ENDPOINT} | ${FEEDBACK_ENDPOINT}`;
@@ -908,6 +989,7 @@
       ipaLangValue.textContent = payload.lang || '-';
       ipaBackend.textContent = payload.meta?.backend || '-';
       renderTokens(tokens);
+      updateUserProfileHint(payload.meta?.user_profile);
       ipaResult.classList.remove('hidden');
     }
 
@@ -1016,6 +1098,7 @@
       const reportWarnings = Array.isArray(report?.warnings) ? report.warnings : [];
       const warnings = Array.from(new Set([...feedbackWarnings, ...reportWarnings])).filter(Boolean);
       const confidence = feedback?.confidence || report?.confidence || report?.meta?.confidence;
+      const profileSamples = report?.meta?.user_profile?.profile?.samples;
       if (!warnings.length && !confidence) {
         feedbackNotice.classList.add('hidden');
         return;
@@ -1025,6 +1108,9 @@
       if (confidence) {
         const label = confidenceLabels[confidence] || confidence;
         parts.push(`Confiabilidad: ${label}`);
+      }
+      if (typeof profileSamples === 'number' && profileSamples < 3) {
+        parts.push(`Calibrando perfil (${profileSamples}/3).`);
       }
       if (warnings.length) {
         parts.push(warnings.join(' '));
@@ -1059,6 +1145,7 @@
       }
       renderDrills(feedback.drills || []);
       renderFeedbackNotice(report, feedback);
+      updateUserProfileHint(report?.meta?.user_profile || compare?.meta?.user_profile);
       feedbackResult.classList.remove('hidden');
     }
 
@@ -1078,8 +1165,12 @@
       setError(null);
       setStatus('Procesando audio...');
       const lang = ipaLangSelect?.value || 'es';
+      const userId = ensureUserId();
       const formData = new FormData();
       formData.append('lang', lang);
+      if (userId) {
+        formData.append('user_id', userId);
+      }
       formData.append('audio', blob, filename);
       try {
         const response = await fetch(TRANSCRIBE_ENDPOINT, { method: 'POST', body: formData });
@@ -1152,6 +1243,7 @@
       const lang = feedbackLangSelect?.value || 'es';
       const evaluationLevel = feedbackEvaluationLevel?.value || 'phonemic';
       const modeValue = feedbackModeSelect?.value || 'objective';
+      const userId = ensureUserId();
       const feedbackLevel = feedbackLevelSelect?.value || '';
       const textValue = feedbackTextInput?.value?.trim();
       if (!textValue) {
@@ -1165,6 +1257,9 @@
       formData.append('audio', blob, filename);
       formData.append('mode', modeValue);
       formData.append('evaluation_level', evaluationLevel);
+      if (userId) {
+        formData.append('user_id', userId);
+      }
       if (feedbackLevel) {
         formData.append('feedback_level', feedbackLevel);
       }

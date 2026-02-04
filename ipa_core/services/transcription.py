@@ -15,6 +15,8 @@ from ipa_core.ports.textref import TextRefProvider
 from ipa_core.preprocessor_basic import BasicPreprocessor
 from ipa_core.types import AudioInput, Token
 from ipa_core.plugins import registry
+from ipa_core.normalization.resolve import load_inventory_for
+from ipa_core.services.audio_quality import assess_audio_quality
 
 
 @dataclass
@@ -64,25 +66,48 @@ class TranscriptionService:
                     pass
             raise
 
-    async def transcribe_file(self, path: str, *, lang: Optional[str] = None) -> TranscriptionPayload:
+    async def transcribe_file(
+        self,
+        path: str,
+        *,
+        lang: Optional[str] = None,
+        user_id: Optional[str] = None,
+    ) -> TranscriptionPayload:
         """Transcribir archivo de audio de forma asíncrona."""
         wav_path, tmp = ensure_wav(path)
         try:
-            return await self._run_pipeline(wav_path, lang=lang)
+            return await self._run_pipeline(wav_path, lang=lang, user_id=user_id)
         finally:
             if tmp:
                 cleanup_temp(wav_path)
 
-    async def transcribe_bytes(self, data: bytes, *, filename: str = "stream.wav", lang: Optional[str] = None) -> TranscriptionPayload:
+    async def transcribe_bytes(
+        self,
+        data: bytes,
+        *,
+        filename: str = "stream.wav",
+        lang: Optional[str] = None,
+        user_id: Optional[str] = None,
+    ) -> TranscriptionPayload:
         """Transcribir bytes de audio de forma asíncrona."""
         suffix = Path(filename).suffix or ".wav"
         tmp_original = persist_bytes(data, suffix=suffix)
         try:
-            return await self.transcribe_file(tmp_original, lang=lang)
+            return await self.transcribe_file(tmp_original, lang=lang, user_id=user_id)
         finally:
             cleanup_temp(tmp_original)
 
-    async def _run_pipeline(self, wav_path: str, *, lang: Optional[str]) -> TranscriptionPayload:
+    async def _run_pipeline(
+        self,
+        wav_path: str,
+        *,
+        lang: Optional[str],
+        user_id: Optional[str],
+    ) -> TranscriptionPayload:
+        quality_res, quality_warnings, profile_meta = assess_audio_quality(
+            wav_path,
+            user_id=user_id,
+        )
         audio = to_audio_input(wav_path)
         pre_audio_res = await self.pre.process_audio(audio)
         processed_audio = pre_audio_res.get("audio", audio)
@@ -95,12 +120,25 @@ class TranscriptionService:
                 tokens = tr_res.get("tokens", [])
         if not tokens:
             raise ValidationError("ASR no devolvió tokens IPA")
-        norm_res = await self.pre.normalize_tokens(tokens)
+        inventory, pack_id = load_inventory_for(lang=lang or self._default_lang)
+        norm_res = await self.pre.normalize_tokens(tokens, inventory=inventory)
         tokens = norm_res.get("tokens", [])
         backend_name = self.asr.__class__.__name__.lower()
         meta = dict(asr_result.get("meta", {}))
         meta.setdefault("backend", backend_name)
         meta.setdefault("tokens", len(tokens))
+        if quality_warnings:
+            meta.setdefault("warnings", [])
+            meta["warnings"].extend(quality_warnings)
+        if quality_res:
+            meta["audio_quality"] = quality_res.to_dict()
+        if profile_meta:
+            meta["user_profile"] = profile_meta
+        if inventory:
+            meta["normalization"] = {
+                "pack": pack_id,
+                "oov_tokens": norm_res.get("meta", {}).get("oov_tokens", []),
+            }
         return TranscriptionPayload(
             tokens=tokens,
             ipa=" ".join(tokens),

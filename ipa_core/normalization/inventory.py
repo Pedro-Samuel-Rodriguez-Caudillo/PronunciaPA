@@ -45,6 +45,7 @@ class Inventory:
         diacritics: Optional[Set[str]] = None,
         suprasegmentals: Optional[Set[str]] = None,
         aliases: Optional[Dict[str, str]] = None,
+        allophone_collapse: Optional[Dict[str, str]] = None,
     ) -> None:
         self.language = language
         self.accent = accent
@@ -54,6 +55,7 @@ class Inventory:
         self.diacritics = diacritics or set()
         self.suprasegmentals = suprasegmentals or set()
         self._aliases = aliases or {}
+        self.allophone_collapse = allophone_collapse or {}
         
         # Construir conjunto completo de símbolos válidos
         self._all_phones = (
@@ -111,15 +113,19 @@ class Inventory:
         if not consonants and not vowels:
             raise ValidationError("Inventory must have consonants or vowels")
         
+        diacritics = set(inv.get("diacritics", [])) | set(data.get("diacritics", []))
+        suprasegmentals = set(inv.get("suprasegmentals", [])) | set(data.get("suprasegmentals", []))
+        diphthongs = set(inv.get("diphthongs", [])) | set(data.get("diphthongs", []))
         return cls(
             language=language,
             consonants=consonants,
             vowels=vowels,
-            accent=data.get("accent"),
-            diphthongs=set(inv.get("diphthongs", [])),
-            diacritics=set(inv.get("diacritics", [])),
-            suprasegmentals=set(inv.get("suprasegmentals", [])),
+            accent=data.get("accent") or data.get("dialect"),
+            diphthongs=diphthongs,
+            diacritics=diacritics,
+            suprasegmentals=suprasegmentals,
             aliases=data.get("aliases"),
+            allophone_collapse=data.get("allophone_collapse"),
         )
     
     def is_valid_phone(self, phone: str) -> bool:

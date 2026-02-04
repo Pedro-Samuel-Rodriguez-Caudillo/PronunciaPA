@@ -11,28 +11,31 @@ export type ApiClientOptions = {
 export type TranscribeRequest = {
   audio: File | Blob;
   lang?: string;
+  userId?: string;
 };
 
 export type CompareRequest = {
   audio: File | Blob;
   text: string;
   lang?: string;
-  mode?: 'casual' | 'objective' | 'phonetic';
-  evaluationLevel?: 'phonemic' | 'phonetic';
+  mode?: 'casual' | 'objective' | 'phonetic' | 'auto';
+  evaluationLevel?: 'phonemic' | 'phonetic' | 'auto';
+  userId?: string;
 };
 
 export type FeedbackRequest = {
   audio: File | Blob;
   text: string;
   lang?: string;
-  mode?: 'casual' | 'objective' | 'phonetic';
-  evaluationLevel?: 'phonemic' | 'phonetic';
+  mode?: 'casual' | 'objective' | 'phonetic' | 'auto';
+  evaluationLevel?: 'phonemic' | 'phonetic' | 'auto';
   feedbackLevel?: 'casual' | 'precise';
   persist?: boolean;
   modelPack?: string;
   llm?: string;
   promptPath?: string;
   outputSchemaPath?: string;
+  userId?: string;
 };
 
 export function createApiClient(options: ApiClientOptions = {}) {
@@ -43,6 +46,9 @@ export function createApiClient(options: ApiClientOptions = {}) {
       const form = new FormData();
       form.append('audio', payload.audio);
       form.append('lang', payload.lang ?? 'es');
+      if (payload.userId) {
+        form.append('user_id', payload.userId);
+      }
       return postForm<TranscriptionResponse>(`${baseUrl}/v1/transcribe`, form);
     },
 
@@ -53,6 +59,9 @@ export function createApiClient(options: ApiClientOptions = {}) {
       form.append('lang', payload.lang ?? 'es');
       form.append('mode', payload.mode ?? 'objective');
       form.append('evaluation_level', payload.evaluationLevel ?? 'phonemic');
+      if (payload.userId) {
+        form.append('user_id', payload.userId);
+      }
       return postForm<CompareResponse>(`${baseUrl}/v1/compare`, form);
     },
 
@@ -66,6 +75,9 @@ export function createApiClient(options: ApiClientOptions = {}) {
       }
       if (payload.evaluationLevel) {
         form.append('evaluation_level', payload.evaluationLevel);
+      }
+      if (payload.userId) {
+        form.append('user_id', payload.userId);
       }
       if (payload.feedbackLevel) {
         form.append('feedback_level', payload.feedbackLevel);

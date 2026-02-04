@@ -221,6 +221,27 @@
       ? 'http://localhost:8000' 
       : window.PRONUNCIAPA_API_BASE || 'http://localhost:8000';
 
+    const USER_ID_KEY = 'pronunciapa_user_id';
+    function getUserId() {
+      try {
+        const stored = localStorage.getItem(USER_ID_KEY);
+        if (stored) return stored;
+      } catch (_err) {
+        // noop
+      }
+      const generated = (window.crypto && window.crypto.randomUUID)
+        ? window.crypto.randomUUID()
+        : `user_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+      try {
+        localStorage.setItem(USER_ID_KEY, generated);
+      } catch (_err) {
+        // noop
+      }
+      return generated;
+    }
+
+    const userId = getUserId();
+
     const elements = {
       // Tabs
       tabFile: document.getElementById('tabFile'),
@@ -462,6 +483,9 @@
         }
         
         formData.append('lang', elements.language.value);
+        if (userId) {
+          formData.append('user_id', userId);
+        }
 
         const response = await fetch(`${API_BASE}/v1/transcribe`, {
           method: 'POST',

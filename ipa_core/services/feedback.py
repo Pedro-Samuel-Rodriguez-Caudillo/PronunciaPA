@@ -9,9 +9,13 @@ from ipa_core.errors import NotReadyError, ValidationError
 from ipa_core.llm.utils import extract_json_object, load_json, load_text, validate_json_schema
 from ipa_core.services.fallback import generate_fallback_feedback
 from ipa_core.services.error_report import build_enriched_error_report
+from ipa_core.services.audio_quality import assess_audio_quality
+from ipa_core.services.adaptation import adapt_settings
 from ipa_core.kernel.core import Kernel
 from ipa_core.packs.schema import ModelPack
 from ipa_core.types import AudioInput, CompareResult, Token
+from ipa_core.normalization.resolve import load_inventory_for
+from ipa_core.services.user_profile import UserAudioProfile
 
 
 def build_error_report(
@@ -101,47 +105,108 @@ class FeedbackService:
         feedback_level: Optional[str] = None,
         prompt_path: Optional[Path] = None,
         output_schema_path: Optional[Path] = None,
+        user_id: Optional[str] = None,
     ) -> dict[str, Any]:
         if not self._kernel.llm or not self._kernel.model_pack or not self._kernel.model_pack_dir:
             raise NotReadyError("LLM/model pack not configured.")
 
-        context = _build_feedback_context(
-            evaluation_level=evaluation_level,
-            feedback_level=feedback_level,
-            pack_used=bool(self._kernel.model_pack),
+        quality_res, quality_warnings, profile_meta = assess_audio_quality(
+            audio.get("path"),
+            user_id=user_id,
         )
+        profile = None
+        if profile_meta and isinstance(profile_meta.get("profile"), dict):
+            profile = UserAudioProfile.from_dict(profile_meta["profile"])
+        pack_hint = None
+        if self._kernel.language_pack:
+            pack_hint = getattr(self._kernel.language_pack, "id", None) or getattr(self._kernel.language_pack, "dialect", None)
+        inventory, pack_id = load_inventory_for(lang=lang, pack=pack_hint)
+        allophone_rules = inventory.allophone_collapse if inventory and evaluation_level == "phonemic" else None
+        effective_mode, effective_level, adaptive_meta = adapt_settings(
+            requested_mode=mode,
+            requested_level=evaluation_level,
+            quality=quality_res,
+            profile=profile,
+        )
+        if effective_level != evaluation_level and inventory:
+            allophone_rules = inventory.allophone_collapse if effective_level == "phonemic" else None
+        context = _build_feedback_context(
+            evaluation_level=effective_level,
+            feedback_level=feedback_level,
+            pack_used=bool(inventory),
+        )
+        if quality_warnings:
+            context["warnings"] = list(dict.fromkeys(context.get("warnings", []) + quality_warnings))
+        if quality_res and not quality_res.passed:
+            context["confidence"] = "low"
+
         pre_audio_res = await self._kernel.pre.process_audio(audio)
         processed_audio = pre_audio_res.get("audio", audio)
         asr_result = await self._kernel.asr.transcribe(processed_audio, lang=lang)
         hyp_tokens = asr_result.get("tokens")
         if not hyp_tokens:
             raise ValidationError("ASR no devolvio tokens IPA.")
-        hyp_pre_res = await self._kernel.pre.normalize_tokens(hyp_tokens)
+        hyp_pre_res = await self._kernel.pre.normalize_tokens(
+            hyp_tokens,
+            inventory=inventory,
+            allophone_rules=allophone_rules,
+        )
         hyp_tokens = hyp_pre_res.get("tokens", [])
+        hyp_oov = hyp_pre_res.get("meta", {}).get("oov_tokens", [])
+        if hyp_oov:
+            preview = ", ".join(hyp_oov[:6])
+            context["warnings"] = list(dict.fromkeys((context.get("warnings") or []) + [
+                f"Tokens IPA fuera del inventario: {preview}",
+            ]))
 
         tr_result = await self._kernel.textref.to_ipa(text, lang=lang)
-        ref_pre_res = await self._kernel.pre.normalize_tokens(tr_result.get("tokens", []))
+        ref_pre_res = await self._kernel.pre.normalize_tokens(
+            tr_result.get("tokens", []),
+            inventory=inventory,
+            allophone_rules=allophone_rules,
+        )
         ref_tokens = ref_pre_res.get("tokens", [])
 
         compare_res = await self._kernel.comp.compare(ref_tokens, hyp_tokens)
         compare_payload = dict(compare_res)
+        compare_payload.setdefault("meta", {})
+        if quality_res:
+            compare_payload["meta"]["audio_quality"] = quality_res.to_dict()
+        if inventory:
+            compare_payload["meta"]["normalization"] = {
+                "pack": pack_id,
+                "oov_tokens": hyp_pre_res.get("meta", {}).get("oov_tokens", []),
+            }
+        if context.get("warnings"):
+            compare_payload["meta"]["warnings"] = context["warnings"]
+        compare_payload["meta"]["adaptive"] = adaptive_meta
+        if profile_meta:
+            compare_payload["meta"]["user_profile"] = profile_meta
+
         report = build_error_report(
             target_text=text,
             target_tokens=ref_tokens,
             hyp_tokens=hyp_tokens,
             compare_result=compare_res,
             lang=lang,
-            mode=mode,
-            evaluation_level=evaluation_level,
+            mode=effective_mode,
+            evaluation_level=effective_level,
             feedback_level=context["feedback_level"],
             confidence=context["confidence"],
-            warnings=context["warnings"],
+            warnings=context.get("warnings"),
             meta={
                 "asr": asr_result.get("meta", {}),
                 "feedback_level": context["feedback_level"],
                 "tone": context["tone"],
                 "confidence": context["confidence"],
-                "warnings": context["warnings"],
+                "warnings": context.get("warnings"),
+                "audio_quality": quality_res.to_dict() if quality_res else {},
+                "normalization": {
+                    "pack": pack_id,
+                    "oov_tokens": hyp_pre_res.get("meta", {}).get("oov_tokens", []),
+                } if inventory else {},
+                "adaptive": adaptive_meta,
+                "user_profile": profile_meta or {},
             },
         )
         feedback = await generate_feedback(
@@ -152,8 +217,8 @@ class FeedbackService:
             prompt_path=prompt_path,
             output_schema_path=output_schema_path,
         )
-        compare_payload.setdefault("mode", mode)
-        compare_payload.setdefault("evaluation_level", evaluation_level)
+        compare_payload.setdefault("mode", effective_mode)
+        compare_payload.setdefault("evaluation_level", effective_level)
         compare_payload.setdefault("score", report.get("metrics", {}).get("score"))
         feedback_payload = _apply_feedback_context(feedback, context=context)
         return {

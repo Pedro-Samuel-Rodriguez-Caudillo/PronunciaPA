@@ -12,9 +12,9 @@ import type { IpaCliPayload, IpaExample } from './types/ipa';
 // Types
 // ============================================================================
 
-type TranscriptionMode = 'phonemic' | 'phonetic';
+type TranscriptionMode = 'phonemic' | 'phonetic' | 'auto';
 type FeedbackLevel = 'casual' | 'precise';
-type CompareMode = 'casual' | 'objective' | 'phonetic';
+type CompareMode = 'casual' | 'objective' | 'phonetic' | 'auto';
 
 interface GameStats {
     level: number;
@@ -75,7 +75,7 @@ const COLORS = {
     info: '#3b82f6',
 };
 
-const DEFAULT_COMPARE_MODE: CompareMode = 'objective';
+const DEFAULT_COMPARE_MODE: CompareMode = 'auto';
 
 // ============================================================================
 // State
@@ -83,7 +83,7 @@ const DEFAULT_COMPARE_MODE: CompareMode = 'objective';
 
 let state: SessionState = {
     lang: 'es',
-    mode: 'phonemic',
+    mode: 'auto',
     feedbackLevel: 'casual',
     compareMode: DEFAULT_COMPARE_MODE,
     referenceText: '',
@@ -167,12 +167,34 @@ function loadPreferences(): void {
         if (stored) {
             const prefs = JSON.parse(stored);
             state.lang = prefs.lang || 'es';
-            state.mode = prefs.mode || 'phonemic';
+            state.mode = prefs.mode || 'auto';
             state.feedbackLevel = prefs.feedbackLevel || 'casual';
             state.compareMode = prefs.compareMode || DEFAULT_COMPARE_MODE;
         }
     } catch (e) {
         console.warn('Failed to load preferences', e);
+    }
+}
+
+const USER_ID_KEY = 'pronunciapa_user_id';
+
+function ensureUserId(): string | undefined {
+    try {
+        let userId = localStorage.getItem(USER_ID_KEY);
+        if (!userId) {
+            const cryptoObj = typeof globalThis !== 'undefined'
+                ? (globalThis as typeof globalThis & { crypto?: Crypto }).crypto
+                : undefined;
+            const uuid = cryptoObj && 'randomUUID' in cryptoObj
+                ? (cryptoObj as Crypto & { randomUUID: () => string }).randomUUID()
+                : `user-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+            userId = uuid;
+            localStorage.setItem(USER_ID_KEY, userId);
+        }
+        return userId;
+    } catch (e) {
+        console.warn('Failed to persist user id', e);
+        return undefined;
     }
 }
 
@@ -306,12 +328,14 @@ async function processRecording(): Promise<void> {
     render();
 
     try {
+        const userId = ensureUserId();
         const result = await api.compare({
             audio: audioBlob,
             text: state.referenceText,
             lang: state.lang,
             mode: state.compareMode,
             evaluationLevel: state.mode,
+            userId,
         });
 
         state.lastResult = result;
@@ -337,6 +361,7 @@ async function processRecording(): Promise<void> {
     state.isFeedbackLoading = true;
     render();
     try {
+        const userId = ensureUserId();
         const feedback = await api.feedback({
             audio: audioBlob,
             text: state.referenceText,
@@ -344,6 +369,7 @@ async function processRecording(): Promise<void> {
             mode: state.compareMode,
             evaluationLevel: state.mode,
             feedbackLevel: state.feedbackLevel,
+            userId,
         });
         state.lastFeedback = feedback;
     } catch (err) {
@@ -365,6 +391,7 @@ function initRealtimeClient(): void {
         lang: state.lang,
         referenceText: state.referenceText,
         mode: state.compareMode,
+        evaluationLevel: state.mode,
     });
     
     // Volume updates for visual feedback
@@ -678,6 +705,12 @@ function renderModeSelector(): string {
     return `
     <div class="mode-selector">
       <button 
+        class="mode-btn ${state.mode === 'auto' ? 'active' : ''}" 
+        data-mode="auto"
+      >
+        Auto
+      </button>
+      <button 
         class="mode-btn ${state.mode === 'phonemic' ? 'active' : ''}" 
         data-mode="phonemic"
       >
@@ -695,6 +728,7 @@ function renderModeSelector(): string {
 
 function renderCompareModeSelector(): string {
     const helperByMode: Record<CompareMode, string> = {
+        auto: 'Se adapta a tu audio y nivel: sube a IPA general cuando hay señal limpia.',
         casual: 'Comparacion permisiva para practica diaria.',
         objective: 'Balance entre precision y consistencia.',
         phonetic: 'IPA general para practicar sonidos. Sin pack puede tener baja confiabilidad.',
@@ -704,6 +738,12 @@ function renderCompareModeSelector(): string {
     <div class="option-card">
       <label class="label">🔍 Modo de comparacion</label>
       <div class="mode-selector">
+        <button
+          class="mode-btn ${state.compareMode === 'auto' ? 'active' : ''}"
+          data-compare-mode="auto"
+        >
+          Auto
+        </button>
         <button
           class="mode-btn ${state.compareMode === 'casual' ? 'active' : ''}"
           data-compare-mode="casual"

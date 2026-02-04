@@ -37,6 +37,10 @@ from ipa_core.services.comparison import ComparisonService
 from ipa_core.services.feedback import FeedbackService
 from ipa_core.services.feedback_store import FeedbackStore
 from ipa_core.services.transcription import TranscriptionService
+from ipa_core.services.audio_quality import assess_audio_quality
+from ipa_core.services.adaptation import adapt_settings
+from ipa_core.normalization.resolve import resolve_pack_id
+from ipa_core.plugins.language_pack import LanguagePackPlugin
 from ipa_core.types import AudioInput
 from ipa_core.pipeline.runner import run_pipeline_with_pack
 from ipa_core.pipeline.transcribe import EvaluationMode
@@ -305,6 +309,7 @@ def get_app() -> FastAPI:
         backend: Optional[str] = Form(None, description="Nombre del backend ASR"),
         textref: Optional[str] = Form(None, description="Nombre del proveedor texto→IPA"),
         persist: Optional[bool] = Form(False, description="Si True, guarda el audio procesado"),
+        user_id: Optional[str] = Form(None, description="ID de usuario (opcional)"),
         kernel: Kernel = Depends(_get_kernel)
     ) -> dict[str, Any]:
         """Transcripción de audio a IPA usando el microkernel."""
@@ -321,7 +326,7 @@ def get_app() -> FastAPI:
                 textref=kernel.textref,
                 default_lang=lang,
             )
-            payload = await service.transcribe_file(str(tmp_path), lang=lang)
+            payload = await service.transcribe_file(str(tmp_path), lang=lang, user_id=user_id)
             return {
                 "ipa": payload.ipa,
                 "tokens": payload.tokens,
@@ -362,13 +367,14 @@ def get_app() -> FastAPI:
         audio: UploadFile = File(..., description="Archivo de audio a comparar"),
         text: str = Form(..., description="Texto de referencia"),
         lang: str = Form("es", description="Idioma del audio"),
-        mode: str = Form("objective", description="Modo: casual, objective, phonetic"),
-        evaluation_level: str = Form("phonemic", description="Nivel: phonemic, phonetic"),
+        mode: str = Form("objective", description="Modo: casual, objective, phonetic, auto"),
+        evaluation_level: str = Form("phonemic", description="Nivel: phonemic, phonetic, auto"),
         backend: Optional[str] = Form(None, description="Nombre del backend ASR"),
         textref: Optional[str] = Form(None, description="Nombre del proveedor texto→IPA"),
         comparator: Optional[str] = Form(None, description="Nombre del comparador"),
         pack: Optional[str] = Form(None, description="Language pack (dialecto) a usar"),
         persist: Optional[bool] = Form(False, description="Si True, guarda el audio procesado"),
+        user_id: Optional[str] = Form(None, description="ID de usuario (opcional)"),
         kernel: Kernel = Depends(_get_kernel)
     ) -> dict[str, Any]:
         """Comparación de audio contra texto de referencia.
@@ -398,22 +404,46 @@ def get_app() -> FastAPI:
                 kernel.textref = registry.resolve_textref(textref.lower(), {"default_lang": lang})
             if comparator:
                 kernel.comp = registry.resolve_comparator(comparator.lower(), {})
-            
-            # Cargar language pack si se especifica
+
+            # Cargar language pack (auto si es posible)
             language_pack = None
+            pack_id = None
             if pack:
-                from ipa_core.packs.loader import load_language_pack
+                pack_path = Path(pack)
+                if pack_path.exists() and pack_path.is_dir():
+                    pack_id = pack_path
+                else:
+                    pack_id = pack.lower()
+            if not pack_id:
+                pack_id = resolve_pack_id(lang=lang)
+            if pack_id:
+                from ipa_core.packs.loader import DEFAULT_PACKS_DIR
                 try:
-                    language_pack = load_language_pack(pack.lower())
-                    kernel.language_pack = language_pack
+                    pack_dir = pack_id if isinstance(pack_id, Path) else (DEFAULT_PACKS_DIR / str(pack_id))
+                    language_pack = LanguagePackPlugin(Path(pack_dir))
+                    await language_pack.setup()
                 except Exception as e:
                     import logging
                     logger = logging.getLogger("ipa_server")
-                    logger.warning(f"No se pudo cargar language pack '{pack}': {e}")
-            
+                    logger.warning(f"No se pudo cargar language pack '{pack_id}': {e}")
+
             await kernel.setup()
-            
+
             if language_pack:
+                quality_res, quality_warnings, profile_meta = assess_audio_quality(
+                    str(tmp_path),
+                    user_id=user_id,
+                )
+                profile = None
+                if profile_meta and isinstance(profile_meta.get("profile"), dict):
+                    from ipa_core.services.user_profile import UserAudioProfile
+                    profile = UserAudioProfile.from_dict(profile_meta["profile"])
+                effective_mode, effective_level, adaptive_meta = adapt_settings(
+                    requested_mode=mode,
+                    requested_level=evaluation_level,
+                    quality=quality_res,
+                    profile=profile,
+                )
                 # Comparación usando language pack (derive/collapse + scoring profile)
                 comp_res = await run_pipeline_with_pack(
                     pre=kernel.pre,
@@ -423,19 +453,24 @@ def get_app() -> FastAPI:
                     text=text,
                     pack=language_pack,
                     lang=lang,
-                    mode=EvaluationMode(mode),
-                    evaluation_level=RepresentationLevel(evaluation_level),
+                    mode=effective_mode,
+                    evaluation_level=effective_level,
                 )
-                return {
-                    "mode": mode,
-                    "evaluation_level": evaluation_level,
-                    "distance": comp_res.distance,
-                    "score": comp_res.score,
-                    "operations": comp_res.operations,
-                    "ipa": comp_res.observed.to_ipa(with_delimiters=False),
-                    "tokens": comp_res.observed.segments,
-                    "target": comp_res.target.to_ipa(with_delimiters=False),
-                }
+                payload = comp_res.to_dict()
+                payload["score"] = comp_res.score
+                payload["mode"] = effective_mode
+                payload["evaluation_level"] = effective_level
+                payload["ipa"] = comp_res.observed.to_ipa(with_delimiters=False)
+                payload["tokens"] = comp_res.observed.segments
+                payload.setdefault("meta", {})
+                payload["meta"]["adaptive"] = adaptive_meta
+                if quality_res:
+                    payload["meta"]["audio_quality"] = quality_res.to_dict()
+                if quality_warnings:
+                    payload["meta"]["warnings"] = quality_warnings
+                if profile_meta:
+                    payload["meta"]["user_profile"] = profile_meta
+                return payload
             
             # Fallback al comparador clásico (sin language pack)
             service = ComparisonService(
@@ -445,7 +480,15 @@ def get_app() -> FastAPI:
                 comparator=kernel.comp,
                 default_lang=lang,
             )
-            payload = await service.compare_file_detail(str(tmp_path), text, lang=lang)
+            payload = await service.compare_file_detail(
+                str(tmp_path),
+                text,
+                lang=lang,
+                evaluation_level=evaluation_level,
+                pack=pack,
+                mode=mode,
+                user_id=user_id,
+            )
             res = payload.result
             hyp_tokens = payload.hyp_tokens
             ref_tokens = payload.ref_tokens  # Get reference tokens
@@ -464,12 +507,15 @@ def get_app() -> FastAPI:
             # Convertir alignment de tuples a lists para JSON
             alignment = [list(pair) for pair in res.get("alignment", [])]
             
+            adaptive = meta.get("adaptive", {}) if isinstance(meta, dict) else {}
+            effective_mode = adaptive.get("effective", {}).get("mode", mode)
+            effective_level = adaptive.get("effective", {}).get("evaluation_level", evaluation_level)
             return {
                 **res,
                 "alignment": alignment,
                 "score": base_score,
-                "mode": mode,
-                "evaluation_level": evaluation_level,
+                "mode": effective_mode,
+                "evaluation_level": effective_level,
                 "ipa": " ".join(hyp_tokens),
                 "tokens": hyp_tokens,
                 "target_ipa": " ".join(ref_tokens),  # Add target IPA
@@ -485,8 +531,8 @@ def get_app() -> FastAPI:
         audio: UploadFile = File(..., description="Archivo de audio a analizar"),
         text: str = Form(..., description="Texto de referencia"),
         lang: str = Form("es", description="Idioma del audio"),
-        mode: str = Form("objective", description="Modo: casual, objective, phonetic"),
-        evaluation_level: str = Form("phonemic", description="Nivel: phonemic, phonetic"),
+        mode: str = Form("objective", description="Modo: casual, objective, phonetic, auto"),
+        evaluation_level: str = Form("phonemic", description="Nivel: phonemic, phonetic, auto"),
         feedback_level: Optional[str] = Form(
             None,
             description="Nivel de feedback: casual (amigable) o precise (tecnico)",
@@ -496,6 +542,7 @@ def get_app() -> FastAPI:
         prompt_path: Optional[str] = Form(None, description="Ruta a prompt override (opcional)"),
         output_schema_path: Optional[str] = Form(None, description="Ruta a schema override (opcional)"),
         persist: bool = Form(False, description="Guardar resultado localmente"),
+        user_id: Optional[str] = Form(None, description="ID de usuario (opcional)"),
     ) -> dict[str, Any]:
         """Analiza la pronunciacion y genera feedback con LLM local."""
         tmp_path = await _process_upload(audio)
@@ -519,6 +566,7 @@ def get_app() -> FastAPI:
                 feedback_level=feedback_level,
                 prompt_path=prompt_file,
                 output_schema_path=schema_file,
+                user_id=user_id,
             )
             if persist:
                 store = FeedbackStore()

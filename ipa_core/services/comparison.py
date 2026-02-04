@@ -16,6 +16,10 @@ from ipa_core.ports.textref import TextRefProvider
 from ipa_core.preprocessor_basic import BasicPreprocessor
 from ipa_core.types import CompareResult, CompareWeights, Token
 from ipa_core.plugins import registry
+from ipa_core.normalization.resolve import load_inventory_for
+from ipa_core.services.audio_quality import assess_audio_quality
+from ipa_core.services.adaptation import adapt_settings
+from ipa_core.services.user_profile import UserAudioProfile
 
 
 @dataclass
@@ -71,8 +75,21 @@ class ComparisonService:
         *,
         lang: Optional[str] = None,
         weights: Optional[CompareWeights] = None,
+        evaluation_level: str = "phonemic",
+        pack: Optional[str] = None,
+        mode: str = "objective",
+        user_id: Optional[str] = None,
     ) -> CompareResult:
-        payload = await self.compare_file_detail(path, text, lang=lang, weights=weights)
+        payload = await self.compare_file_detail(
+            path,
+            text,
+            lang=lang,
+            weights=weights,
+            evaluation_level=evaluation_level,
+            pack=pack,
+            mode=mode,
+            user_id=user_id,
+        )
         return payload.result
 
     async def compare_bytes(
@@ -83,6 +100,10 @@ class ComparisonService:
         text: str,
         lang: Optional[str] = None,
         weights: Optional[CompareWeights] = None,
+        evaluation_level: str = "phonemic",
+        pack: Optional[str] = None,
+        mode: str = "objective",
+        user_id: Optional[str] = None,
     ) -> CompareResult:
         payload = await self.compare_bytes_detail(
             data,
@@ -90,6 +111,10 @@ class ComparisonService:
             text=text,
             lang=lang,
             weights=weights,
+            evaluation_level=evaluation_level,
+            pack=pack,
+            mode=mode,
+            user_id=user_id,
         )
         return payload.result
 
@@ -102,6 +127,10 @@ class ComparisonService:
         weights: Optional[CompareWeights] = None,
         allow_textref_fallback: bool = False,
         fallback_lang: Optional[str] = None,
+        evaluation_level: str = "phonemic",
+        pack: Optional[str] = None,
+        mode: str = "objective",
+        user_id: Optional[str] = None,
     ) -> ComparisonPayload:
         wav_path, tmp = ensure_wav(path)
         try:
@@ -112,6 +141,10 @@ class ComparisonService:
                 weights=weights,
                 allow_textref_fallback=allow_textref_fallback,
                 fallback_lang=fallback_lang,
+                evaluation_level=evaluation_level,
+                pack=pack,
+                mode=mode,
+                user_id=user_id,
             )
         finally:
             if tmp:
@@ -127,6 +160,10 @@ class ComparisonService:
         weights: Optional[CompareWeights] = None,
         allow_textref_fallback: bool = False,
         fallback_lang: Optional[str] = None,
+        evaluation_level: str = "phonemic",
+        pack: Optional[str] = None,
+        mode: str = "objective",
+        user_id: Optional[str] = None,
     ) -> ComparisonPayload:
         suffix = Path(filename).suffix or ".wav"
         tmp_original = persist_bytes(data, suffix=suffix)
@@ -138,6 +175,10 @@ class ComparisonService:
                 weights=weights,
                 allow_textref_fallback=allow_textref_fallback,
                 fallback_lang=fallback_lang,
+                evaluation_level=evaluation_level,
+                pack=pack,
+                mode=mode,
+                user_id=user_id,
             )
         finally:
             cleanup_temp(tmp_original)
@@ -151,7 +192,27 @@ class ComparisonService:
         weights: Optional[CompareWeights],
         allow_textref_fallback: bool,
         fallback_lang: Optional[str],
+        evaluation_level: str,
+        pack: Optional[str],
+        mode: str,
+        user_id: Optional[str],
     ) -> ComparisonPayload:
+        quality_res, quality_warnings, profile_meta = assess_audio_quality(
+            wav_path,
+            user_id=user_id,
+        )
+        warnings: list[str] = list(quality_warnings)
+        profile = None
+        if profile_meta and isinstance(profile_meta.get("profile"), dict):
+            profile = UserAudioProfile.from_dict(profile_meta["profile"])
+
+        effective_mode, effective_level, adaptive_meta = adapt_settings(
+            requested_mode=mode,
+            requested_level=evaluation_level,
+            quality=quality_res,
+            profile=profile,
+        )
+
         audio = to_audio_input(wav_path)
         pre_audio_res = await self.pre.process_audio(audio)
         processed_audio = pre_audio_res.get("audio", audio)
@@ -170,7 +231,17 @@ class ComparisonService:
             else:
                 msg += " El audio podría estar vacío, ser demasiado corto o el modelo aún no está listo."
             raise ValidationError(msg)
-        hyp_pre_res = await self.pre.normalize_tokens(hyp_tokens)
+        inventory, pack_id = load_inventory_for(lang=lang or self._default_lang, pack=pack)
+        allophone_rules = inventory.allophone_collapse if inventory and effective_level == "phonemic" else None
+        if effective_level == "phonetic" and not pack_id:
+            warnings.append(
+                "Aviso: evaluation_level=phonetic sin language pack; comparación aproximada."
+            )
+        hyp_pre_res = await self.pre.normalize_tokens(
+            hyp_tokens,
+            inventory=inventory,
+            allophone_rules=allophone_rules,
+        )
         hyp_tokens = hyp_pre_res.get("tokens", [])
 
         ref_lang = lang or self._default_lang
@@ -181,11 +252,34 @@ class ComparisonService:
                 tr_result = await self.textref.to_ipa(text, lang=fallback_lang)
             else:
                 raise
-        ref_pre_res = await self.pre.normalize_tokens(tr_result.get("tokens", []))
+        ref_pre_res = await self.pre.normalize_tokens(
+            tr_result.get("tokens", []),
+            inventory=inventory,
+            allophone_rules=allophone_rules,
+        )
         ref_tokens = ref_pre_res.get("tokens", [])
 
         result = await self.comp.compare(ref_tokens, hyp_tokens, weights=weights)
-        meta = {"asr": asr_result.get("meta", {}), "compare": result.get("meta", {})}
+        hyp_meta = hyp_pre_res.get("meta", {})
+        oov_tokens = hyp_meta.get("oov_tokens", []) if isinstance(hyp_meta, dict) else []
+        if oov_tokens:
+            preview = ", ".join(oov_tokens[:6])
+            warnings.append(f"Tokens IPA fuera del inventario: {preview}")
+        meta: dict = {
+            "asr": asr_result.get("meta", {}),
+            "compare": result.get("meta", {}),
+            "warnings": warnings,
+            "normalization": {
+                "pack": pack_id,
+                "oov_tokens": oov_tokens,
+                "oov_count": len(oov_tokens),
+            },
+            "adaptive": adaptive_meta,
+        }
+        if quality_res:
+            meta["audio_quality"] = quality_res.to_dict()
+        if profile_meta:
+            meta["user_profile"] = profile_meta
         return ComparisonPayload(
             ref_tokens=ref_tokens,
             hyp_tokens=hyp_tokens,

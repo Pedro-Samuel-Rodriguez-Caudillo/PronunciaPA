@@ -24,9 +24,9 @@ export interface RealtimeConfig {
   /** Reference text for comparison (optional) */
   referenceText?: string;
   /** Comparison mode */
-  mode?: 'casual' | 'objective' | 'phonetic';
+  mode?: 'casual' | 'objective' | 'phonetic' | 'auto';
   /** Evaluation level */
-  evaluationLevel?: 'phonemic' | 'phonetic';
+  evaluationLevel?: 'phonemic' | 'phonetic' | 'auto';
   /** Audio chunk interval in milliseconds */
   chunkIntervalMs?: number;
 }
