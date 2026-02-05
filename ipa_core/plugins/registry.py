@@ -116,11 +116,11 @@ def _register_defaults() -> None:
     
     # ASR - Allosaurus (IPA directo)
     try:
-        from ipa_core.plugins.asr_allosaurus import AllosaurusPlugin
+        from ipa_plugin_allosaurus.backend import AllosaurusASR
     except Exception as exc:
         logger.warning("Allosaurus ASR plugin unavailable: %s", exc)
     else:
-        register("asr", "allosaurus", lambda p: AllosaurusPlugin(p))
+        register("asr", "allosaurus", lambda p: AllosaurusASR(p))
     
     # ASR - Backend IPA unificado (allosaurus, wav2vec2-ipa, xlsr-ipa)
     try:

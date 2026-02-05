@@ -9,6 +9,7 @@ ENV/
 env.bak/
 venv.bak/
 .venv/
+.venv310/
 
 
 # Archivos compilados de Python
@@ -113,6 +114,8 @@ Desktop.ini
 # ===========================================
 # ARCHIVOS ESPECÍFICOS DEL PROYECTO IPA
 # ===========================================
+# Perfil adaptativo de usuarios (calibración)
+outputs/user_profiles.json
 # Archivos de audio grandes (opcional - descomenta si no quieres versionar archivos de audio)
 # *.wav
 # *.mp3
