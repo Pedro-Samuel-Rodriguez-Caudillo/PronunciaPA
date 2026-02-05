@@ -132,7 +132,12 @@ def _register_defaults() -> None:
         def create_unified_backend(p: dict):
             engine = p.get("engine", "allosaurus")
             device = p.get("device", "cpu")
-            return UnifiedIPABackend(engine=engine, device=device)
+            allosaurus_lang = p.get("allosaurus_lang", "uni2005")
+            return UnifiedIPABackend(
+                engine=engine,
+                device=device,
+                allosaurus_lang=allosaurus_lang,
+            )
         
         register("asr", "unified_ipa", create_unified_backend)
         register("asr", "wav2vec2-ipa", lambda p: UnifiedIPABackend(engine="wav2vec2-ipa", device=p.get("device", "cpu")))

@@ -23,6 +23,7 @@ backend:
   params:
     engine: allosaurus  # Opciones: allosaurus, wav2vec2-ipa, xlsr-ipa
     device: cpu         # cpu, cuda, mps (auto para detectar)
+    allosaurus_lang: uni2005  # Modelo Allosaurus recomendado (ipa da error)
     lang: es
 
 # Backend ASR legacy (Allosaurus directo) - ALTERNATIVA

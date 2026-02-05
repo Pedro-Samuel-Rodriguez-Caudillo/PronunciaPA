@@ -50,7 +50,7 @@ class UnifiedIPABackend(BasePlugin, ASRBackend):
     cache_dir : Optional[Path]
         Directorio de caché para modelos HuggingFace
     allosaurus_lang : str
-        Modelo de idioma para Allosaurus (default: "ipa")
+        Modelo de idioma para Allosaurus (default: "uni2005")
     
     Ejemplo
     -------
@@ -68,7 +68,7 @@ class UnifiedIPABackend(BasePlugin, ASRBackend):
         engine: Union[str, ASREngine] = ASREngine.ALLOSAURUS,
         device: str = "cpu",
         cache_dir: Optional[Path] = None,
-        allosaurus_lang: str = "ipa",
+        allosaurus_lang: str = "uni2005",
     ) -> None:
         if isinstance(engine, str):
             engine = ASREngine(engine)
