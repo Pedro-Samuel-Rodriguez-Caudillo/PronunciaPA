@@ -20,20 +20,29 @@ rules:
     description: "ʎ → ʝ en dialectos yeístas"
 
   # Espirantización de oclusivas sonoras
+  # Contexto: tras cualquier continuante/sonorante (vocales, líquidas, nasales)
   - name: "Espirantización"
     input: ["b", "d", "g"]
     output: ["β", "ð", "ɣ"]
-    left: "[aeiouəɛɪʊʌɔ]"
-    order: 1
-    description: "Oclusivas sonoras → fricativas tras vocal"
+    left: "[aeiouəɛɪʊʌɔlɾrmɲnŋ]"
+    order: 2
+    description: "Oclusivas sonoras → fricativas tras vocal o sonorante"
 
   # Asimilación nasal (antes de labiales)
   - name: "Asimilación nasal labial"
     input: ["n"]
     output: ["m"]
     right: "[pbm]"
-    order: 2
+    order: 1
     description: "n → m antes de labial"
+
+  # Asimilación nasal (antes de velares)
+  - name: "Asimilación nasal velar"
+    input: ["n"]
+    output: ["ŋ"]
+    right: "[kgx]"
+    order: 1
+    description: "n → ŋ antes de velar (tengo, cinco)"
 
   # Elisión de /d/ final (opcional, informal)
   - name: "Elisión de /d/ final"

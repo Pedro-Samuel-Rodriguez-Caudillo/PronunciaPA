@@ -172,6 +172,7 @@ def create_spanish_mexican_grammar(inventory: Optional[PhoneticInventory] = None
     """Crear gramática de español mexicano con reglas comunes."""
     from ipa_core.phonology.rule import (
         SPIRANTIZATION_ES,
+        NASAL_VELAR_ASSIMILATION_ES,
         SESEO_ES,
         YEISMO_ES,
         D_ELISION_ES,
@@ -186,6 +187,7 @@ def create_spanish_mexican_grammar(inventory: Optional[PhoneticInventory] = None
     grammar.add_rule(SESEO_ES)
     grammar.add_rule(YEISMO_ES)
     grammar.add_rule(SPIRANTIZATION_ES)
+    grammar.add_rule(NASAL_VELAR_ASSIMILATION_ES)
     grammar.add_rule(D_ELISION_ES)
     
     return grammar

@@ -185,10 +185,20 @@ SPIRANTIZATION_ES = PhonologicalRule(
     name="Espirantización",
     input_segments=["b", "d", "g"],
     output_segments=["β", "ð", "ɣ"],
-    left_context="[aeiouəɛɪʊʌɔ]",  # después de vocal
+    left_context="[aeiouəɛɪʊʌɔlɾrmɲnŋ]",  # después de vocal o sonorante
     right_context="",
-    order=1,
-    description="Oclusivas sonoras → fricativas entre vocales",
+    order=2,  # Después de asimilación nasal para que g siga disponible
+    description="Oclusivas sonoras → fricativas tras vocal o sonorante",
+)
+
+NASAL_VELAR_ASSIMILATION_ES = PhonologicalRule(
+    name="Asimilación nasal velar",
+    input_segments=["n"],
+    output_segments=["ŋ"],
+    left_context="",
+    right_context="[kgx]",
+    order=1,  # Antes de espirantización
+    description="n → ŋ antes de velar (tengo, cinco)",
 )
 
 SESEO_ES = PhonologicalRule(
@@ -223,6 +233,7 @@ D_ELISION_ES = PhonologicalRule(
 __all__ = [
     "PhonologicalRule",
     "SPIRANTIZATION_ES",
+    "NASAL_VELAR_ASSIMILATION_ES",
     "SESEO_ES",
     "YEISMO_ES",
     "D_ELISION_ES",
