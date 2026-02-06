@@ -298,23 +298,30 @@ def build_enriched_error_report(
     
     # Calculate weighted error score
     per = compare_result.get("per", 0.0)
-    weighted_score = max(0.0, (1.0 - per) * 100.0)
-    
-    # Adjust score based on error severity distribution
-    if mode == "casual":
-        # In casual mode, minor errors don't penalize much
-        weighted_score += error_summary.get("minor", 0) * 2
-    elif mode == "phonetic":
-        # In phonetic mode, even minor errors matter
-        weighted_score -= error_summary.get("minor", 0) * 1
-    
+    total_errors = sum(error_summary.values())
+
+    if mode == "casual" and total_errors > 0:
+        # Casual mode: minor errors count at half penalty.
+        minor_ratio = error_summary.get("minor", 0) / total_errors
+        effective_per = per * (1.0 - minor_ratio * 0.5)
+        weighted_score = max(0.0, (1.0 - effective_per) * 100.0)
+    else:
+        weighted_score = max(0.0, (1.0 - per) * 100.0)
+
+    if mode == "phonetic":
+        # Phonetic mode: every articulatory detail matters.
+        weighted_score -= error_summary.get("minor", 0) * 1.5
+
     weighted_score = max(0.0, min(100.0, weighted_score))
-    
-    # Select focus errors (top 3 most impactful)
-    focus_errors = [
-        op for op in enriched_ops 
-        if op.get("op") != "eq" and op.get("articulatory_distance", 0) > 0.3
-    ][:3]
+
+    # Select focus errors: sort by articulatory distance descending,
+    # so the most impactful confusions appear first.
+    error_ops = [
+        op for op in enriched_ops
+        if op.get("op") != "eq" and op.get("articulatory_distance", 0) > 0.2
+    ]
+    error_ops.sort(key=lambda o: o.get("articulatory_distance", 0), reverse=True)
+    focus_errors = error_ops[:3]
     
     return {
         "target_text": target_text,
