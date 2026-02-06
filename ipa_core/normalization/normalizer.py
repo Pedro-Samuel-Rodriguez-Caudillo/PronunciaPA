@@ -222,15 +222,15 @@ class IPANormalizer(BasePlugin):
 
 # Reglas de colapso alofónico comunes para español
 SPANISH_ALLOPHONE_RULES = {
-    # Oclusivas sonoras en posición intervocálica
+    # Oclusivas sonoras en posición intervocálica → fricativas
     "β": "b",   # bilabial fricativa → oclusiva
     "ð": "d",   # dental fricativa → oclusiva
     "ɣ": "g",   # velar fricativa → oclusiva
     
-    # Vibrantes
-    "ɾ": "r",   # tap → vibrante (en algunos análisis)
+    # NOTA: ɾ (tap) y r (trill) son fonemas DISTINTOS en español
+    # (pero /ˈpeɾo/ ≠ perro /ˈpero/) — NO colapsar.
     
-    # Nasales
+    # Nasales: ŋ es alofónico en español (solo ante velares)
     "ɱ": "m",   # labiodental nasal → bilabial
     "ŋ": "n",   # velar nasal → alveolar (ante velar)
 }
@@ -244,8 +244,10 @@ ENGLISH_ALLOPHONE_RULES = {
     # Glotalización
     "ʔ": "t",   # glottal stop como alófono de /t/
     
-    # Nasales
-    "ŋ": "n",   # velar nasal ante velares
+    # NOTA: ŋ es un fonema DISTINTO en inglés
+    # (sing /sɪŋ/ ≠ sin /sɪn/) — NO colapsar.
+    
+    # Nasales (solo alofónicas ante consonantes homorgánicas)
     "ɱ": "m",   # labiodental ante /f,v/
 }
 

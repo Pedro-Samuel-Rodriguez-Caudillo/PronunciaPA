@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 
 from ipa_core.config.schema import AppConfig, PluginCfg
 from ipa_server import main
+from ipa_server.routers import pipeline as pipeline_router
 
 
 # Check if model pack exists for integration tests
@@ -35,7 +36,7 @@ class TestFeedbackEndpointSuccess:
             model_pack="model/qwen2.5-7b-instruct",
         )
 
-        monkeypatch.setattr(main.loader, "load_config", lambda: cfg)
+        monkeypatch.setattr(pipeline_router.loader, "load_config", lambda: cfg)
         client = TestClient(main.get_app())
         response = client.post(
             "/v1/feedback",
@@ -66,7 +67,7 @@ class TestFeedbackEndpointSuccess:
             model_pack="model/qwen2.5-7b-instruct",
         )
 
-        monkeypatch.setattr(main.loader, "load_config", lambda: cfg)
+        monkeypatch.setattr(pipeline_router.loader, "load_config", lambda: cfg)
         client = TestClient(main.get_app())
         response = client.post(
             "/v1/feedback",
@@ -100,7 +101,7 @@ class TestFeedbackEndpointValidation:
             model_pack="model/qwen2.5-7b-instruct",
         )
 
-        monkeypatch.setattr(main.loader, "load_config", lambda: cfg)
+        monkeypatch.setattr(pipeline_router.loader, "load_config", lambda: cfg)
         client = TestClient(main.get_app())
         response = client.post(
             "/v1/feedback",
@@ -121,7 +122,7 @@ class TestFeedbackEndpointValidation:
             model_pack="model/qwen2.5-7b-instruct",
         )
 
-        monkeypatch.setattr(main.loader, "load_config", lambda: cfg)
+        monkeypatch.setattr(pipeline_router.loader, "load_config", lambda: cfg)
         client = TestClient(main.get_app())
         response = client.post(
             "/v1/feedback",
@@ -144,7 +145,7 @@ class TestFeedbackEndpointErrors:
             # No LLM configured
         )
 
-        monkeypatch.setattr(main.loader, "load_config", lambda: cfg)
+        monkeypatch.setattr(pipeline_router.loader, "load_config", lambda: cfg)
         client = TestClient(main.get_app())
         response = client.post(
             "/v1/feedback",

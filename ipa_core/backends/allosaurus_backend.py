@@ -73,6 +73,7 @@ class AllosaurusBackend(BasePlugin):
         device: str = "cpu",
         emit_timestamps: bool = False,
     ) -> None:
+        super().__init__()
         self._model_name = model_name
         self._lang = lang
         self._device = device

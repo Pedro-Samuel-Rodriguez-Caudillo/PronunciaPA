@@ -4,6 +4,8 @@ from __future__ import annotations
 import json
 from typing import Any, Optional
 
+from ipa_core.plugins.base import BasePlugin
+
 
 _DEFAULT_PAYLOAD = {
     "summary": "Stub feedback.",
@@ -13,10 +15,11 @@ _DEFAULT_PAYLOAD = {
 }
 
 
-class StubLLMAdapter:
+class StubLLMAdapter(BasePlugin):
     """Return deterministic JSON payloads without running a model."""
 
     def __init__(self, params: Optional[dict[str, Any]] = None) -> None:
+        super().__init__()
         params = params or {}
         payload = params.get("payload")
         self._payload = payload if isinstance(payload, dict) else dict(_DEFAULT_PAYLOAD)

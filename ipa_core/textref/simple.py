@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import unicodedata
+from typing import Optional
 
 from ipa_core.plugins.base import BasePlugin
 from ipa_core.types import TextRefResult

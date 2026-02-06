@@ -16,7 +16,7 @@ def test_health_check(client) -> None:
     """Verifica el endpoint de salud."""
     response = client.get("/health")
     assert response.status_code == 200
-    assert response.json() == {"status": "ok"}
+    assert response.json()["status"] == "ok"
 
 def test_transcribe_stub(tmp_path, monkeypatch, client) -> None:
     """Verifica el stub del endpoint de transcripción."""

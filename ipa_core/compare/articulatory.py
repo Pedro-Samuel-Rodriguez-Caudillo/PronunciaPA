@@ -149,6 +149,7 @@ CONSONANT_FEATURES: Dict[str, ConsonantFeatures] = {
     
     # Allophones comunes
     "β": ConsonantFeatures(Place.BILABIAL, Manner.FRICATIVE, Voicing.VOICED),
+    "ʝ": ConsonantFeatures(Place.PALATAL, Manner.FRICATIVE, Voicing.VOICED),
 }
 
 # Mapeo de vocales IPA a rasgos articulatorios

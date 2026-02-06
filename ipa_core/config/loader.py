@@ -130,8 +130,9 @@ def load_config(path: str | None = None) -> AppConfig:
 
     # Aplicar sobrescrituras de variables de entorno (Simplificado)
     # PRONUNCIAPA_BACKEND_NAME -> data['backend']['name']
+    _handled_vars = set(aliases.keys()) | {"PRONUNCIAPA_CONFIG", "PRONUNCIAPA_STRICT_MODE"}
     for env_var, value in os.environ.items():
-        if env_var.startswith("PRONUNCIAPA_") and env_var != "PRONUNCIAPA_CONFIG":
+        if env_var.startswith("PRONUNCIAPA_") and env_var not in _handled_vars:
             parts = env_var[len("PRONUNCIAPA_") :].lower().split("_")
             # Manejo básico: SECTION_KEY o SECTION_SUB_KEY
             if len(parts) >= 2:

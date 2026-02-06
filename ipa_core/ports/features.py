@@ -3,9 +3,14 @@
 Define la interfaz para convertir audio crudo en features (espectrogramas)
 que consumen los modelos acústicos.
 """
-from typing import Protocol, runtime_checkable
-import numpy as np
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
+
 from ipa_core.types import AudioInput
+
+if TYPE_CHECKING:
+    import numpy as np
 
 @runtime_checkable
 class FeatureExtractor(Protocol):

@@ -51,7 +51,7 @@ def test_compare_response_schema():
     assert resp.per == 0.5
     assert len(resp.ops) == 2
     assert resp.ops[0].op == "eq"
-    assert resp.alignment[0] == ["a", "a"]
+    assert resp.alignment[0] == ("a", "a")
 
 def test_textref_response_schema():
     """Verify TextRefResponse model structure."""

@@ -1,17 +1,22 @@
 """Inventario fonético de un idioma/dialecto.
 
 Define qué fonemas y alófonos son válidos para el sistema fonológico.
+Puede operar independientemente o componerse con
+``normalization.inventory.Inventory`` para reutilizar alias y OOV handling.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import TYPE_CHECKING, Dict, List, Optional, Set
 
 import yaml
 
 from ipa_core.phonology.segment import Segment
 from ipa_core.phonology.features import get_features
+
+if TYPE_CHECKING:
+    from ipa_core.normalization.inventory import Inventory
 
 
 @dataclass
@@ -28,12 +33,15 @@ class PhoneticInventory:
         Mapeo de símbolos a fonemas.
     allophones : Dict[str, List[Segment]]
         Mapeo de fonema base a sus alófonos.
+    _norm_inventory : Inventory | None
+        Inventario de normalización asociado (bridge, opcional).
     """
     language: str
     dialect: str
     phonemes: Dict[str, Segment] = field(default_factory=dict)
     allophones: Dict[str, List[Segment]] = field(default_factory=dict)
-    
+    _norm_inventory: Optional[object] = field(default=None, repr=False)
+
     def add_phoneme(self, symbol: str) -> Segment:
         """Añadir un fonema al inventario."""
         features = get_features(symbol)
@@ -153,6 +161,56 @@ class PhoneticInventory:
             },
         }
         return yaml.dump(data, allow_unicode=True, sort_keys=False)
+
+    # ── Bridge con normalization.inventory.Inventory ──
+
+    @classmethod
+    def from_norm_inventory(cls, norm_inv: "Inventory") -> "PhoneticInventory":
+        """Construir un PhoneticInventory desde un Inventory de normalización.
+
+        Reutiliza el set de consonantes/vocales ya cargado y añade
+        features SPE a cada símbolo.  El Inventory original se almacena
+        como ``_norm_inventory`` para delegar alias y OOV handling.
+        """
+        inv = cls(
+            language=norm_inv.language,
+            dialect=norm_inv.accent or norm_inv.language,
+            _norm_inventory=norm_inv,
+        )
+        for symbol in norm_inv.consonants | norm_inv.vowels:
+            try:
+                inv.add_phoneme(symbol)
+            except Exception:  # noqa: BLE001
+                # Símbolos sin features definidas todavía — skip silently
+                pass
+        return inv
+
+    def get_canonical(self, token: str) -> str:
+        """Resolve aliases delegando al Inventory de normalización si existe."""
+        if self._norm_inventory is not None:
+            from ipa_core.normalization.inventory import Inventory
+
+            assert isinstance(self._norm_inventory, Inventory)
+            return self._norm_inventory.get_canonical(token)
+        # Fallback: fonema → sí mismo, alófono → base
+        return self.collapse_to_phoneme(token)
+
+    def normalize_sequence(
+        self,
+        tokens: list[str],
+        *,
+        oov_strategy: str = "mark",
+    ) -> tuple[list[str], list[str]]:
+        """Delegación al Inventory de normalización si existe."""
+        if self._norm_inventory is not None:
+            from ipa_core.normalization.inventory import Inventory
+
+            assert isinstance(self._norm_inventory, Inventory)
+            return self._norm_inventory.normalize_sequence(
+                tokens, oov_strategy=oov_strategy,
+            )
+        # Fallback simple: collapse to phoneme, no OOV tracking
+        return [self.collapse_to_phoneme(t) for t in tokens], []
 
 
 __all__ = ["PhoneticInventory"]

@@ -32,7 +32,7 @@ Modo actual: síncrono por archivo completo
 """
 from __future__ import annotations
 
-from typing import Optional, Protocol, runtime_checkable
+from typing import Literal, Optional, Protocol, runtime_checkable
 
 from ipa_core.types import ASRResult, AudioInput
 
@@ -52,7 +52,7 @@ class ASRBackend(Protocol):
         El kernel rechaza backends con output_type != "ipa" por defecto.
     """
     
-    output_type: str  # Should be Literal["ipa", "text", "none"] in implementations
+    output_type: Literal["ipa", "text", "none"]
 
     async def setup(self) -> None:
         """Configuración inicial del plugin (asíncrona)."""

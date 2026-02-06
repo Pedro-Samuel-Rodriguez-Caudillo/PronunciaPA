@@ -1,5 +1,250 @@
 language: en
 sounds:
+  # ── Vowels ──
+  - id: en/æ
+    ipa: "æ"
+    label: "Short a"
+    aliases: ["ae", "short a"]
+    tags: ["vowel", "front", "open", "unrounded"]
+    orthography:
+      - pattern: "a"
+        position: "medial"
+    contexts:
+      initial:
+        seeds:
+          - text: "apple"
+          - text: "animal"
+      medial:
+        seeds:
+          - text: "cat"
+          - text: "bag"
+  - id: en/ɪ
+    ipa: "ɪ"
+    label: "Short i"
+    aliases: ["ih", "short i"]
+    tags: ["vowel", "near-close", "near-front", "unrounded"]
+    orthography:
+      - pattern: "i"
+        position: "medial"
+    contexts:
+      initial:
+        seeds:
+          - text: "in"
+          - text: "ink"
+      medial:
+        seeds:
+          - text: "ship"
+          - text: "milk"
+  - id: en/ɛ
+    ipa: "ɛ"
+    label: "Short e"
+    aliases: ["epsilon", "short e"]
+    tags: ["vowel", "front", "open-mid", "unrounded"]
+    orthography:
+      - pattern: "e"
+        position: "medial"
+    contexts:
+      initial:
+        seeds:
+          - text: "egg"
+          - text: "enter"
+      medial:
+        seeds:
+          - text: "bed"
+          - text: "red"
+  - id: en/ʌ
+    ipa: "ʌ"
+    label: "Strut vowel"
+    aliases: ["wedge", "caret", "short u"]
+    tags: ["vowel", "central", "open-mid", "unrounded"]
+    orthography:
+      - pattern: "u"
+        position: "medial"
+      - pattern: "o"
+        position: "medial"
+    contexts:
+      medial:
+        seeds:
+          - text: "bus"
+          - text: "cup"
+          - text: "love"
+          - text: "come"
+  - id: en/ɑ
+    ipa: "ɑ"
+    label: "Open back a"
+    aliases: ["father vowel", "lot vowel"]
+    tags: ["vowel", "back", "open", "unrounded"]
+    orthography:
+      - pattern: "o"
+        position: "medial"
+      - pattern: "a"
+        position: "medial"
+    contexts:
+      medial:
+        seeds:
+          - text: "father"
+          - text: "hot"
+          - text: "stop"
+  - id: en/ə
+    ipa: "ə"
+    label: "Schwa"
+    aliases: ["schwa", "neutral vowel"]
+    tags: ["vowel", "central", "mid", "unrounded"]
+    orthography:
+      - pattern: "a"
+        position: "unstressed"
+      - pattern: "e"
+        position: "unstressed"
+      - pattern: "o"
+        position: "unstressed"
+    contexts:
+      initial:
+        seeds:
+          - text: "about"
+          - text: "above"
+      medial:
+        seeds:
+          - text: "banana"
+          - text: "sofa"
+      final:
+        seeds:
+          - text: "comma"
+          - text: "yoga"
+  - id: en/ʊ
+    ipa: "ʊ"
+    label: "Short oo"
+    aliases: ["short u", "horseshoe"]
+    tags: ["vowel", "near-close", "near-back", "rounded"]
+    orthography:
+      - pattern: "oo"
+        position: "medial"
+      - pattern: "u"
+        position: "medial"
+    contexts:
+      medial:
+        seeds:
+          - text: "book"
+          - text: "put"
+          - text: "good"
+          - text: "wood"
+  - id: en/iː
+    ipa: "iː"
+    label: "Long ee"
+    aliases: ["long i", "ee"]
+    tags: ["vowel", "close", "front", "unrounded", "long"]
+    orthography:
+      - pattern: "ee"
+        position: "medial"
+      - pattern: "ea"
+        position: "medial"
+    contexts:
+      medial:
+        seeds:
+          - text: "sheep"
+          - text: "beach"
+          - text: "key"
+          - text: "see"
+  - id: en/uː
+    ipa: "uː"
+    label: "Long oo"
+    aliases: ["long u", "goose vowel"]
+    tags: ["vowel", "close", "back", "rounded", "long"]
+    orthography:
+      - pattern: "oo"
+        position: "medial"
+      - pattern: "ew"
+        position: "final"
+    contexts:
+      medial:
+        seeds:
+          - text: "food"
+          - text: "moon"
+          - text: "blue"
+          - text: "new"
+  - id: en/ɔː
+    ipa: "ɔː"
+    label: "Thought vowel"
+    aliases: ["aw", "open o"]
+    tags: ["vowel", "back", "open-mid", "rounded", "long"]
+    orthography:
+      - pattern: "aw"
+        position: "any"
+      - pattern: "al"
+        position: "medial"
+      - pattern: "au"
+        position: "medial"
+    contexts:
+      medial:
+        seeds:
+          - text: "law"
+          - text: "caught"
+          - text: "all"
+          - text: "walk"
+  # ── Diphthongs ──
+  - id: en/aɪ
+    ipa: "aɪ"
+    label: "Long i"
+    aliases: ["price diphthong", "eye"]
+    tags: ["diphthong", "closing"]
+    orthography:
+      - pattern: "i"
+        position: "open syllable"
+      - pattern: "igh"
+        position: "medial"
+      - pattern: "y"
+        position: "final"
+    contexts:
+      initial:
+        seeds:
+          - text: "ice"
+          - text: "eye"
+      medial:
+        seeds:
+          - text: "time"
+          - text: "night"
+      final:
+        seeds:
+          - text: "fly"
+          - text: "buy"
+  - id: en/aʊ
+    ipa: "aʊ"
+    label: "Ow diphthong"
+    aliases: ["mouth diphthong", "ow"]
+    tags: ["diphthong", "closing"]
+    orthography:
+      - pattern: "ou"
+        position: "medial"
+      - pattern: "ow"
+        position: "any"
+    contexts:
+      medial:
+        seeds:
+          - text: "house"
+          - text: "loud"
+      final:
+        seeds:
+          - text: "now"
+          - text: "how"
+  - id: en/ɔɪ
+    ipa: "ɔɪ"
+    label: "Oy diphthong"
+    aliases: ["choice diphthong", "oi"]
+    tags: ["diphthong", "closing"]
+    orthography:
+      - pattern: "oi"
+        position: "medial"
+      - pattern: "oy"
+        position: "final"
+    contexts:
+      medial:
+        seeds:
+          - text: "coin"
+          - text: "noise"
+      final:
+        seeds:
+          - text: "boy"
+          - text: "joy"
+  # ── Consonants: Fricatives ──
   - id: en/θ
     ipa: "θ"
     label: "Voiceless th"
@@ -65,6 +310,84 @@ sounds:
         seeds:
           - text: "fish"
           - text: "dish"
+  - id: en/ʒ
+    ipa: "ʒ"
+    label: "Zh"
+    aliases: ["ezh", "zh"]
+    tags: ["consonant", "postalveolar", "fricative", "voiced"]
+    orthography:
+      - pattern: "s"
+        position: "medial"
+        notes: "before -ion, -ure"
+      - pattern: "g"
+        position: "medial"
+        notes: "in some French loans"
+    contexts:
+      medial:
+        seeds:
+          - text: "vision"
+          - text: "measure"
+          - text: "pleasure"
+          - text: "garage"
+  - id: en/v
+    ipa: "v"
+    label: "V"
+    aliases: ["v"]
+    tags: ["consonant", "labiodental", "fricative", "voiced"]
+    orthography:
+      - pattern: "v"
+        position: "any"
+    contexts:
+      initial:
+        seeds:
+          - text: "very"
+          - text: "voice"
+      medial:
+        seeds:
+          - text: "river"
+          - text: "never"
+      final:
+        seeds:
+          - text: "love"
+          - text: "give"
+  - id: en/z
+    ipa: "z"
+    label: "Z"
+    aliases: ["z"]
+    tags: ["consonant", "alveolar", "fricative", "voiced"]
+    orthography:
+      - pattern: "z"
+        position: "any"
+      - pattern: "s"
+        position: "between vowels"
+    contexts:
+      initial:
+        seeds:
+          - text: "zoo"
+          - text: "zero"
+      medial:
+        seeds:
+          - text: "easy"
+          - text: "music"
+      final:
+        seeds:
+          - text: "buzz"
+          - text: "his"
+  - id: en/h
+    ipa: "h"
+    label: "H"
+    aliases: ["h"]
+    tags: ["consonant", "glottal", "fricative", "voiceless"]
+    orthography:
+      - pattern: "h"
+        position: "initial"
+    contexts:
+      initial:
+        seeds:
+          - text: "hat"
+          - text: "hello"
+          - text: "house"
+  # ── Consonants: Approximants ──
   - id: en/ɹ
     ipa: "ɹ"
     label: "English r"
@@ -90,6 +413,56 @@ sounds:
         seeds:
           - text: "train"
           - text: "green"
+  - id: en/w
+    ipa: "w"
+    label: "W"
+    aliases: ["w"]
+    tags: ["consonant", "labial-velar", "approximant", "voiced"]
+    orthography:
+      - pattern: "w"
+        position: "initial"
+    contexts:
+      initial:
+        seeds:
+          - text: "water"
+          - text: "week"
+          - text: "wish"
+      medial:
+        seeds:
+          - text: "away"
+          - text: "always"
+  - id: en/j
+    ipa: "j"
+    label: "Y (consonant)"
+    aliases: ["y", "yod"]
+    tags: ["consonant", "palatal", "approximant", "voiced"]
+    orthography:
+      - pattern: "y"
+        position: "initial"
+    contexts:
+      initial:
+        seeds:
+          - text: "yes"
+          - text: "yellow"
+          - text: "year"
+  - id: en/l
+    ipa: "l"
+    label: "L"
+    aliases: ["l"]
+    tags: ["consonant", "alveolar", "lateral", "voiced"]
+    orthography:
+      - pattern: "l"
+        position: "initial"
+    contexts:
+      initial:
+        seeds:
+          - text: "light"
+          - text: "love"
+      medial:
+        seeds:
+          - text: "yellow"
+          - text: "follow"
+  # ── Consonants: Affricates ──
   - id: en/tʃ
     ipa: "tʃ"
     label: "Ch"
@@ -109,37 +482,49 @@ sounds:
         seeds:
           - text: "match"
           - text: "watch"
-  - id: en/æ
-    ipa: "æ"
-    label: "Short a"
-    aliases: ["ae", "short a"]
-    tags: ["vowel", "front", "open", "unrounded"]
+  - id: en/dʒ
+    ipa: "dʒ"
+    label: "J"
+    aliases: ["j", "dg", "ge"]
+    tags: ["consonant", "postalveolar", "affricate", "voiced"]
     orthography:
-      - pattern: "a"
-        position: "medial"
+      - pattern: "j"
+        position: "initial"
+      - pattern: "g"
+        position: "before e, i"
+      - pattern: "dge"
+        position: "final"
     contexts:
       initial:
         seeds:
-          - text: "apple"
-          - text: "animal"
+          - text: "jump"
+          - text: "joke"
       medial:
         seeds:
-          - text: "cat"
-          - text: "bag"
-  - id: en/ɪ
-    ipa: "ɪ"
-    label: "Short i"
-    aliases: ["ih", "short i"]
-    tags: ["vowel", "near-close", "near-front", "unrounded"]
+          - text: "major"
+          - text: "magic"
+      final:
+        seeds:
+          - text: "bridge"
+          - text: "judge"
+  # ── Consonants: Nasals ──
+  - id: en/ŋ
+    ipa: "ŋ"
+    label: "Ng"
+    aliases: ["eng", "ng"]
+    tags: ["consonant", "velar", "nasal", "voiced"]
     orthography:
-      - pattern: "i"
-        position: "medial"
+      - pattern: "ng"
+        position: "final"
+      - pattern: "n"
+        position: "before k, g"
     contexts:
-      initial:
+      final:
         seeds:
-          - text: "in"
-          - text: "ink"
+          - text: "sing"
+          - text: "ring"
+          - text: "long"
       medial:
         seeds:
-          - text: "ship"
-          - text: "milk"
+          - text: "finger"
+          - text: "angry"

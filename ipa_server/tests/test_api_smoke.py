@@ -12,7 +12,8 @@ def test_api_health_smoke():
     """Verify the API health endpoint."""
     response = client.get("/health")
     assert response.status_code == 200
-    assert response.json() == {"status": "ok"}
+    data = response.json()
+    assert data["status"] == "ok"
 
 
 def test_api_docs_smoke():

@@ -15,8 +15,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Protocol, Union
 
 from ipa_core.plugins.base import BasePlugin
-from ipa_core.ports.asr import ASRBackend, ASRResult
-from ipa_core.types import AudioInput
+from ipa_core.types import ASRResult, AudioInput
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +34,7 @@ ENGINE_MODELS: Dict[ASREngine, str] = {
 }
 
 
-class UnifiedIPABackend(BasePlugin, ASRBackend):
+class UnifiedIPABackend(BasePlugin):
     """Backend unificado que soporta múltiples engines IPA.
     
     Permite cambiar entre Allosaurus, Wav2Vec2-IPA y XLS-R IPA
@@ -70,6 +69,7 @@ class UnifiedIPABackend(BasePlugin, ASRBackend):
         cache_dir: Optional[Path] = None,
         allosaurus_lang: str = "uni2005",
     ) -> None:
+        super().__init__()
         if isinstance(engine, str):
             engine = ASREngine(engine)
         

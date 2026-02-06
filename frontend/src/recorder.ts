@@ -18,9 +18,9 @@ export class AudioRecorderWidget {
   
   // UI Elements
   private container: HTMLElement;
-  private recordButton: HTMLButtonElement;
-  private statusText: HTMLElement;
-  private errorText: HTMLElement;
+  private recordButton!: HTMLButtonElement;
+  private statusText!: HTMLElement;
+  private errorText!: HTMLElement;
 
   constructor(containerId: string, options: RecorderOptions) {
     const container = document.getElementById(containerId);

@@ -8,48 +8,14 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List, Literal, Optional, TYPE_CHECKING
 
+from ipa_core.textref.tokenize import (
+    tokenize_ipa,
+    DEFAULT_MULTIGRAPHS,
+    DIPHTHONG_MULTIGRAPHS,
+)
 
-def tokenize_ipa(ipa: str) -> List[str]:
-    """Tokenizar cadena IPA en segmentos (dígrafos + suprasegmentales removidos).
-
-    Elimina acentos primario/secundario y separadores silábicos para trabajar
-    sobre la secuencia de segmentos pura. Soporta dígrafos comunes.
-    """
-    clean = ipa.replace("ˈ", "").replace("ˌ", "").replace(".", "")
-    # Lista de multigrafos comunes en inventarios ES/EN
-    multigraphs = (
-        "tʃ",
-        "dʒ",
-        "ts",
-        "dz",
-        # diptongos frecuentes (se tratan como unidad)
-        "aɪ",
-        "aʊ",
-        "ɔɪ",
-        "oʊ",
-        "eɪ",
-        "ai",
-        "ei",
-        "oi",
-        "au",
-        "eu",
-        "iu",
-    )
-    segments: List[str] = []
-    i = 0
-    while i < len(clean):
-        # Intentar coincidir multigráfos en orden de longitud (aquí todos 2)
-        matched = False
-        if i + 1 < len(clean):
-            pair = clean[i:i+2]
-            if pair in multigraphs:
-                segments.append(pair)
-                i += 2
-                matched = True
-        if not matched:
-            segments.append(clean[i])
-            i += 1
-    return segments
+# Multigraphs usados por PhonologicalRepresentation: africadas + diptongos
+_SEGMENT_MULTIGRAPHS = (*DEFAULT_MULTIGRAPHS, *DIPHTHONG_MULTIGRAPHS)
 
 if TYPE_CHECKING:
     from ipa_core.phonology.segment import Segment
@@ -80,9 +46,13 @@ class PhonologicalRepresentation:
         # Limpiar delimitadores si existen
         self.ipa = self.ipa.strip("/[]")
         
-        # Tokenizar si no hay segmentos
+        # Tokenizar si no hay segmentos (usa tokenizador canónico con multigrafos)
         if not self.segments and self.ipa:
-            self.segments = tokenize_ipa(self.ipa)
+            self.segments = tokenize_ipa(
+                self.ipa,
+                multigraphs=_SEGMENT_MULTIGRAPHS,
+                strip_suprasegmentals=True,
+            )
     
     def to_ipa(self, with_delimiters: bool = True) -> str:
         """Convertir a string IPA con delimitadores apropiados.
@@ -182,17 +152,21 @@ class ComparisonResult:
         
         Maps ComparisonResult fields to CompareResult format:
         - operations -> ops
+        - alignment derived from ops (Levenshtein backtracking)
         - distance included in meta
         - PhonologicalRepresentation serialized to IPA strings
         """
+        # Build alignment from ops (correct Levenshtein backtracking)
+        # rather than zipping by positional index which breaks on ins/del.
+        alignment = [
+            (op.get("ref"), op.get("hyp"))
+            for op in self.operations
+        ]
+        total_ref = max(len(self.target.segments), 1)
         return {
-            "per": self.distance / max(len(self.target.segments), 1),
+            "per": self.distance / total_ref,
             "ops": self.operations,
-            "alignment": [
-                (self.target.segments[i] if i < len(self.target.segments) else None,
-                 self.observed.segments[i] if i < len(self.observed.segments) else None)
-                for i in range(max(len(self.target.segments), len(self.observed.segments)))
-            ],
+            "alignment": alignment,
             "meta": {
                 "distance": self.distance,
                 "mode": self.mode,

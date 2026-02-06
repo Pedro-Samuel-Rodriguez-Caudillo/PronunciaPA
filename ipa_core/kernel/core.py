@@ -9,7 +9,9 @@ from typing import Optional, Tuple
 from ipa_core.config.schema import AppConfig
 from ipa_core.packs.loader import load_language_pack, load_model_pack, resolve_manifest_path
 from ipa_core.packs.schema import LanguagePack, ModelPack, TTSConfig
-from ipa_core.pipeline.runner import run_pipeline
+from ipa_core.pipeline.runner import run_pipeline, run_pipeline_with_pack
+from ipa_core.pipeline.transcribe import EvaluationMode
+from ipa_core.phonology.representation import RepresentationLevel, ComparisonResult
 from ipa_core.plugins import registry
 from ipa_core.ports.asr import ASRBackend
 from ipa_core.ports.compare import Comparator
@@ -63,8 +65,23 @@ class Kernel:
         text: str,
         lang: Optional[str] = None,
         weights: Optional[CompareWeights] = None,
+        mode: EvaluationMode = "objective",
+        evaluation_level: RepresentationLevel = "phonemic",
     ) -> CompareResult:
-        """Ejecutar el pipeline completo (Asíncrono)."""
+        """Ejecutar el pipeline completo (Asíncrono).
+        
+        Si hay un language pack cargado, usa el pipeline con derive/collapse
+        para análisis fonémico/fonético preciso. Si no, usa el pipeline clásico.
+        """
+        if self.language_pack is not None:
+            result = await self.run_with_pack(
+                audio=audio,
+                text=text,
+                lang=lang,
+                mode=mode,
+                evaluation_level=evaluation_level,
+            )
+            return result.to_dict()
         return await run_pipeline(
             pre=self.pre,
             asr=self.asr,
@@ -74,6 +91,39 @@ class Kernel:
             text=text,
             lang=lang,
             weights=weights,
+        )
+
+    async def run_with_pack(
+        self,
+        *,
+        audio: AudioInput,
+        text: str,
+        lang: Optional[str] = None,
+        mode: EvaluationMode = "objective",
+        evaluation_level: RepresentationLevel = "phonemic",
+    ) -> ComparisonResult:
+        """Pipeline con LanguagePack para derive/collapse + scoring profile.
+        
+        Usa el pack cargado en el Kernel para:
+        - Derivar representación fonética desde fonémica (derive)
+        - Colapsar fonos a fonemas (collapse)
+        - Aplicar ScoringProfile según modo
+        
+        Raises
+        ------
+        ValidationError
+            Si no hay language pack cargado.
+        """
+        return await run_pipeline_with_pack(
+            pre=self.pre,
+            asr=self.asr,
+            textref=self.textref,
+            audio=audio,
+            text=text,
+            pack=self.language_pack,
+            lang=lang,
+            mode=mode,
+            evaluation_level=evaluation_level,
         )
 
 

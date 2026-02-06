@@ -1,3 +1,11 @@
+"""Jerarquía de errores del microkernel.
+
+Define códigos de error estables y su mapeo HTTP/CLI.
+Incluye contexto estructurado (archivo, backend, plugin) en cada excepción.
+Separa errores de infraestructura de los de dominio para mensajes más claros.
+"""
+
+
 class KernelError(Exception):
     """Error genérico del microkernel.
 
@@ -42,11 +50,3 @@ class UnsupportedFormat(KernelError):
 
 class FileNotFound(KernelError):
     """Archivo de audio/texto no encontrado en la ruta indicada."""
-"""Jerarquía de errores del microkernel.
-
-TODO
-----
-- Definir códigos de error estables y su mapeo HTTP/CLI (Observer para logging).
-- Incluir contexto estructurado (archivo, backend, plugin) en cada excepción.
-- Separar errores de infraestructura de los de dominio para mensajes más claros.
-"""

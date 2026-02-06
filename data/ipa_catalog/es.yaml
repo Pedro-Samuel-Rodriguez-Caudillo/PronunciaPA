@@ -1,5 +1,275 @@
 language: es
 sounds:
+  # ── Vocales ──
+  - id: es/a
+    ipa: "a"
+    label: "A abierta"
+    aliases: ["a"]
+    tags: ["vowel", "open", "central", "unrounded"]
+    orthography:
+      - pattern: "a"
+        position: "any"
+    contexts:
+      initial:
+        seeds:
+          - text: "agua"
+          - text: "alto"
+      medial:
+        seeds:
+          - text: "casa"
+          - text: "papa"
+  - id: es/e
+    ipa: "e"
+    label: "E media"
+    aliases: ["e"]
+    tags: ["vowel", "close-mid", "front", "unrounded"]
+    orthography:
+      - pattern: "e"
+        position: "any"
+    contexts:
+      initial:
+        seeds:
+          - text: "este"
+          - text: "eco"
+      medial:
+        seeds:
+          - text: "mesa"
+          - text: "pelo"
+  - id: es/i
+    ipa: "i"
+    label: "I cerrada"
+    aliases: ["i"]
+    tags: ["vowel", "close", "front", "unrounded"]
+    orthography:
+      - pattern: "i"
+        position: "any"
+    contexts:
+      initial:
+        seeds:
+          - text: "isla"
+          - text: "idea"
+      medial:
+        seeds:
+          - text: "piso"
+          - text: "hijo"
+  - id: es/o
+    ipa: "o"
+    label: "O media"
+    aliases: ["o"]
+    tags: ["vowel", "close-mid", "back", "rounded"]
+    orthography:
+      - pattern: "o"
+        position: "any"
+    contexts:
+      initial:
+        seeds:
+          - text: "ojo"
+          - text: "oso"
+      medial:
+        seeds:
+          - text: "como"
+          - text: "poco"
+  - id: es/u
+    ipa: "u"
+    label: "U cerrada"
+    aliases: ["u"]
+    tags: ["vowel", "close", "back", "rounded"]
+    orthography:
+      - pattern: "u"
+        position: "any"
+    contexts:
+      initial:
+        seeds:
+          - text: "uva"
+          - text: "uno"
+      medial:
+        seeds:
+          - text: "luna"
+          - text: "cuna"
+  # ── Consonantes: Oclusivas ──
+  - id: es/p
+    ipa: "p"
+    label: "P"
+    aliases: ["p"]
+    tags: ["consonant", "bilabial", "plosive", "voiceless"]
+    orthography:
+      - pattern: "p"
+        position: "any"
+    contexts:
+      initial:
+        seeds:
+          - text: "pan"
+          - text: "perro"
+      medial:
+        seeds:
+          - text: "copa"
+          - text: "mapa"
+  - id: es/b
+    ipa: "b"
+    label: "B"
+    aliases: ["b", "v"]
+    tags: ["consonant", "bilabial", "plosive", "voiced"]
+    orthography:
+      - pattern: "b"
+        position: "any"
+      - pattern: "v"
+        position: "any"
+        notes: "misma realización que b en español"
+    contexts:
+      initial:
+        seeds:
+          - text: "boca"
+          - text: "vaca"
+      medial:
+        seeds:
+          - text: "lobo"
+          - text: "nube"
+  - id: es/t
+    ipa: "t"
+    label: "T dental"
+    aliases: ["t"]
+    tags: ["consonant", "dental", "plosive", "voiceless"]
+    orthography:
+      - pattern: "t"
+        position: "any"
+    contexts:
+      initial:
+        seeds:
+          - text: "taza"
+          - text: "toro"
+      medial:
+        seeds:
+          - text: "gato"
+          - text: "pato"
+  - id: es/d
+    ipa: "d"
+    label: "D dental"
+    aliases: ["d"]
+    tags: ["consonant", "dental", "plosive", "voiced"]
+    orthography:
+      - pattern: "d"
+        position: "any"
+    contexts:
+      initial:
+        seeds:
+          - text: "dedo"
+          - text: "dar"
+      medial:
+        seeds:
+          - text: "todo"
+          - text: "nada"
+  - id: es/k
+    ipa: "k"
+    label: "K/C/Q"
+    aliases: ["c", "qu", "k"]
+    tags: ["consonant", "velar", "plosive", "voiceless"]
+    orthography:
+      - pattern: "c"
+        position: "before a, o, u"
+      - pattern: "qu"
+        position: "before e, i"
+      - pattern: "k"
+        position: "any"
+    contexts:
+      initial:
+        seeds:
+          - text: "casa"
+          - text: "queso"
+      medial:
+        seeds:
+          - text: "vaca"
+          - text: "saco"
+  - id: es/g
+    ipa: "g"
+    label: "G"
+    aliases: ["g", "gu"]
+    tags: ["consonant", "velar", "plosive", "voiced"]
+    orthography:
+      - pattern: "g"
+        position: "before a, o, u"
+      - pattern: "gu"
+        position: "before e, i"
+    contexts:
+      initial:
+        seeds:
+          - text: "gato"
+          - text: "guerra"
+      medial:
+        seeds:
+          - text: "lago"
+          - text: "jugo"
+  # ── Consonantes: Nasales ──
+  - id: es/m
+    ipa: "m"
+    label: "M"
+    aliases: ["m"]
+    tags: ["consonant", "bilabial", "nasal", "voiced"]
+    orthography:
+      - pattern: "m"
+        position: "any"
+    contexts:
+      initial:
+        seeds:
+          - text: "mama"
+          - text: "mesa"
+      medial:
+        seeds:
+          - text: "cama"
+          - text: "dama"
+  - id: es/n
+    ipa: "n"
+    label: "N"
+    aliases: ["n"]
+    tags: ["consonant", "alveolar", "nasal", "voiced"]
+    orthography:
+      - pattern: "n"
+        position: "any"
+    contexts:
+      initial:
+        seeds:
+          - text: "nido"
+          - text: "nube"
+      medial:
+        seeds:
+          - text: "cana"
+          - text: "lana"
+  # ── Consonantes: Laterales ──
+  - id: es/l
+    ipa: "l"
+    label: "L"
+    aliases: ["l"]
+    tags: ["consonant", "alveolar", "lateral", "voiced"]
+    orthography:
+      - pattern: "l"
+        position: "any"
+    contexts:
+      initial:
+        seeds:
+          - text: "luna"
+          - text: "luz"
+      medial:
+        seeds:
+          - text: "palo"
+          - text: "cola"
+  # ── Consonantes: Fricativas ──
+  - id: es/f
+    ipa: "f"
+    label: "F"
+    aliases: ["f"]
+    tags: ["consonant", "labiodental", "fricative", "voiceless"]
+    orthography:
+      - pattern: "f"
+        position: "any"
+    contexts:
+      initial:
+        seeds:
+          - text: "faro"
+          - text: "frio"
+      medial:
+        seeds:
+          - text: "cafe"
+          - text: "sofa"
+  # ── Consonantes que ya estaban ──
   - id: es/ɾ
     ipa: "ɾ"
     label: "R simple"

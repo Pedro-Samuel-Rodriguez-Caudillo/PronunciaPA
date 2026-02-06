@@ -59,10 +59,10 @@ def test_kernel_rejects_asr_without_output_type(monkeypatch):
     # Mock del registry para retornar nuestro plugin fake
     from ipa_core.plugins import registry
     
-    monkeypatch.setattr(registry, "resolve_asr", lambda name, params: FakeASRWithoutOutputType())
-    monkeypatch.setattr(registry, "resolve_preprocessor", lambda name, params: MagicMock())
-    monkeypatch.setattr(registry, "resolve_textref", lambda name, params: MagicMock())
-    monkeypatch.setattr(registry, "resolve_comparator", lambda name, params: MagicMock())
+    monkeypatch.setattr(registry, "resolve_asr", lambda name, params, **kw: FakeASRWithoutOutputType())
+    monkeypatch.setattr(registry, "resolve_preprocessor", lambda name, params, **kw: MagicMock())
+    monkeypatch.setattr(registry, "resolve_textref", lambda name, params, **kw: MagicMock())
+    monkeypatch.setattr(registry, "resolve_comparator", lambda name, params, **kw: MagicMock())
     
     cfg = AppConfig(
         backend=PluginCfg(name="fake_no_output", params={})
@@ -76,10 +76,10 @@ def test_kernel_rejects_asr_with_text_output(monkeypatch):
     """El kernel debe rechazar plugins que producen texto."""
     from ipa_core.plugins import registry
     
-    monkeypatch.setattr(registry, "resolve_asr", lambda name, params: FakeASRWithTextOutput())
-    monkeypatch.setattr(registry, "resolve_preprocessor", lambda name, params: MagicMock())
-    monkeypatch.setattr(registry, "resolve_textref", lambda name, params: MagicMock())
-    monkeypatch.setattr(registry, "resolve_comparator", lambda name, params: MagicMock())
+    monkeypatch.setattr(registry, "resolve_asr", lambda name, params, **kw: FakeASRWithTextOutput())
+    monkeypatch.setattr(registry, "resolve_preprocessor", lambda name, params, **kw: MagicMock())
+    monkeypatch.setattr(registry, "resolve_textref", lambda name, params, **kw: MagicMock())
+    monkeypatch.setattr(registry, "resolve_comparator", lambda name, params, **kw: MagicMock())
     
     cfg = AppConfig(
         backend=PluginCfg(name="fake_text", params={})
@@ -93,10 +93,10 @@ def test_kernel_accepts_asr_with_ipa_output(monkeypatch):
     """El kernel debe aceptar plugins que producen IPA."""
     from ipa_core.plugins import registry
     
-    monkeypatch.setattr(registry, "resolve_asr", lambda name, params: FakeASRWithIPAOutput())
-    monkeypatch.setattr(registry, "resolve_preprocessor", lambda name, params: MagicMock())
-    monkeypatch.setattr(registry, "resolve_textref", lambda name, params: MagicMock())
-    monkeypatch.setattr(registry, "resolve_comparator", lambda name, params: MagicMock())
+    monkeypatch.setattr(registry, "resolve_asr", lambda name, params, **kw: FakeASRWithIPAOutput())
+    monkeypatch.setattr(registry, "resolve_preprocessor", lambda name, params, **kw: MagicMock())
+    monkeypatch.setattr(registry, "resolve_textref", lambda name, params, **kw: MagicMock())
+    monkeypatch.setattr(registry, "resolve_comparator", lambda name, params, **kw: MagicMock())
     
     cfg = AppConfig(
         backend=PluginCfg(name="fake_ipa", params={})
@@ -111,10 +111,10 @@ def test_kernel_allows_bypass_with_require_ipa_false(monkeypatch):
     """El kernel debe permitir bypass con require_ipa=false."""
     from ipa_core.plugins import registry
     
-    monkeypatch.setattr(registry, "resolve_asr", lambda name, params: FakeASRWithTextOutput())
-    monkeypatch.setattr(registry, "resolve_preprocessor", lambda name, params: MagicMock())
-    monkeypatch.setattr(registry, "resolve_textref", lambda name, params: MagicMock())
-    monkeypatch.setattr(registry, "resolve_comparator", lambda name, params: MagicMock())
+    monkeypatch.setattr(registry, "resolve_asr", lambda name, params, **kw: FakeASRWithTextOutput())
+    monkeypatch.setattr(registry, "resolve_preprocessor", lambda name, params, **kw: MagicMock())
+    monkeypatch.setattr(registry, "resolve_textref", lambda name, params, **kw: MagicMock())
+    monkeypatch.setattr(registry, "resolve_comparator", lambda name, params, **kw: MagicMock())
     
     cfg = AppConfig(
         backend=PluginCfg(name="fake_text", params={"require_ipa": False})
