@@ -5,23 +5,47 @@ language: en
 dialect: en-us
 
 rules:
-  # Flapping: t,d → ɾ entre vocales (en habla rápida)
+  # Aspiration: voiceless stops → aspirated word-initially / before stressed vowel
+  - name: "Aspiration"
+    input: ["p", "t", "k"]
+    output: ["pʰ", "tʰ", "kʰ"]
+    left: "^|[ ]"
+    order: 0
+    description: "p,t,k → pʰ,tʰ,kʰ word-initially (most salient English allophonic rule)"
+
+  # Dark L: l → ɫ in coda (before consonant or word-finally)
+  - name: "Dark L"
+    input: ["l"]
+    output: ["ɫ"]
+    right: "[^aeiouəɛɪʊʌɔæɑ]|$"
+    order: 1
+    description: "l → ɫ before consonants or word-finally"
+
+  # Flapping: t,d → ɾ between vowels (American English)
   - name: "Flapping"
     input: ["t", "d"]
     output: ["ɾ", "ɾ"]
     left: "[aeiouəɛɪʊʌɔæɑ]"
     right: "[aeiouəɛɪʊʌɔæɑ]"
-    order: 1
+    order: 2
     optional: true
     register: informal
     description: "t/d → ɾ between vowels (American English)"
 
-  # Glottalization de t final (opcional)
+  # Glottalization of final t (optional)
   - name: "Glottalization"
     input: ["t"]
     output: ["ʔ"]
     right: "$"
-    order: 2
+    order: 3
     optional: true
     register: informal
     description: "t → ʔ word-finally"
+
+  # Nasal assimilation before velars
+  - name: "Nasal velar assimilation"
+    input: ["n"]
+    output: ["ŋ"]
+    right: "[kg]"
+    order: 2
+    description: "n → ŋ before velar (think, finger)"

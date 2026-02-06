@@ -28,6 +28,7 @@ MANNER_FEATURES = frozenset([
     "strident",      # ±strid: fricción intensa
     "lateral",       # ±lat
     "delayed_release",  # africadas
+    "trill",         # ±trill: vibrante múltiple vs tap
 ])
 
 PLACE_FEATURES = frozenset([
@@ -255,12 +256,12 @@ CONSONANT_FEATURES: Dict[str, FeatureBundle] = {
     "r": FeatureBundle.from_dict({
         "consonantal": True, "sonorant": True, "syllabic": False,
         "voice": True, "lateral": False, "continuant": False,
-        "coronal": True, "anterior": True,
+        "coronal": True, "anterior": True, "trill": True,
     }),
     "ɾ": FeatureBundle.from_dict({
         "consonantal": True, "sonorant": True, "syllabic": False,
         "voice": True, "lateral": False, "continuant": False,
-        "coronal": True, "anterior": True,
+        "coronal": True, "anterior": True, "trill": False,
     }),
     "ɹ": FeatureBundle.from_dict({
         "consonantal": True, "sonorant": True, "syllabic": False,
@@ -295,6 +296,32 @@ CONSONANT_FEATURES: Dict[str, FeatureBundle] = {
         "consonantal": True, "sonorant": False, "syllabic": False,
         "voice": True, "continuant": True,
         "coronal": True, "anterior": False, "high": True,
+    }),
+    
+    # Africadas
+    "tʃ": FeatureBundle.from_dict({
+        "consonantal": True, "sonorant": False, "syllabic": False,
+        "voice": False, "continuant": False, "delayed_release": True,
+        "coronal": True, "anterior": False, "distributed": True,
+    }),
+    "dʒ": FeatureBundle.from_dict({
+        "consonantal": True, "sonorant": False, "syllabic": False,
+        "voice": True, "continuant": False, "delayed_release": True,
+        "coronal": True, "anterior": False, "distributed": True,
+    }),
+    
+    # Glotal stop
+    "ʔ": FeatureBundle.from_dict({
+        "consonantal": False, "sonorant": False, "syllabic": False,
+        "voice": False, "continuant": False,
+        "constricted_glottis": True, "laryngeal": True,
+    }),
+    
+    # Dark L (velarised lateral)
+    "ɫ": FeatureBundle.from_dict({
+        "consonantal": True, "sonorant": True, "syllabic": False,
+        "voice": True, "lateral": True, "continuant": True,
+        "coronal": True, "anterior": True, "dorsal": True, "back": True,
     }),
 }
 
