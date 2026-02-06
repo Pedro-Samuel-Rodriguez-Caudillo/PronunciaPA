@@ -116,7 +116,7 @@ def _register_defaults() -> None:
     
     # ASR - Allosaurus (IPA directo)
     try:
-        from ipa_plugin_allosaurus.backend import AllosaurusASR
+        from ipa_plugin_allosaurus.backend import AllosaurusASR  # type: ignore[import-not-found]
     except Exception as exc:
         logger.warning("Allosaurus ASR plugin unavailable: %s", exc)
     else:
@@ -159,8 +159,8 @@ def _register_defaults() -> None:
     # Comparator
     from ipa_core.compare.levenshtein import LevenshteinComparator
     from ipa_core.compare.noop import NoOpComparator
-    register("comparator", "levenshtein", lambda _: LevenshteinComparator())
-    register("comparator", "default", lambda _: LevenshteinComparator())
+    register("comparator", "levenshtein", lambda _: LevenshteinComparator(use_articulatory=True))
+    register("comparator", "default", lambda _: LevenshteinComparator(use_articulatory=True))
     register("comparator", "noop", lambda _: NoOpComparator())
 
     # Preprocessor
@@ -250,8 +250,6 @@ def resolve_comparator(name: str, params: Optional[Dict[str, Any]] = None, *, st
 
 
 def resolve_preprocessor(name: str, params: Optional[Dict[str, Any]] = None, *, strict_mode: bool = False) -> Any:
-
-
     return resolve("preprocessor", name, params, strict_mode=strict_mode)
 
 
@@ -263,130 +261,40 @@ def resolve_llm(name: str, params: Optional[Dict[str, Any]] = None, *, strict_mo
     return resolve("llm", name, params, strict_mode=strict_mode)
 
 
-
-
-
-
-
-
 def validate_plugin(category: str, plugin_cls: type) -> tuple[bool, list[str]]:
-
-
     """Valida que una clase cumpla con el protocolo de su categoría.
 
-
-
-
-
     Retorna (es_valido, lista_de_errores).
-
-
     """
-
-
     if category not in _REGISTRY:
-
-
         raise ValueError(f"Categoría de plugin inválida: {category}")
 
-
-
-
-
     from ipa_core.ports.asr import ASRBackend
-
-
     from ipa_core.ports.textref import TextRefProvider
-
-
     from ipa_core.ports.compare import Comparator
-
-
     from ipa_core.ports.preprocess import Preprocessor
     from ipa_core.ports.tts import TTSProvider
     from ipa_core.ports.llm import LLMAdapter
 
-
-
-
-
     protocols = {
-
-
         "asr": ASRBackend,
-
-
         "textref": TextRefProvider,
-
-
         "comparator": Comparator,
-
-
         "preprocessor": Preprocessor,
         "tts": TTSProvider,
         "llm": LLMAdapter,
-
     }
 
-
-
-
-
     protocol = protocols[category]
-
-
-    
-
-
-    # Intentar instanciar para verificar métodos via isinstance si es runtime_checkable
-
-
-    # O mejor aún, usar inspección de métodos si isinstance falla o es muy estricto
-
-
-    
-
-
     errors = []
 
-
-    
-
-
     # Verificación manual de métodos requeridos para mayor claridad en el error
-
-
     required_methods = [m for m in dir(protocol) if not m.startswith("_")]
 
-
-    
-
-
-    # Caso especial: __init__ no está en el protocolo pero lo necesitamos
-
-
-    # (En realidad resolve() asume que recibe un dict de params)
-
-
-    
-
-
     for method in required_methods:
-
-
         if not hasattr(plugin_cls, method):
-
-
             errors.append(f"Falta el método requerido: '{method}'")
-
-
         elif not callable(getattr(plugin_cls, method)):
-
-
             errors.append(f"El atributo '{method}' debe ser un método ejecutable")
-
-
-
-
 
     return len(errors) == 0, errors
