@@ -205,22 +205,22 @@ class TestLevenshteinArticulatory:
         result_far = await comp.compare(["p"], ["ʃ"])
         # PER puede ser 1.0 en ambos (1 sustitución de 1), pero el
         # alignment cost debería diferir internamente.
-        assert result_close["per"] >= 0
-        assert result_far["per"] >= 0
+        assert result_close.get("per", 0) >= 0
+        assert result_far.get("per", 0) >= 0
 
     @pytest.mark.asyncio
     async def test_perfect_match(self) -> None:
         comp = LevenshteinComparator(use_articulatory=True)
         result = await comp.compare(["o", "l", "a"], ["o", "l", "a"])
-        assert result["per"] == 0.0
-        assert all(op["op"] == "eq" for op in result["ops"])
+        assert result.get("per") == 0.0
+        assert all(op["op"] == "eq" for op in result.get("ops", []))
 
     @pytest.mark.asyncio
     async def test_single_substitution(self) -> None:
         comp = LevenshteinComparator(use_articulatory=True)
         result = await comp.compare(["k", "a", "s", "a"], ["k", "a", "θ", "a"])
-        assert result["per"] > 0
-        subs = [op for op in result["ops"] if op["op"] == "sub"]
+        assert result.get("per", 0) > 0
+        subs = [op for op in result.get("ops", []) if op["op"] == "sub"]
         assert len(subs) == 1
         assert subs[0]["ref"] == "s"
         assert subs[0]["hyp"] == "θ"
@@ -366,7 +366,7 @@ class TestEnglishPhonologicalRules:
             Path(__file__).resolve().parents[3]
             / "plugins" / "language_packs" / "en-us" / "phonological_rules.yaml"
         )
-        return PhonologicalGrammar.from_yaml(str(yaml_path))
+        return PhonologicalGrammar.from_yaml(yaml_path)
 
     def test_aspiration_word_initial(self, grammar: PhonologicalGrammar) -> None:
         """p al inicio → pʰ."""
