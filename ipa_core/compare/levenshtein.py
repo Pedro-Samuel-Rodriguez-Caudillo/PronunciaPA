@@ -40,7 +40,7 @@ class LevenshteinComparator(BasePlugin):
     def __init__(
         self,
         *,
-        use_articulatory: bool = False,
+        use_articulatory: bool = True,
         articulatory_min_cost: float = 0.3,
     ) -> None:
         self._use_articulatory = use_articulatory

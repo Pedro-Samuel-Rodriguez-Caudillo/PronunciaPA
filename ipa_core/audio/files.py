@@ -49,11 +49,11 @@ def ensure_wav(
         audio.export(tmp.name, format="wav")
         return tmp.name, True
 
-    if ext not in {".mp3", ".ogg", ".m4a"}:
+    if ext not in {".mp3", ".ogg", ".m4a", ".webm", ".opus", ".flac"}:
         raise UnsupportedFormat(f"Formato de audio no soportado: {ext}")
 
     if AudioSegment is None:
-        raise UnsupportedFormat("pydub/ffmpeg necesarios para convertir MP3/OGG a WAV")
+        raise UnsupportedFormat("pydub/ffmpeg necesarios para convertir audio a WAV")
 
     audio = AudioSegment.from_file(path)
     audio = audio.set_frame_rate(target_sample_rate).set_channels(target_channels).set_sample_width(2)

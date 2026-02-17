@@ -42,6 +42,10 @@ onnx = [
     "soundfile>=0.12,<1",
     "numpy>=1.26,<3",
 ]
+transformers = [
+    "transformers>=4.30,<5",
+    "torch>=2.0,<3",
+]
 
 [project.scripts]
 pronunciapa = "ipa_core.interfaces.cli:main"

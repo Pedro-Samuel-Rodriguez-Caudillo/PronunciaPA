@@ -29,6 +29,7 @@ from ipa_core.ports.textref import TextRefProvider
 from ipa_core.types import AudioInput, CompareResult, CompareWeights, Token
 from ipa_core.phonology.representation import RepresentationLevel, ComparisonResult
 from ipa_core.pipeline.transcribe import compare_with_pack, EvaluationMode
+from ipa_core.pipeline.postprocess import postprocess_tokens, filter_silence_tokens
 
 
 async def run_pipeline(
@@ -52,7 +53,7 @@ async def run_pipeline(
     asr_result = await asr.transcribe(processed_audio, lang=lang or None)
 
     # 3. Resolución y normalización de hipótesis
-    hyp_tokens = await _resolve_hyp_tokens(pre, asr_result)
+    hyp_tokens = await _resolve_hyp_tokens(pre, asr_result, lang=lang)
 
     # 4. Obtención y normalización de referencia
     tr_result = await textref.to_ipa(text, lang=lang or "")
@@ -105,10 +106,14 @@ __all__ = [
 async def _resolve_hyp_tokens(
     pre: Preprocessor,
     asr_result: dict[str, Any],
+    lang: Optional[str] = None,
 ) -> list[Token]:
-    """Extrae y normaliza tokens IPA del ASR."""
+    """Extrae, postprocesa y normaliza tokens IPA del ASR."""
     tokens = asr_result.get("tokens")
     if tokens:
+        # Filter silence markers and apply ASR-specific post-processing
+        tokens = filter_silence_tokens(tokens)
+        tokens = postprocess_tokens(tokens, lang=lang)
         res = await pre.normalize_tokens(tokens)
         return res.get("tokens", [])
     raise ValidationError("ASR no devolvió tokens IPA")

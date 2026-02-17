@@ -11,6 +11,7 @@ Si falla validación, se retorna feedback operativo en lugar de análisis fonét
 from __future__ import annotations
 
 import logging
+import math
 import wave
 from dataclasses import dataclass, field
 from enum import Enum
@@ -170,7 +171,7 @@ def check_quality(
     noise_floor = sorted_samples[len(sorted_samples) // 10] / max_val
     
     if noise_floor > 0.001:  # Evitar log(0)
-        snr_db = 20 * (rms / noise_floor).__log10__() if hasattr((rms / noise_floor), '__log10__') else 20 * _log10(rms / noise_floor)
+        snr_db = 20 * math.log10(rms / noise_floor)
     else:
         snr_db = 60.0  # Asumimos bueno si el ruido es muy bajo
     
@@ -208,12 +209,6 @@ def check_quality(
         rms_amplitude=rms,
         user_feedback=user_feedback,
     )
-
-
-def _log10(x: float) -> float:
-    """Log base 10 helper."""
-    import math
-    return math.log10(x) if x > 0 else 0.0
 
 
 __all__ = ["QualityIssue", "QualityGateResult", "check_quality"]

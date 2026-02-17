@@ -111,3 +111,104 @@ class AudioUploadMeta(BaseModel):
     """Metadatos esperados para la subida de audio."""
     lang: str = Field(default="es", description="Idioma del audio")
     sample_rate: Optional[int] = Field(default=None, description="Frecuencia de muestreo esperada (si se conoce)")
+
+class SoundArticulation(BaseModel):
+    """Rasgos articulatorios de un sonido IPA."""
+    place: Optional[str] = None
+    manner: Optional[str] = None
+    voicing: Optional[str] = None
+    height: Optional[str] = None
+    backness: Optional[str] = None
+    rounding: Optional[str] = None
+    description: Optional[str] = None
+
+class VisualGuide(BaseModel):
+    """Guía visual para producir un sonido."""
+    tongue: Optional[str] = None
+    teeth: Optional[str] = None
+    lips: Optional[str] = None
+    airflow: Optional[str] = None
+    jaw: Optional[str] = None
+
+class CommonError(BaseModel):
+    """Error común al pronunciar un sonido."""
+    substitution: Optional[str] = None
+    example: Optional[str] = None
+    tip: Optional[str] = None
+
+class AudioExample(BaseModel):
+    """Ejemplo de audio para un sonido."""
+    text: str
+    ipa: Optional[str] = None
+    focus_position: Optional[str] = None
+    audio_url: Optional[str] = None
+
+class DrillTargetAudio(BaseModel):
+    """Target de drill con audio."""
+    text: str
+    audio_url: str
+
+class DrillPairAudio(BaseModel):
+    """Par mínimo con audio."""
+    word1: str
+    word2: str
+    audio1_url: str
+    audio2_url: str
+
+class LessonDrill(BaseModel):
+    """Drill de lección con targets y/o pares."""
+    type: str
+    instruction: Optional[str] = None
+    target: Optional[str] = None
+    targets: Optional[List[str]] = None
+    pairs: Optional[List[List[str]]] = None
+    hints: Optional[List[str]] = None
+    targets_with_audio: Optional[List[DrillTargetAudio]] = None
+    pairs_with_audio: Optional[List[DrillPairAudio]] = None
+
+class LearningModule(BaseModel):
+    """Módulo de aprendizaje."""
+    id: str
+    title: str
+    description: Optional[str] = None
+    content: Optional[str] = None
+
+class SoundSummary(BaseModel):
+    """Resumen de sonido en overview."""
+    id: str
+    ipa: Optional[str] = None
+    common_name: Optional[str] = None
+    label: Optional[str] = None
+    name: Optional[str] = None
+    difficulty: Optional[int] = None
+
+class LearningOverview(BaseModel):
+    """Overview de aprendizaje IPA por idioma."""
+    language: str
+    name: Optional[str] = None
+    has_learning_content: bool = False
+    inventory: Optional[Dict[str, Any]] = None
+    modules: Optional[List[LearningModule]] = None
+    progression: Optional[Dict[str, List[str]]] = None
+    sounds_count: Optional[int] = None
+    sounds: List[SoundSummary] = Field(default_factory=list)
+
+class SoundLesson(BaseModel):
+    """Lección completa para un sonido IPA."""
+    language: str
+    sound_id: str
+    ipa: str
+    name: Optional[str] = None
+    common_name: Optional[str] = None
+    difficulty: Optional[int] = None
+    note: Optional[str] = None
+    articulation: Optional[SoundArticulation] = None
+    visual_guide: Optional[VisualGuide] = None
+    audio_examples: Optional[List[AudioExample]] = None
+    common_errors: Optional[List[CommonError]] = None
+    tips: Optional[List[str]] = None
+    minimal_pairs: Optional[List[List[str]]] = None
+    drills: List[LessonDrill] = Field(default_factory=list)
+    total_drills: int = 0
+    has_learning_content: bool = False
+    generated_drills: bool = False

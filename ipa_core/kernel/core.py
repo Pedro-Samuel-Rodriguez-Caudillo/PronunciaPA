@@ -18,6 +18,10 @@ from ipa_core.ports.compare import Comparator
 from ipa_core.ports.preprocess import Preprocessor
 from ipa_core.ports.textref import TextRefProvider
 from ipa_core.ports.tts import TTSProvider
+
+import logging
+
+logger = logging.getLogger(__name__)
 from ipa_core.ports.llm import LLMAdapter
 from ipa_core.types import AudioInput, CompareResult, CompareWeights
 
@@ -39,7 +43,18 @@ class Kernel:
     async def setup(self) -> None:
         """Inicializar todos los componentes."""
         await self.pre.setup()
-        await self.asr.setup()
+        try:
+            await self.asr.setup()
+        except (TypeError, ImportError) as exc:
+            # Graceful degradation: panphon/allosaurus may fail on Python <3.10
+            logger.warning(
+                "ASR backend setup failed (%s), falling back to StubASR. "
+                "Set PRONUNCIAPA_ASR=stub to silence this warning.",
+                exc,
+            )
+            from ipa_core.backends.asr_stub import StubASR
+            self.asr = StubASR()
+            await self.asr.setup()
         await self.textref.setup()
         await self.comp.setup()
         if self.tts:
