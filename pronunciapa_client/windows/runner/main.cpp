@@ -1,6 +1,7 @@
 #include <flutter/dart_project.h>
 #include <flutter/flutter_view_controller.h>
 #include <windows.h>
+#include <stdlib.h>
 
 #include "flutter_window.h"
 #include "utils.h"
@@ -12,6 +13,10 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   if (!::AttachConsole(ATTACH_PARENT_PROCESS) && ::IsDebuggerPresent()) {
     CreateAndAttachConsole();
   }
+
+  // Use Impeller (D3D11) instead of Skia+ANGLE to avoid EGL Context Lost
+  // errors on GPUs with flaky ANGLE/OpenGL-ES support.
+  _putenv_s("FLUTTER_ENGINE_SWITCHES", "--enable-impeller");
 
   // Initialize COM, so that it is available for use in the library and/or
   // plugins.

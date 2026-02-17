@@ -5,6 +5,7 @@ import '../widgets/recorder_widget.dart';
 import '../widgets/ipa_display_widget.dart';
 import '../widgets/diff_viewer_widget.dart';
 import '../providers/api_provider.dart';
+import '../providers/preferences_provider.dart';
 import '../../domain/entities/ipa_cli.dart';
 import 'settings_page.dart';
 import 'results_page.dart';
@@ -128,24 +129,94 @@ class _HomePageState extends ConsumerState<HomePage> {
   }
 
   Widget _buildResultTrigger(BuildContext context, TranscriptionResult result) {
-    // Si hay resultado, mostramos un botón para ver los detalles o navegamos automáticamente
-    // Para simplificar, mostramos el botón de resultados aquí.
+    final theme = Theme.of(context);
+    final apiState = ref.watch(apiNotifierProvider);
+    final score = result.score ?? 0.0;
+    final isGood = score > 80;
+
     return Padding(
       padding: const EdgeInsets.only(top: 24),
-      child: GradientButton(
-        onPressed: () => _navigateToResults(context, result),
-        gradient: AppTheme.coolGradient,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: const [
-            Icon(Icons.insights, color: Colors.white),
-            SizedBox(width: 8),
-            Text(
-              'Ver análisis detallado',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Quick score preview
+          GlassCard(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Icon(
+                  isGood ? Icons.check_circle : Icons.warning_amber,
+                  size: 40,
+                  color: isGood ? AppTheme.success : AppTheme.warning,
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${score.toStringAsFixed(0)}% Match',
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          color: isGood ? AppTheme.success : AppTheme.warning,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      if (apiState.isQuickResult)
+                        Text(
+                          'Revisión rápida',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                if (result.ipa.isNotEmpty)
+                  Chip(
+                    label: Text(
+                      result.ipa.length > 20
+                          ? '${result.ipa.substring(0, 20)}…'
+                          : result.ipa,
+                      style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+                    ),
+                  ),
+              ],
             ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 12),
+          GradientButton(
+            onPressed: () async {
+              if (apiState.isQuickResult) {
+                // Re-run with full analysis, then navigate
+                final notifier = ref.read(apiNotifierProvider.notifier);
+                final prefs = ref.read(preferencesProvider);
+                await notifier.reprocessFull(
+                  lang: prefs.lang,
+                  evaluationLevel: prefs.mode.name,
+                  mode: prefs.comparisonMode,
+                );
+                final updatedState = ref.read(apiNotifierProvider);
+                if (updatedState.result != null && mounted) {
+                  _navigateToResults(context, updatedState.result!);
+                }
+              } else {
+                _navigateToResults(context, result);
+              }
+            },
+            gradient: AppTheme.coolGradient,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: const [
+                Icon(Icons.insights, color: Colors.white),
+                SizedBox(width: 8),
+                Text(
+                  'Ver análisis detallado',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
