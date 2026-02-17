@@ -28,7 +28,7 @@ class TestFeedbackEndpointSuccess:
             "drills": [{"type": "minimal_pair", "text": "la ra"}],
         }
         cfg = AppConfig(
-            backend=PluginCfg(name="stub"),
+            backend=PluginCfg(name="test_ipa"),
             textref=PluginCfg(name="grapheme"),
             comparator=PluginCfg(name="levenshtein"),
             preprocessor=PluginCfg(name="basic"),
@@ -59,7 +59,7 @@ class TestFeedbackEndpointSuccess:
             "drills": [],
         }
         cfg = AppConfig(
-            backend=PluginCfg(name="stub"),
+            backend=PluginCfg(name="test_ipa"),
             textref=PluginCfg(name="grapheme"),
             comparator=PluginCfg(name="levenshtein"),
             preprocessor=PluginCfg(name="basic"),
@@ -93,7 +93,7 @@ class TestFeedbackEndpointValidation:
     def test_feedback_missing_text_returns_422(self, monkeypatch) -> None:
         """Test that /v1/feedback returns 422 when text is missing."""
         cfg = AppConfig(
-            backend=PluginCfg(name="stub"),
+            backend=PluginCfg(name="test_ipa"),
             textref=PluginCfg(name="grapheme"),
             comparator=PluginCfg(name="levenshtein"),
             preprocessor=PluginCfg(name="basic"),
@@ -114,7 +114,7 @@ class TestFeedbackEndpointValidation:
     def test_feedback_missing_audio_returns_422(self, monkeypatch) -> None:
         """Test that /v1/feedback returns 422 when audio is missing."""
         cfg = AppConfig(
-            backend=PluginCfg(name="stub"),
+            backend=PluginCfg(name="test_ipa"),
             textref=PluginCfg(name="grapheme"),
             comparator=PluginCfg(name="levenshtein"),
             preprocessor=PluginCfg(name="basic"),
@@ -138,7 +138,7 @@ class TestFeedbackEndpointErrors:
     def test_feedback_without_llm_config_returns_503(self, monkeypatch) -> None:
         """Test that /v1/feedback returns 503 when LLM is not configured."""
         cfg = AppConfig(
-            backend=PluginCfg(name="stub"),
+            backend=PluginCfg(name="test_ipa"),
             textref=PluginCfg(name="grapheme"),
             comparator=PluginCfg(name="levenshtein"),
             preprocessor=PluginCfg(name="basic"),
@@ -155,4 +155,27 @@ class TestFeedbackEndpointErrors:
 
         assert response.status_code == 503
         assert "not_ready" in response.json().get("type", "")
+
+
+def test_feedback_rejects_stub_backend(monkeypatch) -> None:
+    """Test that /v1/feedback blocks StubASR with asr_unavailable."""
+    cfg = AppConfig(
+        backend=PluginCfg(name="stub"),
+        textref=PluginCfg(name="grapheme"),
+        comparator=PluginCfg(name="levenshtein"),
+        preprocessor=PluginCfg(name="basic"),
+    )
+
+    monkeypatch.setattr(pipeline_router.loader, "load_config", lambda: cfg)
+    client = TestClient(main.get_app())
+    response = client.post(
+        "/v1/feedback",
+        files={"audio": ("test.wav", b"fake", "audio/wav")},
+        data={"text": "hola", "lang": "es"},
+    )
+
+    assert response.status_code == 503
+    data = response.json()
+    assert data["type"] == "asr_unavailable"
+    assert data["backend"] == "StubASR"
 

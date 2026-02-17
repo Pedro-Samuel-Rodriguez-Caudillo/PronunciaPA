@@ -18,8 +18,8 @@ def test_health_check(client) -> None:
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
 
-def test_transcribe_stub(tmp_path, monkeypatch, client) -> None:
-    """Verifica el stub del endpoint de transcripción."""
+def test_transcribe_success(tmp_path, monkeypatch, client) -> None:
+    """Verifica contrato básico del endpoint de transcripción."""
     wav_path = write_sine_wave(tmp_path / "transcribe.wav")
     with open(wav_path, "rb") as handle:
         audio_content = handle.read()
@@ -30,7 +30,7 @@ def test_transcribe_stub(tmp_path, monkeypatch, client) -> None:
     assert "tokens" in response.json()
 
 def test_compare_stub(tmp_path, monkeypatch, client) -> None:
-    """Verifica el stub del endpoint de comparación."""
+    """Verifica contrato básico del endpoint de comparación."""
     wav_path = write_sine_wave(tmp_path / "compare.wav")
     with open(wav_path, "rb") as handle:
         audio_content = handle.read()
@@ -39,3 +39,18 @@ def test_compare_stub(tmp_path, monkeypatch, client) -> None:
     response = client.post("/v1/compare", files=files, data=data)
     assert response.status_code == 200
     assert "per" in response.json()
+
+
+def test_asr_unavailable_contract(tmp_path, monkeypatch, client) -> None:
+    """Verifica contrato de error cuando StubASR está activo."""
+    monkeypatch.setenv("PRONUNCIAPA_ASR", "stub")
+    wav_path = write_sine_wave(tmp_path / "compare_stub_blocked.wav")
+    with open(wav_path, "rb") as handle:
+        audio_content = handle.read()
+    files = {"audio": ("test.wav", audio_content, "audio/wav")}
+    data = {"text": "hola", "lang": "es"}
+    response = client.post("/v1/compare", files=files, data=data)
+    assert response.status_code == 503
+    payload = response.json()
+    assert payload["type"] == "asr_unavailable"
+    assert isinstance(payload["detail"], str)

@@ -24,7 +24,7 @@ backend:
     engine: allosaurus  # Opciones: allosaurus, wav2vec2-ipa, xlsr-ipa
     device: cpu         # cpu, cuda, mps (auto para detectar)
     allosaurus_lang: uni2005  # Modelo Allosaurus recomendado (ipa da error)
-    lang: es
+    lang: en
 
 # Backend ASR legacy (Allosaurus directo) - ALTERNATIVA
 # backend:
@@ -50,7 +50,7 @@ backend:
 textref:
   name: espeak
   params:
-    default_lang: es
+    default_lang: en
 
 # Comparador
 comparator:

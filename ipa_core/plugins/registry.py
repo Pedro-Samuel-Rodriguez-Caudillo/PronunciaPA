@@ -133,10 +133,12 @@ def _register_defaults() -> None:
             engine = p.get("engine", "allosaurus")
             device = p.get("device", "cpu")
             allosaurus_lang = p.get("allosaurus_lang", "uni2005")
+            lang = p.get("lang")
             return UnifiedIPABackend(
                 engine=engine,
                 device=device,
                 allosaurus_lang=allosaurus_lang,
+                lang=lang,
             )
         
         register("asr", "unified_ipa", create_unified_backend)

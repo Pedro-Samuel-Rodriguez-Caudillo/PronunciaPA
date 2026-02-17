@@ -12,7 +12,7 @@ from __future__ import annotations
 import logging
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Protocol, Union
+from typing import Any, Dict, List, Optional, Union
 
 from ipa_core.plugins.base import BasePlugin
 from ipa_core.types import ASRResult, AudioInput
@@ -31,6 +31,21 @@ class ASREngine(str, Enum):
 ENGINE_MODELS: Dict[ASREngine, str] = {
     ASREngine.WAV2VEC2_IPA: "facebook/wav2vec2-lv60-espresso-ipa",
     ASREngine.XLSR_IPA: "facebook/wav2vec2-xls-r-300m-phoneme",
+}
+
+# Mapeo de ISO 639-1/variantes a códigos ISO 639-3 usados por Allosaurus.
+ALLOSAURUS_LANG_MAP: Dict[str, str] = {
+    "ar": "ara",
+    "de": "deu",
+    "en": "eng",
+    "es": "spa",
+    "fr": "fra",
+    "it": "ita",
+    "ja": "jpn",
+    "ko": "kor",
+    "pt": "por",
+    "ru": "rus",
+    "zh": "cmn",
 }
 
 
@@ -68,6 +83,7 @@ class UnifiedIPABackend(BasePlugin):
         device: str = "cpu",
         cache_dir: Optional[Path] = None,
         allosaurus_lang: str = "uni2005",
+        lang: Optional[str] = None,
     ) -> None:
         super().__init__()
         if isinstance(engine, str):
@@ -77,12 +93,32 @@ class UnifiedIPABackend(BasePlugin):
         self._device = device
         self._cache_dir = cache_dir
         self._allosaurus_lang = allosaurus_lang
+        self._default_lang = self._normalize_lang(lang)
         
         # Backend interno
         self._backend: Any = None
         self._model: Any = None  # Inicializar para evitar atributos no definidos
         self._processor: Any = None  # Inicializar para evitar atributos no definidos
         self._ready = False
+
+    def _normalize_lang(self, lang: Optional[str]) -> Optional[str]:
+        """Normaliza código de idioma (minúsculas, sin espacios)."""
+        if lang is None:
+            return None
+        norm = str(lang).strip().lower()
+        return norm or None
+
+    def _resolve_allosaurus_lang(self, lang: Optional[str]) -> Optional[str]:
+        """Mapea idioma solicitado a código compatible con Allosaurus."""
+        norm = self._normalize_lang(lang)
+        if not norm:
+            return None
+        if norm in ALLOSAURUS_LANG_MAP:
+            return ALLOSAURUS_LANG_MAP[norm]
+
+        # Soportar variantes como en-US / en_US.
+        base = norm.replace("_", "-").split("-", 1)[0]
+        return ALLOSAURUS_LANG_MAP.get(base, norm)
     
     @property
     def engine_name(self) -> str:
@@ -106,6 +142,15 @@ class UnifiedIPABackend(BasePlugin):
             raise ImportError(
                 "Allosaurus not installed. Run: pip install allosaurus"
             ) from e
+        except TypeError as e:
+            # panphon (allosaurus dep) uses `str | None` union syntax
+            # which requires Python >=3.10 (PEP 604).
+            import sys
+            raise TypeError(
+                f"Allosaurus/panphon requires Python >=3.10 "
+                f"(current: {sys.version_info.major}.{sys.version_info.minor}). "
+                "Upgrade Python or set PRONUNCIAPA_ASR=stub."
+            ) from e
         
         logger.info(f"Loading Allosaurus model: {self._allosaurus_lang}")
         self._backend = read_recognizer(self._allosaurus_lang)
@@ -114,8 +159,8 @@ class UnifiedIPABackend(BasePlugin):
     async def _setup_transformers(self) -> None:
         """Configurar backend Transformers (Wav2Vec2-IPA o XLS-R IPA)."""
         try:
-            from transformers import Wav2Vec2ForCTC, Wav2Vec2Processor
-            import torch
+            from transformers import Wav2Vec2ForCTC, Wav2Vec2Processor  # type: ignore
+            import torch  # type: ignore
         except ImportError as e:
             raise ImportError(
                 "transformers/torch not installed. Run: pip install transformers torch"
@@ -197,9 +242,21 @@ class UnifiedIPABackend(BasePlugin):
             audio_path = audio["path"]
         else:
             raise ValueError("Allosaurus requires audio with 'path' key")
-        
-        # Reconocer
-        result = self._backend.recognize(audio_path)
+
+        requested_lang = self._normalize_lang(lang) or self._default_lang
+        allosaurus_lang = self._resolve_allosaurus_lang(requested_lang)
+
+        # Reconocer (compat: signature posicional o keyword lang_id).
+        if allosaurus_lang:
+            try:
+                result = self._backend.recognize(audio_path, allosaurus_lang)
+            except TypeError as first_error:
+                try:
+                    result = self._backend.recognize(audio_path, lang_id=allosaurus_lang)
+                except TypeError:
+                    raise first_error
+        else:
+            result = self._backend.recognize(audio_path)
         
         # Parsear tokens (Allosaurus devuelve "f o n e m a s")
         tokens = result.strip().split() if result else []
@@ -210,7 +267,8 @@ class UnifiedIPABackend(BasePlugin):
             "meta": {
                 "backend": "allosaurus",
                 "engine": self._engine.value,
-                "lang": lang,
+                "lang": requested_lang,
+                "allosaurus_lang": allosaurus_lang,
             },
         }
     
@@ -220,7 +278,7 @@ class UnifiedIPABackend(BasePlugin):
         lang: Optional[str]
     ) -> ASRResult:
         """Transcribir usando Transformers (Wav2Vec2-IPA o XLS-R)."""
-        import torch
+        import torch  # type: ignore
         import numpy as np
         
         # Cargar audio
@@ -256,7 +314,7 @@ class UnifiedIPABackend(BasePlugin):
                 "engine": self._engine.value,
                 "model": ENGINE_MODELS[self._engine],
                 "device": self._device,
-                "lang": lang,
+                "lang": self._normalize_lang(lang) or self._default_lang,
             },
         }
     
@@ -328,11 +386,11 @@ class UnifiedIPABackend(BasePlugin):
                 missing.append("allosaurus")
         else:
             try:
-                import transformers
+                import transformers  # type: ignore
             except ImportError:
                 missing.append("transformers")
             try:
-                import torch
+                import torch  # type: ignore
             except ImportError:
                 missing.append("torch")
         
