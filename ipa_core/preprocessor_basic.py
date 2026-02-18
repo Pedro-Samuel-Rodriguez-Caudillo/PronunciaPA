@@ -1,12 +1,12 @@
 """Preprocesador básico de audio/tokens para el MVP.
 
 Implementa el contrato `Preprocessor` con reglas mínimas:
-- process_audio: valida estructura básica (no modifica contenido).
+- process_audio: valida estructura básica; opcionalmente ejecuta AudioProcessingChain.
 - normalize_tokens: minúsculas y recorte simple de espacios.
 """
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional
 import unicodedata
 
 from ipa_core.errors import ValidationError
@@ -19,13 +19,23 @@ from ipa_core.normalization.normalizer import IPANormalizer
 class BasicPreprocessor(BasePlugin):
     """Normalización mínima para pruebas iniciales.
 
-    Nota: El ajuste de sample rate/canales se delega a futuras versiones.
+    Parameters
+    ----------
+    audio_chain : AudioProcessingChain, optional
+        Cadena de procesamiento de audio. Si es ``None`` (por defecto),
+        ``process_audio`` solo valida claves y devuelve el audio intacto,
+        preservando el comportamiento original. Si se proporciona, ejecuta
+        la cadena completa (EnsureWav → VADTrim → QualityCheck).
     """
 
     _REQUIRED_AUDIO_KEYS = ("path", "sample_rate", "channels")
 
+    def __init__(self, *, audio_chain: Optional[Any] = None) -> None:
+        super().__init__()
+        self._audio_chain = audio_chain
+
     async def process_audio(self, audio: AudioInput, **kw: Any) -> PreprocessorResult:  # noqa: D401
-        """Validar claves esperadas y devolver el audio intacto envuelto en PreprocessorResult."""
+        """Validar claves esperadas; si hay audio_chain, ejecutarla completa."""
         try:
             path = audio["path"]
             sample_rate = audio["sample_rate"]
@@ -39,6 +49,18 @@ class BasicPreprocessor(BasePlugin):
             raise ValidationError("AudioInput.sample_rate must be a positive integer")
         if not isinstance(channels, int) or channels <= 0:
             raise ValidationError("AudioInput.channels must be a positive integer")
+
+        if self._audio_chain is not None:
+            from ipa_core.audio.processing_chain import AudioContext
+            ctx = AudioContext(audio=dict(audio), lang=kw.get("lang", ""))  # type: ignore[arg-type]
+            ctx = await self._audio_chain.process(ctx)
+            meta: dict = {
+                "preprocessor": "basic",
+                "audio_valid": True,
+                "steps": ctx.steps_applied,
+                **ctx.meta,
+            }
+            return {"audio": ctx.audio, "meta": meta}  # type: ignore[return-value]
 
         return {"audio": dict(audio), "meta": {"preprocessor": "basic", "audio_valid": True}}  # type: ignore
 
