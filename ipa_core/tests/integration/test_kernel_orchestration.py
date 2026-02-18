@@ -25,14 +25,13 @@ async def test_kernel_run_e2e_flow(mock_config):
     await kernel.setup()
     try:
         audio: AudioInput = {"path": "test.wav", "sample_rate": 16000, "channels": 1}
-        # text is 'hola'
-        # grapheme textref for 'hola' -> ['h', 'o', 'l', 'a']
-        # stub asr -> ['h', 'o', 'l', 'a']
+        # test.wav does not exist → StubASR returns default tokens ['o', 'l', 'a']
+        # grapheme textref for 'ola' -> ['o', 'l', 'a']
         # compare -> PER 0.0
-        result = await kernel.run(audio=audio, text="hola", lang="es")
-        
+        result = await kernel.run(audio=audio, text="ola", lang="es")
+
         assert result["per"] == 0.0
-        assert len(result["alignment"]) == 4
+        assert len(result["alignment"]) == 3
         for ref, hyp in result["alignment"]:
             assert ref == hyp
     finally:
@@ -46,11 +45,11 @@ async def test_kernel_run_with_mismatch(mock_config):
     await kernel.setup()
     try:
         audio: AudioInput = {"path": "test.wav", "sample_rate": 16000, "channels": 1}
-        # stub asr returns ['h', 'o', 'l', 'a']
-        # text 'ola' -> grapheme ['o', 'l', 'a']
-        # Comparison should show one deletion or substitution depending on alignment
-        result = await kernel.run(audio=audio, text="ola", lang="es")
-        
+        # test.wav does not exist → StubASR returns default tokens ['o', 'l', 'a']
+        # text 'hola' -> grapheme ['h', 'o', 'l', 'a']
+        # Comparison: ['o','l','a'] vs ['h','o','l','a'] → 1 deletion → PER > 0
+        result = await kernel.run(audio=audio, text="hola", lang="es")
+
         assert result["per"] > 0.0
         assert "ops" in result
     finally:
