@@ -1,9 +1,10 @@
-"""Tests para `run_pipeline`."""
+"""Tests para `run_pipeline` y `execute_pipeline`."""
 from __future__ import annotations
 
 import pytest
 from ipa_core.errors import ValidationError
-from ipa_core.pipeline.runner import run_pipeline
+from ipa_core.pipeline.runner import run_pipeline, execute_pipeline
+from ipa_core.phonology.representation import PhonologicalRepresentation
 
 from ipa_core.types import AudioInput, CompareResult
 
@@ -89,4 +90,132 @@ async def test_run_pipeline_rejects_raw_text():
             audio={"path": "x.wav", "sample_rate": 16000, "channels": 1},
             text="ab",
             lang="es",
+        )
+
+
+# ── Mock pack for execute_pipeline tests ─────────────────────────────
+
+class _MockScoringProfile:
+    tolerance = "medium"
+    phoneme_weights = {}
+
+
+class _MockPack:
+    """LanguagePack mínimo para probar execute_pipeline con pack."""
+
+    def collapse(self, ipa: str, *, mode: str = "objective") -> str:
+        """Simula collapse: devuelve el mismo IPA (no hace cambios)."""
+        return ipa
+
+    def derive(self, ipa: str, *, mode: str = "objective") -> str:
+        """Simula derive: devuelve el mismo IPA."""
+        return ipa
+
+    def get_scoring_profile(self, mode: str) -> _MockScoringProfile:
+        return _MockScoringProfile()
+
+
+_AUDIO = {"path": "x.wav", "sample_rate": 16000, "channels": 1}
+
+
+# ── execute_pipeline() tests ──────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_execute_pipeline_no_pack_phonemic():
+    """execute_pipeline sin pack con evaluation_level=phonemic retorna result."""
+    pre = _Preprocessor()
+    asr = _ASR(tokens=["a", "b"])
+    textref = _TextRef()
+    result = await execute_pipeline(
+        pre, asr, textref,
+        audio=_AUDIO, text="ab", lang="es",
+        pack=None, evaluation_level="phonemic",
+    )
+    assert result is not None
+    d = result.to_dict()
+    assert "per" in d
+
+
+@pytest.mark.asyncio
+async def test_execute_pipeline_no_pack_phonetic():
+    """execute_pipeline sin pack con evaluation_level=phonetic retorna result."""
+    pre = _Preprocessor()
+    asr = _ASR(tokens=["a", "b"])
+    textref = _TextRef()
+    result = await execute_pipeline(
+        pre, asr, textref,
+        audio=_AUDIO, text="ab", lang="es",
+        pack=None, evaluation_level="phonetic",
+    )
+    d = result.to_dict()
+    assert "per" in d
+
+
+@pytest.mark.asyncio
+async def test_execute_pipeline_with_pack_collapse():
+    """Con pack, aplica collapse en modo phonemic."""
+    collapse_calls = []
+
+    class TrackingPack(_MockPack):
+        def collapse(self, ipa, *, mode="objective"):
+            collapse_calls.append(ipa)
+            return ipa
+
+    pre = _Preprocessor()
+    asr = _ASR(tokens=["a", "b"])
+    textref = _TextRef()
+    result = await execute_pipeline(
+        pre, asr, textref,
+        audio=_AUDIO, text="ab", lang="es",
+        pack=TrackingPack(), evaluation_level="phonemic",
+    )
+    assert len(collapse_calls) >= 1
+
+
+@pytest.mark.asyncio
+async def test_execute_pipeline_with_pack_derive():
+    """Con pack, aplica derive en modo phonetic."""
+    derive_calls = []
+
+    class TrackingPack(_MockPack):
+        def derive(self, ipa, *, mode="objective"):
+            derive_calls.append(ipa)
+            return ipa
+
+    pre = _Preprocessor()
+    asr = _ASR(tokens=["a", "b"])
+    textref = _TextRef()
+    result = await execute_pipeline(
+        pre, asr, textref,
+        audio=_AUDIO, text="ab", lang="es",
+        pack=TrackingPack(), evaluation_level="phonetic",
+    )
+    assert len(derive_calls) >= 1
+
+
+@pytest.mark.asyncio
+async def test_execute_pipeline_postprocessing_applied_to_asr():
+    """Limpieza IPA se aplica en la ruta ASR (silence markers removidos)."""
+    pre = _Preprocessor()
+    asr = _ASR(tokens=["sil", "a", "sp", "b"])  # silence markers
+    textref = _TextRef()
+    result = await execute_pipeline(
+        pre, asr, textref,
+        audio=_AUDIO, text="ab", lang="es",
+        pack=None, evaluation_level="phonemic",
+    )
+    # Resultado debe ser válido (sin error) — silence fue filtrado
+    assert result is not None
+
+
+@pytest.mark.asyncio
+async def test_execute_pipeline_empty_asr_raises():
+    """execute_pipeline con ASR vacío lanza ValidationError."""
+    pre = _Preprocessor()
+    asr = _ASR(tokens=None)
+    textref = _TextRef()
+    with pytest.raises(ValidationError):
+        await execute_pipeline(
+            pre, asr, textref,
+            audio=_AUDIO, text="ab", lang="es",
         )

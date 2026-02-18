@@ -9,7 +9,7 @@ from typing import Optional, Tuple
 from ipa_core.config.schema import AppConfig
 from ipa_core.packs.loader import load_language_pack, load_model_pack, resolve_manifest_path
 from ipa_core.packs.schema import LanguagePack, ModelPack, TTSConfig
-from ipa_core.pipeline.runner import run_pipeline, run_pipeline_with_pack
+from ipa_core.pipeline.runner import run_pipeline, run_pipeline_with_pack, execute_pipeline
 from ipa_core.pipeline.transcribe import EvaluationMode
 from ipa_core.phonology.representation import RepresentationLevel, ComparisonResult
 from ipa_core.plugins import registry
@@ -84,17 +84,18 @@ class Kernel:
         evaluation_level: RepresentationLevel = "phonemic",
     ) -> CompareResult:
         """Ejecutar el pipeline completo (Asíncrono).
-        
-        Si hay un language pack cargado, usa el pipeline con derive/collapse
-        para análisis fonémico/fonético preciso. Si no, usa el pipeline clásico.
+
+        Con pack: usa execute_pipeline() (derive/collapse + ScoringProfile).
+        Sin pack:  usa run_pipeline() con el comparador inyectado.
         """
         if self.language_pack is not None:
-            result = await self.run_with_pack(
-                audio=audio,
-                text=text,
-                lang=lang,
+            result = await execute_pipeline(
+                self.pre, self.asr, self.textref, self.comp,
+                audio=audio, text=text, lang=lang,
+                pack=self.language_pack,
                 mode=mode,
                 evaluation_level=evaluation_level,
+                weights=weights,
             )
             return result.to_dict()
         return await run_pipeline(
@@ -117,26 +118,14 @@ class Kernel:
         mode: EvaluationMode = "objective",
         evaluation_level: RepresentationLevel = "phonemic",
     ) -> ComparisonResult:
-        """Pipeline con LanguagePack para derive/collapse + scoring profile.
-        
-        Usa el pack cargado en el Kernel para:
-        - Derivar representación fonética desde fonémica (derive)
-        - Colapsar fonos a fonemas (collapse)
-        - Aplicar ScoringProfile según modo
-        
-        Raises
-        ------
-        ValidationError
-            Si no hay language pack cargado.
+        """Pipeline con LanguagePack. Delegado a execute_pipeline().
+
+        .. deprecated:: Usar run() directamente; ya maneja el pack automáticamente.
         """
-        return await run_pipeline_with_pack(
-            pre=self.pre,
-            asr=self.asr,
-            textref=self.textref,
-            audio=audio,
-            text=text,
+        return await execute_pipeline(
+            self.pre, self.asr, self.textref, self.comp,
+            audio=audio, text=text, lang=lang,
             pack=self.language_pack,
-            lang=lang,
             mode=mode,
             evaluation_level=evaluation_level,
         )
@@ -147,9 +136,16 @@ def create_kernel(cfg: AppConfig) -> Kernel:
     
     Valida que el backend ASR seleccionado produzca IPA si require_ipa=True.
     Usa strict_mode de la config para determinar comportamiento ante errores.
+    Conecta la AudioProcessingChain al BasicPreprocessor.
     """
+    from ipa_core.audio.processing_chain import AudioProcessingChain
+    from ipa_core.preprocessor_basic import BasicPreprocessor
+
     strict = cfg.strict_mode
     pre = registry.resolve_preprocessor(cfg.preprocessor.name, cfg.preprocessor.params, strict_mode=strict)
+    # Inyectar la cadena de audio si el preprocessor es BasicPreprocessor y no tiene una
+    if isinstance(pre, BasicPreprocessor) and pre._audio_chain is None:
+        pre._audio_chain = AudioProcessingChain.default(vad_enabled=True)
     asr = registry.resolve_asr(cfg.backend.name, cfg.backend.params, strict_mode=strict)
     textref = registry.resolve_textref(cfg.textref.name, cfg.textref.params, strict_mode=strict)
     comp = registry.resolve_comparator(cfg.comparator.name, cfg.comparator.params, strict_mode=strict)
