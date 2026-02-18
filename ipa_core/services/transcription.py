@@ -17,6 +17,7 @@ from ipa_core.types import AudioInput, Token
 from ipa_core.plugins import registry
 from ipa_core.normalization.resolve import load_inventory_for
 from ipa_core.services.audio_quality import assess_audio_quality
+from ipa_core.pipeline.ipa_cleaning import clean_asr_tokens
 
 
 @dataclass
@@ -120,6 +121,8 @@ class TranscriptionService:
                 tokens = tr_res.get("tokens", [])
         if not tokens:
             raise ValidationError("ASR no devolvió tokens IPA")
+        # Limpieza IPA unificada
+        tokens = clean_asr_tokens(tokens, lang=lang or self._default_lang)
         inventory, pack_id = load_inventory_for(lang=lang or self._default_lang)
         norm_res = await self.pre.normalize_tokens(tokens, inventory=inventory)
         tokens = norm_res.get("tokens", [])

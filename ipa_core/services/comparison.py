@@ -20,6 +20,7 @@ from ipa_core.normalization.resolve import load_inventory_for
 from ipa_core.services.audio_quality import assess_audio_quality
 from ipa_core.services.adaptation import adapt_settings
 from ipa_core.services.user_profile import UserAudioProfile
+from ipa_core.pipeline.ipa_cleaning import clean_asr_tokens, clean_textref_tokens
 
 
 @dataclass
@@ -216,6 +217,12 @@ class ComparisonService:
         audio = to_audio_input(wav_path)
         pre_audio_res = await self.pre.process_audio(audio)
         processed_audio = pre_audio_res.get("audio", audio)
+
+        # Si el preprocessor ya ejecutó la cadena de audio, usar quality de ahí
+        pre_meta = pre_audio_res.get("meta", {}) if isinstance(pre_audio_res, dict) else {}
+        if quality_res is None and "audio_quality" in pre_meta:
+            quality_res = pre_meta["audio_quality"]
+
         asr_result = await self.asr.transcribe(processed_audio, lang=lang or self._default_lang)
         hyp_tokens = asr_result.get("tokens")
         if not hyp_tokens and allow_textref_fallback:
@@ -231,6 +238,9 @@ class ComparisonService:
             else:
                 msg += " El audio podría estar vacío, ser demasiado corto o el modelo aún no está listo."
             raise ValidationError(msg)
+
+        # Limpieza IPA unificada antes de normalización
+        hyp_tokens = clean_asr_tokens(hyp_tokens, lang=lang or self._default_lang)
         inventory, pack_id = load_inventory_for(lang=lang or self._default_lang, pack=pack)
         allophone_rules = inventory.allophone_collapse if inventory and effective_level == "phonemic" else None
         if effective_level == "phonetic" and not pack_id:
@@ -252,8 +262,10 @@ class ComparisonService:
                 tr_result = await self.textref.to_ipa(text, lang=fallback_lang)
             else:
                 raise
+        # Limpieza IPA para referencia (sin lang-fixes, TextRef es canónico)
+        ref_tokens_raw = clean_textref_tokens(tr_result.get("tokens", []), lang=ref_lang)
         ref_pre_res = await self.pre.normalize_tokens(
-            tr_result.get("tokens", []),
+            ref_tokens_raw,
             inventory=inventory,
             allophone_rules=allophone_rules,
         )
