@@ -20,6 +20,7 @@ from ipa_core.phonology.representation import (
     RepresentationLevel,
 )
 from ipa_core.compare.compare import compare_representations
+from ipa_core.pipeline.ipa_cleaning import clean_asr_tokens, clean_textref_tokens
 
 if TYPE_CHECKING:
     from ipa_core.plugins.language_pack import LanguagePackPlugin
@@ -47,11 +48,20 @@ async def transcribe_audio(
     # 2. ASR
     res = await asr.transcribe(processed_audio, lang=lang)
 
-    # 3. Extraer tokens
+    # 3. Extraer y limpiar tokens
     tokens = res.get("tokens", [])
     if not tokens:
         raise ValidationError("ASR no devolvió tokens IPA")
-    
+
+    # Limpieza IPA: silence filter + lang fixes + dedup
+    tokens = clean_asr_tokens(tokens, lang=lang)
+    if not tokens:
+        raise ValidationError("ASR no devolvió tokens IPA válidos tras limpieza")
+
+    # Normalización del preprocessor
+    norm_res = await pre.normalize_tokens(tokens)
+    tokens = norm_res.get("tokens", tokens)
+
     # ASR produce representación fonética
     ipa = "".join(tokens)
     return PhonologicalRepresentation.phonetic(ipa)
@@ -71,7 +81,12 @@ async def transcribe_text(
     tokens = res.get("tokens", [])
     if not tokens:
         raise ValidationError("TextRef no devolvió tokens IPA")
-    
+
+    # Limpieza IPA: silence filter + artefactos no-IPA (sin lang-fixes, TextRef es canónico)
+    tokens = clean_textref_tokens(tokens, lang=lang)
+    if not tokens:
+        raise ValidationError("TextRef no devolvió tokens IPA válidos tras limpieza")
+
     ipa = "".join(tokens)
     return PhonologicalRepresentation.phonemic(ipa)
 
@@ -89,6 +104,9 @@ async def prepare_comparison(
     evaluation_level: RepresentationLevel = "phonemic",
 ) -> tuple[PhonologicalRepresentation, PhonologicalRepresentation]:
     """Preparar representaciones para comparación.
+
+    .. deprecated::
+        Usar :func:`ipa_core.pipeline.runner.execute_pipeline` en su lugar.
     
     Parámetros
     ----------
@@ -150,7 +168,11 @@ async def compare_with_pack(
     mode: EvaluationMode = "objective",
     evaluation_level: RepresentationLevel = "phonemic",
 ) -> ComparisonResult:
-    """Preparar y comparar usando LanguagePack (derive/collapse + scoring profile)."""
+    """Preparar y comparar usando LanguagePack (derive/collapse + scoring profile).
+
+    .. deprecated::
+        Usar :func:`ipa_core.pipeline.runner.execute_pipeline` en su lugar.
+    """
 
     target_repr, observed_repr = await prepare_comparison(
         target_text,
