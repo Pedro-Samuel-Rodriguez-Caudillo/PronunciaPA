@@ -1,7 +1,7 @@
 # Configuración local para PronunciaPA
 version: 1
 strict_mode: false  # Modo flexible: usa fallbacks automáticos si algo falla
-language_pack: en-us
+language_pack: es-mx
 # model_pack: model/qwen2.5-7b-instruct  # Comentado: descomentar cuando el modelo esté descargado
 
 # Preprocesamiento
@@ -24,7 +24,7 @@ backend:
     engine: allosaurus  # Opciones: allosaurus, wav2vec2-ipa, xlsr-ipa
     device: cpu         # cpu, cuda, mps (auto para detectar)
     allosaurus_lang: uni2005  # Modelo Allosaurus recomendado (ipa da error)
-    lang: en
+    lang: es
 
 # Backend ASR legacy (Allosaurus directo) - ALTERNATIVA
 # backend:
@@ -50,7 +50,7 @@ backend:
 textref:
   name: espeak
   params:
-    default_lang: en
+    default_lang: es
 
 # Comparador
 comparator:
@@ -101,4 +101,4 @@ realtime:
     frame_ms: 30
 
 options:
-  lang: en
+  lang: es
