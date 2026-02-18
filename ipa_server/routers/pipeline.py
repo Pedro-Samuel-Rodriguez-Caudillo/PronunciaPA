@@ -16,8 +16,9 @@ from ipa_core.config.overrides import apply_overrides
 from ipa_core.errors import ValidationError
 from ipa_core.kernel.core import Kernel, create_kernel
 from ipa_core.normalization.resolve import resolve_pack_id
-from ipa_core.pipeline.runner import run_pipeline_with_pack
+from ipa_core.pipeline.runner import run_pipeline_with_pack, execute_pipeline
 from ipa_core.pipeline.transcribe import EvaluationMode
+from ipa_core.pipeline.ipa_cleaning import clean_asr_tokens, clean_textref_tokens
 from ipa_core.phonology.representation import RepresentationLevel
 from ipa_core.plugins import registry
 from ipa_core.plugins.language_pack import LanguagePackPlugin
@@ -185,11 +186,8 @@ async def transcribe(
         if asr_guard:
             return asr_guard
 
-        # Run quality gates before ASR
-        quality_res, quality_warnings, _ = assess_audio_quality(
-            str(tmp_path), user_id=user_id
-        )
-
+        # Quality assessment is handled inside TranscriptionService._run_pipeline()
+        # (which also runs it) — no need to call it redundantly here.
         service = TranscriptionService(
             preprocessor=kernel.pre,
             asr=kernel.asr,
@@ -200,10 +198,6 @@ async def transcribe(
             str(tmp_path), lang=lang_resolved, user_id=user_id
         )
         meta = payload.meta or {}
-        if quality_res:
-            meta["audio_quality"] = quality_res.to_dict()
-        if quality_warnings:
-            meta["warnings"] = quality_warnings
         return {
             "ipa": payload.ipa,
             "tokens": payload.tokens,
@@ -311,99 +305,48 @@ async def compare(
         if asr_guard:
             return asr_guard
 
-        if language_pack:
-            quality_res, quality_warnings, profile_meta = assess_audio_quality(
-                str(tmp_path), user_id=user_id
-            )
-            profile = None
-            if profile_meta and isinstance(profile_meta.get("profile"), dict):
-                from ipa_core.services.user_profile import UserAudioProfile
-
-                profile = UserAudioProfile.from_dict(profile_meta["profile"])
-            effective_mode, effective_level, adaptive_meta = adapt_settings(
-                requested_mode=mode,
-                requested_level=evaluation_level,
-                quality=quality_res,
-                profile=profile,
-            )
-            comp_res = await run_pipeline_with_pack(
-                pre=kernel.pre,
-                asr=kernel.asr,
-                textref=kernel.textref,
-                audio={"path": str(tmp_path), "sample_rate": 16000, "channels": 1},
-                text=text,
-                pack=language_pack,
-                lang=lang_resolved,
-                mode=cast(EvaluationMode, effective_mode),
-                evaluation_level=cast(RepresentationLevel, effective_level),
-            )
-            payload = comp_res.to_dict()
-            payload["score"] = comp_res.score
-            payload["mode"] = effective_mode
-            payload["evaluation_level"] = effective_level
-            payload["ipa"] = comp_res.observed.to_ipa(with_delimiters=False)
-            payload["tokens"] = comp_res.observed.segments
-            payload.setdefault("meta", {})
-            payload["meta"]["adaptive"] = adaptive_meta
-            if quality_res:
-                payload["meta"]["audio_quality"] = quality_res.to_dict()
-            if quality_warnings:
-                payload["meta"]["warnings"] = quality_warnings
-            if profile_meta:
-                payload["meta"]["user_profile"] = profile_meta
-            return payload
-
-        # Fallback al comparador clásico (sin language pack)
-        # Still run quality assessment
-        quality_res, quality_warnings, _ = assess_audio_quality(
+        # Quality assessment + adaptive settings (una sola vez)
+        quality_res, quality_warnings, profile_meta = assess_audio_quality(
             str(tmp_path), user_id=user_id
         )
-
-        service = ComparisonService(
-            preprocessor=kernel.pre,
-            asr=kernel.asr,
-            textref=kernel.textref,
-            comparator=kernel.comp,
-            default_lang=lang_resolved,
+        profile = None
+        if profile_meta and isinstance(profile_meta.get("profile"), dict):
+            from ipa_core.services.user_profile import UserAudioProfile
+            profile = UserAudioProfile.from_dict(profile_meta["profile"])
+        effective_mode, effective_level, adaptive_meta = adapt_settings(
+            requested_mode=mode,
+            requested_level=evaluation_level,
+            quality=quality_res,
+            profile=profile,
         )
-        payload = await service.compare_file_detail(
-            str(tmp_path),
-            text,
+
+        # Pipeline unificado — soporta pack y sin pack
+        comp_res = await execute_pipeline(
+            kernel.pre, kernel.asr, kernel.textref, kernel.comp,
+            audio={"path": str(tmp_path), "sample_rate": 16000, "channels": 1},
+            text=text,
             lang=lang_resolved,
-            evaluation_level=evaluation_level,
-            pack=pack,
-            mode=mode,
-            user_id=user_id,
+            pack=language_pack,
+            mode=cast(EvaluationMode, effective_mode),
+            evaluation_level=cast(RepresentationLevel, effective_level),
         )
-        res = payload.result
-        hyp_tokens = payload.hyp_tokens
-        ref_tokens = payload.ref_tokens
-        meta = payload.meta
 
-        per = res.get("per", 0.0)
-        base_score = max(0.0, (1.0 - per) * 100.0)
-        alignment = [list(pair) for pair in res.get("alignment", [])]
-
-        adaptive = meta.get("adaptive", {}) if isinstance(meta, dict) else {}
-        effective_mode = adaptive.get("effective", {}).get("mode", mode)
-        effective_level = adaptive.get("effective", {}).get(
-            "evaluation_level", evaluation_level
-        )
-        return {
-            **res,
-            "alignment": alignment,
-            "score": base_score,
-            "mode": effective_mode,
-            "evaluation_level": effective_level,
-            "ipa": " ".join(hyp_tokens),
-            "tokens": hyp_tokens,
-            "target_ipa": " ".join(ref_tokens),
-            "meta": {
-                **(meta if isinstance(meta, dict) else {}),
-                **({"audio_quality": quality_res.to_dict()} if quality_res else {}),
-                **({"warnings": quality_warnings} if quality_warnings else {}),
-            },
-        }
+        payload = comp_res.to_dict()
+        payload["score"] = comp_res.score
+        payload["mode"] = effective_mode
+        payload["evaluation_level"] = effective_level
+        payload["ipa"] = comp_res.observed.to_ipa(with_delimiters=False)
+        payload["tokens"] = comp_res.observed.segments
+        payload["target_ipa"] = comp_res.target.to_ipa(with_delimiters=False)
+        payload.setdefault("meta", {})
+        payload["meta"]["adaptive"] = adaptive_meta
+        if quality_res:
+            payload["meta"]["audio_quality"] = quality_res.to_dict()
+        if quality_warnings:
+            payload["meta"]["warnings"] = quality_warnings
+        if profile_meta:
+            payload["meta"]["user_profile"] = profile_meta
+        return payload
     finally:
         await kernel.teardown()
         if tmp_path.exists():
@@ -455,8 +398,11 @@ async def quick_compare(
                 msg += " El audio podría estar vacío, ser demasiado corto o no tener voz."
             raise ValidationError(msg)
 
+        # Limpieza IPA unificada para quick-compare
+        hyp_tokens = clean_asr_tokens(hyp_tokens, lang=lang_resolved)
+
         tr_result = await kernel.textref.to_ipa(text, lang=lang_resolved)
-        ref_tokens = tr_result.get("tokens", [])
+        ref_tokens = clean_textref_tokens(tr_result.get("tokens", []), lang=lang_resolved)
 
         result = await kernel.comp.compare(ref_tokens, hyp_tokens)
 
