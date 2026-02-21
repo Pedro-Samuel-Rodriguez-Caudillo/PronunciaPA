@@ -94,6 +94,19 @@ aliases:
   ɱ: m      # Labiodental → bilabial
   ɴ: n      # Uvular → alveolar
 
+  # Vocales nasales (Allosaurus)
+  ã: a      # Vocal nasal a
+  ẽ: e      # Vocal nasal e
+  ĩ: i      # Vocal nasal i
+  õ: o      # Vocal nasal o
+  ũ: u      # Vocal nasal u
+
+  # Otras variantes comunes (confusiones de Allosaurus)
+  v: β      # v → bilabial fricativa
+  z: s      # s sonora → s sorda
+  oʊ: o     # Diptongo inglés → o
+  eɪ: e     # Diptongo inglés → e
+
 # Diacríticos permitidos
 diacritics:
   - ˈ    # acento primario

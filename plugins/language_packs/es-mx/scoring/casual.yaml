@@ -12,4 +12,5 @@ acceptable_variants:
   - [b, β]
   - [d, ð]
   - [g, ɣ]
+  - [u, w]   # diptongo: semivocal w es alófono de /u/
   - [s, h]   # aspiración OK
