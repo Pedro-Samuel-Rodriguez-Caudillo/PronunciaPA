@@ -48,19 +48,20 @@ _STRIP_DIACRITICS: dict[str, set[str]] = {
     },
 }
 
-# Common Allosaurus substitutions to normalize
+# Common Allosaurus substitutions to normalize.
+# NOTE: do NOT add 'r' here — it is handled exclusively per-language in
+# _LANG_FIXES so that EN gets /ɹ/, ES gets /ɾ/, FR/DE get /ʁ/, etc.
 _ALLOSAURUS_FIXES: dict[str, str] = {
     "g": "ɡ",       # Latin g → IPA ɡ (U+0261)
     "ɡ̥": "k",       # Devoiced ɡ → k
     "'": "ˈ",       # ASCII apostrophe → IPA stress
     ":": "ː",       # ASCII colon → IPA length
-    "r": "ɾ",       # For Spanish: default r → tap (overridden per lang below)
 }
 
 _LANG_FIXES: dict[str, dict[str, str]] = {
     "es": {
-        "r": "ɾ",   # Default Spanish r = tap
-        "ɹ": "ɾ",   # English r → Spanish tap
+        "r": "ɾ",   # ASCII r (Allosaurus) → IPA tap ɾ — normalización ASCII→IPA, no alófono
+        "ɹ": "ɾ",   # English approx → Spanish tap
         "ʁ": "r",   # French r → Spanish trill
     },
     "en": {
@@ -166,9 +167,16 @@ def _clean_token(
 
 
 def filter_silence_tokens(tokens: List[Token]) -> List[Token]:
-    """Remove silence/pause markers from token list."""
+    """Remove silence/pause markers and standalone suprasegmental markers."""
+    # Silencio/pausa
     silence_markers = {"sil", "SIL", "<sil>", "sp", "SP", "<sp>", ""}
-    return [t for t in tokens if t not in silence_markers]
+    # Marcadores suprasegmentales que espeak emite como tokens independientes.
+    # Son irrelevantes para la comparaci\u00f3n fon\u00e9mica porque no son fonemas:
+    # el acento afecta la s\u00edlaba, no el fonema en s\u00ed, y el comparador
+    # trabaja a nivel de segmento.
+    suprasegmental_markers = {"\u02c8", "\u02cc", "\u02d1", "\u203f", "|", "\u2016"}
+    skip = silence_markers | suprasegmental_markers
+    return [t for t in tokens if t not in skip]
 
 
 __all__ = ["postprocess_tokens", "filter_silence_tokens"]

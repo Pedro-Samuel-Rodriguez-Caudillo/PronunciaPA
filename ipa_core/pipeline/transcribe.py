@@ -58,8 +58,8 @@ async def transcribe_audio(
     if not tokens:
         raise ValidationError("ASR no devolvió tokens IPA válidos tras limpieza")
 
-    # Normalización del preprocessor
-    norm_res = await pre.normalize_tokens(tokens)
+    # Normalización del preprocessor (con lang para reglas específicas por idioma)
+    norm_res = await pre.normalize_tokens(tokens, lang=lang)
     tokens = norm_res.get("tokens", tokens)
 
     # ASR produce representación fonética
@@ -217,14 +217,17 @@ async def transcribe(
     # 2. ASR
     res = await asr.transcribe(processed_audio, lang=lang)
 
-    # 3. Extracción y normalización de tokens (o fallback a TextRef)
+    # 3. Extracción, limpieza y normalización de tokens (o fallback a TextRef)
     tokens = res.get("tokens")
     if not tokens:
         raw_text = res.get("raw_text", "")
         if raw_text:
             tr_res = await textref.to_ipa(raw_text, lang=lang or "")
             tokens = tr_res.get("tokens", [])
+    
     if tokens:
+        # Limpieza IPA: silence filter + lang fixes + dedup (critical for ASR)
+        tokens = clean_asr_tokens(tokens, lang=lang)
         norm_res = await pre.normalize_tokens(tokens)
         return norm_res.get("tokens", [])
 
