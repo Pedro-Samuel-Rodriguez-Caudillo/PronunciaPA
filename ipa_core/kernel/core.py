@@ -145,7 +145,11 @@ def create_kernel(cfg: AppConfig) -> Kernel:
     pre = registry.resolve_preprocessor(cfg.preprocessor.name, cfg.preprocessor.params, strict_mode=strict)
     # Inyectar la cadena de audio si el preprocessor es BasicPreprocessor y no tiene una
     if isinstance(pre, BasicPreprocessor) and pre._audio_chain is None:
-        pre._audio_chain = AudioProcessingChain.default(vad_enabled=True)
+        vad_backend = cfg.preprocessor.params.get("vad_backend", "auto")
+        pre._audio_chain = AudioProcessingChain.default(
+            vad_enabled=True,
+            vad_backend=vad_backend,
+        )
     asr = registry.resolve_asr(cfg.backend.name, cfg.backend.params, strict_mode=strict)
     textref = registry.resolve_textref(cfg.textref.name, cfg.textref.params, strict_mode=strict)
     comp = registry.resolve_comparator(cfg.comparator.name, cfg.comparator.params, strict_mode=strict)
