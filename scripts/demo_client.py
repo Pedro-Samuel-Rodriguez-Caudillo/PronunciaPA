@@ -98,8 +98,8 @@ def print_results(result: dict) -> None:
         if "duration" in result:
             print(f"   Duración: {result['duration']:.2f}s")
     
-    # Timestamps si existen
-    timestamps = result.get("timestamps", [])
+    # Timestamps si existen  (campo 'time_stamps' en ASRResult TypedDict)
+    timestamps = result.get("time_stamps", [])
     if timestamps:
         print(f"\n⏱️  Timestamps: {len(timestamps)} segmentos")
         for i, ts in enumerate(timestamps[:5], 1):  # Mostrar solo los primeros 5

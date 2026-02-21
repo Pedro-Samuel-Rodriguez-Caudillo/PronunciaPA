@@ -46,6 +46,10 @@ transformers = [
     "transformers>=4.30,<5",
     "torch>=2.0,<3",
 ]
+vad = [
+    "silero-vad>=1.0",
+    "torch>=2.0,<3",
+]
 
 [project.scripts]
 pronunciapa = "ipa_core.interfaces.cli:main"

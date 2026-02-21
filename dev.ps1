@@ -32,6 +32,7 @@
   .\dev.ps1 -ServerOnly        # Backend only
   .\dev.ps1 -UIOnly            # UI only (backend already running)
   .\dev.ps1 -UI vite -UIOnly   # Vite only
+  .\dev.ps1 -DebugAudio        # Backend + Flutter con logs DEBUG del pipeline de audio
 #>
 param(
     [ValidateSet("flutter", "vite")]
@@ -40,7 +41,10 @@ param(
     [switch]$ServerOnly,
     [switch]$UIOnly,
     [switch]$EnableImpeller,
-    [switch]$SoftwareRendering
+    [switch]$SoftwareRendering,
+    # Activa logs DEBUG del pipeline de audio (AudioChain, VAD, AGC, ensure_wav).
+    # Los mensajes aparecen en la terminal del servidor con prefijo [AudioChain].
+    [switch]$DebugAudio
 )
 
 $ErrorActionPreference = "Stop"
@@ -108,6 +112,12 @@ try {
         Write-Header "Starting backend server (port 8000)..."
 
         $env:PYTHONPATH = $Root
+        if ($DebugAudio) {
+            $env:PRONUNCIAPA_DEBUG_AUDIO = "1"
+            Write-Info "Audio debug logging ENABLED (PRONUNCIAPA_DEBUG_AUDIO=1)"
+        } else {
+            Remove-Item Env:PRONUNCIAPA_DEBUG_AUDIO -ErrorAction SilentlyContinue
+        }
         if ($env:PRONUNCIAPA_ASR) {
             Write-Info "Clearing PRONUNCIAPA_ASR override: $($env:PRONUNCIAPA_ASR)"
             Remove-Item Env:PRONUNCIAPA_ASR -ErrorAction SilentlyContinue
