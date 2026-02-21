@@ -1,7 +1,7 @@
 """Helpers para diagnosticar calidad de audio."""
 from __future__ import annotations
 
-from typing import Optional, Tuple, Dict, Any
+from typing import List, Optional, Tuple, Dict, Any
 
 from ipa_core.audio.quality_gates import (
     check_quality,
@@ -17,8 +17,16 @@ def assess_audio_quality(
     path: Optional[str],
     *,
     user_id: Optional[str] = None,
+    speech_segments: Optional[List[tuple]] = None,
 ) -> Tuple[Optional[QualityGateResult], list[str], Optional[Dict[str, Any]]]:
-    """Ejecutar quality gates si el path es válido y retornar warnings."""
+    """Ejecutar quality gates si el path es válido y retornar warnings.
+
+    Args:
+        path: Ruta al archivo WAV.
+        user_id: ID de usuario para perfiles adaptativos.
+        speech_segments: Segmentos de voz [(start_ms, end_ms), ...] del VAD.
+            Si se proveen, el SNR se calcula real en lugar del proxy.
+    """
     if not path or not path.lower().endswith(".wav"):
         return None, [], None
     profile = None
@@ -34,6 +42,7 @@ def assess_audio_quality(
             min_snr_db=thresholds["min_snr_db"],
             max_clipping_ratio=DEFAULT_MAX_CLIPPING_RATIO,
             min_rms=thresholds["min_rms"],
+            speech_segments=speech_segments,
         )
     except Exception:
         return None, [], None

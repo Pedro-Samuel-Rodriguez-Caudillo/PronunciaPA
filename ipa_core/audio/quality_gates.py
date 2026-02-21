@@ -34,30 +34,38 @@ class QualityIssue(Enum):
 
 @dataclass
 class QualityGateResult:
-    """Resultado de quality gates."""
-    
+    """Resultado de quality gates.
+
+    snr_db es una medición real cuando speech_segments están disponibles
+    (calculado como RMS de voz / RMS de silencio). En caso contrario,
+    es un proxy basado en el percentil 10 de amplitud.
+    snr_method indica cuál método se usó: "real_vad" o "proxy".
+    """
+
     # ¿Pasó todas las validaciones?
     passed: bool
-    
+
     # Lista de issues detectados
     issues: List[QualityIssue] = field(default_factory=list)
-    
+
     # Métricas calculadas
     snr_db: Optional[float] = None
+    snr_method: str = "proxy"
     clipping_ratio: Optional[float] = None
     duration_ms: Optional[int] = None
     peak_amplitude: Optional[float] = None
     rms_amplitude: Optional[float] = None
-    
+
     # Feedback operativo para el usuario (si hay issues)
     user_feedback: Optional[str] = None
-    
+
     def to_dict(self) -> dict:
         """Convertir a diccionario para serialización."""
         return {
             "passed": self.passed,
             "issues": [i.value for i in self.issues],
             "snr_db": self.snr_db,
+            "snr_method": self.snr_method,
             "clipping_ratio": self.clipping_ratio,
             "duration_ms": self.duration_ms,
             "peak_amplitude": self.peak_amplitude,
@@ -85,6 +93,60 @@ _FEEDBACK_MESSAGES = {
 }
 
 
+def _compute_snr(
+    samples: tuple,
+    sample_rate: int,
+    speech_segments: Optional[List[tuple]],
+    rms: float,
+    max_val: int,
+) -> tuple[float, str]:
+    """Calcular SNR en dB.
+
+    Si speech_segments están disponibles, separa muestras de voz y silencio
+    para un SNR real. Requiere al menos 5% de muestras de silencio; si no,
+    cae al proxy del percentil 10.
+
+    Returns
+    -------
+    (snr_db, method) donde method es "real_vad" o "proxy".
+    """
+    if speech_segments:
+        speech_sq_sum = 0.0
+        silence_sq_sum = 0.0
+        speech_count = 0
+        silence_count = 0
+
+        for i, s in enumerate(samples):
+            sample_ms = i * 1000.0 / sample_rate
+            in_speech = any(start <= sample_ms < end for start, end in speech_segments)
+            sq = s * s
+            if in_speech:
+                speech_sq_sum += sq
+                speech_count += 1
+            else:
+                silence_sq_sum += sq
+                silence_count += 1
+
+        # Necesitamos suficiente silencio para que el cálculo sea significativo
+        if silence_count >= int(0.05 * len(samples)) and silence_count > 0:
+            noise_rms = (silence_sq_sum / silence_count) ** 0.5 / max_val
+            signal_rms = (speech_sq_sum / max(speech_count, 1)) ** 0.5 / max_val
+            if noise_rms > 0.0001:
+                snr_db = 20.0 * math.log10(max(signal_rms, 1e-9) / noise_rms)
+            else:
+                snr_db = 60.0  # Ruido despreciable
+            return snr_db, "real_vad"
+
+    # Fallback: proxy percentil 10
+    sorted_abs = sorted(abs(s) for s in samples)
+    noise_floor = sorted_abs[len(sorted_abs) // 10] / max_val
+    if noise_floor > 0.001:
+        snr_db = 20.0 * math.log10(rms / noise_floor)
+    else:
+        snr_db = 60.0
+    return snr_db, "proxy"
+
+
 def check_quality(
     audio_path: str,
     *,
@@ -94,9 +156,10 @@ def check_quality(
     max_clipping_ratio: float = DEFAULT_MAX_CLIPPING_RATIO,
     min_rms: float = DEFAULT_MIN_RMS,
     speech_ratio: Optional[float] = None,  # De VAD, si disponible
+    speech_segments: Optional[List[tuple]] = None,  # Segmentos de voz de VAD
 ) -> QualityGateResult:
     """Validar calidad del audio.
-    
+
     Args:
         audio_path: Ruta al archivo WAV (16-bit PCM)
         min_duration_ms: Duración mínima requerida
@@ -105,7 +168,9 @@ def check_quality(
         max_clipping_ratio: Ratio máximo de muestras clipeadas
         min_rms: RMS mínimo (audio muy silencioso)
         speech_ratio: Ratio de voz (de VAD), para detectar "no speech"
-        
+        speech_segments: Lista de (start_ms, end_ms) de segmentos de voz del VAD.
+            Si se provee, el SNR se calcula real (voz vs silencio).
+
     Returns:
         QualityGateResult con métricas y feedback
     """
@@ -165,16 +230,9 @@ def check_quality(
     if rms < min_rms:
         issues.append(QualityIssue.TOO_QUIET)
     
-    # Estimar SNR (proxy simple: ratio de pico a ruido de fondo)
-    # Usamos el percentil 10 como estimación de ruido de fondo
-    sorted_samples = sorted(abs(s) for s in samples)
-    noise_floor = sorted_samples[len(sorted_samples) // 10] / max_val
-    
-    if noise_floor > 0.001:  # Evitar log(0)
-        snr_db = 20 * math.log10(rms / noise_floor)
-    else:
-        snr_db = 60.0  # Asumimos bueno si el ruido es muy bajo
-    
+    # Calcular SNR: real si hay segmentos de voz, proxy en caso contrario
+    snr_db, snr_method = _compute_snr(samples, sample_rate, speech_segments, rms, max_val)
+
     if snr_db < min_snr_db:
         issues.append(QualityIssue.LOW_SNR)
     
@@ -203,6 +261,7 @@ def check_quality(
         passed=len(issues) == 0,
         issues=issues,
         snr_db=snr_db,
+        snr_method=snr_method,
         clipping_ratio=clipping_ratio,
         duration_ms=duration_ms,
         peak_amplitude=peak_normalized,

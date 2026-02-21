@@ -122,6 +122,7 @@ class TranscriptionService:
         if not tokens:
             raise ValidationError("ASR no devolvió tokens IPA")
         # Limpieza IPA unificada
+        raw_confidences = asr_result.get("confidences")
         tokens = clean_asr_tokens(tokens, lang=lang or self._default_lang)
         inventory, pack_id = load_inventory_for(lang=lang or self._default_lang)
         norm_res = await self.pre.normalize_tokens(tokens, inventory=inventory)
@@ -129,6 +130,10 @@ class TranscriptionService:
         backend_name = self.asr.__class__.__name__.lower()
         meta = dict(asr_result.get("meta", {}))
         meta.setdefault("backend", backend_name)
+        # Propagar confidence scores alineados con tokens limpios
+        if raw_confidences is not None:
+            n = len(tokens)
+            meta["confidences"] = raw_confidences[:n] if len(raw_confidences) >= n else raw_confidences
         meta.setdefault("tokens", len(tokens))
         if quality_warnings:
             meta.setdefault("warnings", [])
