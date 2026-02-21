@@ -13,8 +13,15 @@ async def test_run_pipeline_orchestration() -> None:
     from ipa_core.types import AudioInput
 
     pre = Mock()
-    pre.process_audio = AsyncMock(return_value={"path": "processed"})
-    pre.normalize_tokens = AsyncMock(return_value={"tokens": ["a"]}) # Mock normalize too
+    # Must return a valid PreprocessorResult shape: {"audio": ..., "meta": {}}
+    # Returning {"path": "processed"} was wrong — runner.py does
+    # pre_audio_res.get("audio", audio) which would fall back to the raw input,
+    # meaning preprocessing was never exercised.
+    pre.process_audio = AsyncMock(return_value={
+        "audio": {"path": "processed", "sample_rate": 16000, "channels": 1},
+        "meta": {"preprocessor": "basic", "audio_valid": True},
+    })
+    pre.normalize_tokens = AsyncMock(return_value={"tokens": ["a"]})  # Mock normalize too
 
     asr = Mock()
     asr.transcribe = AsyncMock(return_value={"tokens": ["a"]})

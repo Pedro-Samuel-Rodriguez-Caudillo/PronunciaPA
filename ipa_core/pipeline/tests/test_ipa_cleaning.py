@@ -18,6 +18,17 @@ class TestCleanASRTokens:
         result = clean_asr_tokens(tokens, lang="es")
         assert "ɾ" in result
 
+    def test_r_in_english_becomes_approximant_not_tap(self):
+        """r ASR en inglés debe producir /ɹ/, NO /ɾ/.
+
+        Regresión: _ALLOSAURUS_FIXES solía hacer r→ɾ globalmente antes de que
+        _LANG_FIXES pudiera actuar, convirtiendo inütilmente toda /r/ inglesa
+        en la vibrante simple española.
+        """
+        result = clean_asr_tokens(["r", "ʌ", "n"], lang="en")
+        assert "ɹ" in result, f"Esperaba ɹ en el resultado, obtenido: {result}"
+        assert "ɾ" not in result, f"No se esperaba ɾ en resultado inglés: {result}"
+
     def test_collapses_duplicates(self):
         tokens = ["a", "a", "b", "b", "b", "c"]
         result = clean_asr_tokens(tokens)
@@ -48,12 +59,32 @@ class TestCleanTextrefTokens:
         result = clean_textref_tokens(tokens)
         assert result == ["a", "b"]
 
-    def test_does_not_apply_lang_fixes(self):
-        # r should stay as r (textref is canonical)
-        tokens = ["r", "a"]
+    def test_preserves_allophones_from_textref(self):
+        """clean_textref preserva IPA fonético de espeak sin colapsar alófonos.
+
+        β, ð, ɣ son alófonos válidos del español; las equivalencias
+        (b↔β, d↔ð, g↔ɣ) se resuelven en acceptable_variants al puntuar.
+        """
+        tokens = ["β", "a", "ð", "e", "ɣ", "o"]
         result = clean_textref_tokens(tokens, lang="es")
-        # Should NOT apply the r→ɾ fix
-        assert "r" in result
+        assert "β" in result, f"β debe preservarse (IPA puro); result={result}"
+        assert "ð" in result, f"ð debe preservarse (IPA puro); result={result}"
+        assert "ɣ" in result, f"ɣ debe preservarse (IPA puro); result={result}"
+        assert "b" not in result
+        assert "d" not in result
+
+    def test_strips_stress_marks(self):
+        """El acento ˈ de espeak es suprasegmental y debe eliminarse."""
+        tokens = ["p", "ˈ", "e", "s", "o"]
+        result = clean_textref_tokens(tokens, lang="es")
+        assert "ˈ" not in result
+        assert result == ["p", "e", "s", "o"]
+
+    def test_r_preserved_from_textref(self):
+        """espeak produce ɾ directamente para el español; clean_textref lo preserva."""
+        tokens = ["ɾ", "a"]
+        result = clean_textref_tokens(tokens, lang="es")
+        assert "ɾ" in result, f"ɾ debe preservarse desde espeak; result={result}"
 
     def test_does_not_collapse_duplicates(self):
         # Duplicates in textref are legitimate (e.g. gemination)

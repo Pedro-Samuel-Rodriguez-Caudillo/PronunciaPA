@@ -8,6 +8,21 @@ import pytest
 from ipa_core.backends.unified_ipa_backend import UnifiedIPABackend
 
 
+@pytest.fixture(autouse=True)
+def _patch_ensure_wav(monkeypatch):
+    """Patch ensure_wav as a no-op for unit tests that only check lang mapping.
+
+    unified_ipa_backend._transcribe_allosaurus() calls ensure_wav() to
+    normalise the WAV before passing it to Allosaurus.  These tests inject a
+    mock recognizer and only verify language code resolution — they never
+    provide a real audio file.  Without this patch every test raises
+    FileNotFound("Audio no encontrado: clip.wav").
+    """
+    monkeypatch.setattr(
+        "ipa_core.audio.files.ensure_wav",
+        lambda path, **kw: (path, False),  # return original path, not temporary
+    )
+
 @pytest.mark.asyncio
 async def test_allosaurus_transcribe_uses_mapped_lang_positional() -> None:
     recognizer = MagicMock()

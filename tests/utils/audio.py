@@ -6,8 +6,12 @@ import wave
 from pathlib import Path
 
 
-def write_sine_wave(path: str | Path, seconds: float = 0.2, sample_rate: int = 16000) -> str:
-    """Genera un archivo WAV mono con una onda senoidal simple."""
+def write_sine_wave(path: str | Path, seconds: float = 0.8, sample_rate: int = 16000) -> str:
+    """Genera un archivo WAV mono con una onda senoidal simple.
+
+    El default es 0.8 s (> MIN_DURATION_MS=500 ms) para que los tests
+    pasen la calidad-gate sin necesidad de ajustes adicionales.
+    """
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     frames = int(sample_rate * seconds)

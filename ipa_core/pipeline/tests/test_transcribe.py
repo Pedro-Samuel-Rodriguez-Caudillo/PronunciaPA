@@ -21,7 +21,8 @@ from ipa_core.ports.textref import TextRefProvider
 def mock_pre() -> MagicMock:
     m = MagicMock(spec=Preprocessor)
     m.process_audio = AsyncMock(return_value={"audio": {"path": "dummy.wav"}})
-    m.normalize_tokens = AsyncMock(side_effect=lambda t: {"tokens": t})
+    # Accept **kw so the 'lang=' kwarg added in transcribe_audio doesn't break
+    m.normalize_tokens = AsyncMock(side_effect=lambda t, **kw: {"tokens": t})
     return m
 
 
