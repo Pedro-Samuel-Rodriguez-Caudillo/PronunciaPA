@@ -63,6 +63,27 @@ async def _get_or_create_kernel() -> Kernel:
     return _cached_kernel
 
 
+async def teardown_kernel_singleton() -> None:
+    """Tear down the cached kernel singleton.
+
+    Must be called on application shutdown to release model memory and any
+    open file handles held by the singleton.  Without this the process leaks
+    resources and the kernel state can bleed between test runs.
+
+    Wire this into the FastAPI lifespan or ``@app.on_event("shutdown")``.
+    """
+    global _cached_kernel, _kernel_ready
+    if _cached_kernel is not None:
+        try:
+            await _cached_kernel.teardown()
+            logger.info("Kernel singleton torn down")
+        except Exception as exc:  # pragma: no cover
+            logger.warning("Error tearing down kernel singleton: %s", exc)
+        finally:
+            _cached_kernel = None
+            _kernel_ready = False
+
+
 def _get_kernel() -> Kernel:
     """Carga la configuración y crea el kernel (Inyectable — legacy).
 
@@ -107,11 +128,16 @@ def _build_kernel(
 
 async def _process_upload(audio: UploadFile) -> Path:
     """Guarda un UploadFile en un archivo temporal y retorna su ruta."""
+    from ipa_core.audio.files import _fix_wav_data_chunk
     suffix = Path(audio.filename).suffix if audio.filename else ".wav"
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
         content = await audio.read()
         tmp.write(content)
-        return Path(tmp.name)
+        tmp_path = Path(tmp.name)
+    # Corregir header WAV si el cliente (Flutter/record) escribió tamaños erróneos.
+    if tmp_path.suffix.lower() == ".wav":
+        _fix_wav_data_chunk(str(tmp_path))
+    return tmp_path
 
 
 def _asr_unavailable_response(*, backend_name: str, reason: str) -> JSONResponse:
@@ -181,12 +207,12 @@ async def transcribe(
             kernel.textref = registry.resolve_textref(
                 textref.lower(), {"default_lang": lang_resolved}
             )
-        await kernel.setup()
+        # Validate output_type BEFORE setup() — avoids loading heavy models for
+        # non-IPA backends injected via the `backend` request parameter.
         asr_guard = _assert_real_ipa_asr(kernel.asr)
         if asr_guard:
             return asr_guard
-
-        # Quality assessment is handled inside TranscriptionService._run_pipeline()
+        await kernel.setup()
         # (which also runs it) — no need to call it redundantly here.
         service = TranscriptionService(
             preprocessor=kernel.pre,
@@ -300,10 +326,11 @@ async def compare(
             except Exception as e:
                 logger.warning(f"No se pudo cargar language pack '{pack_id}': {e}")
 
-        await kernel.setup()
+        # Validate output_type BEFORE setup() — see note in /v1/transcribe.
         asr_guard = _assert_real_ipa_asr(kernel.asr)
         if asr_guard:
             return asr_guard
+        await kernel.setup()
 
         # Quality assessment + adaptive settings (una sola vez)
         quality_res, quality_warnings, profile_meta = assess_audio_quality(
@@ -421,6 +448,7 @@ async def quick_compare(
             "target_ipa": " ".join(ref_tokens),
             "meta": {
                 "asr": asr_result.get("meta", {}),
+                "asr_confidences": asr_result.get("confidences"),
                 "compare": result.get("meta", {}),
                 "quick": True,
             },
@@ -460,10 +488,11 @@ async def feedback(
     tmp_path = await _process_upload(audio)
     kernel = _build_kernel(model_pack=model_pack, llm_name=llm)
     try:
-        await kernel.setup()
+        # Validate output_type BEFORE setup() — see note in /v1/transcribe.
         asr_guard = _assert_real_ipa_asr(kernel.asr)
         if asr_guard:
             return asr_guard
+        await kernel.setup()
         audio_in: AudioInput = {
             "path": str(tmp_path),
             "sample_rate": 16000,

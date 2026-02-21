@@ -29,7 +29,7 @@ from ipa_server.routers.drills import router as drills_router
 from ipa_server.routers.health import router as health_router
 from ipa_server.routers.ipa_catalog import router as ipa_catalog_router
 from ipa_server.routers.models import router as models_router
-from ipa_server.routers.pipeline import router as pipeline_router
+from ipa_server.routers.pipeline import router as pipeline_router, teardown_kernel_singleton
 from ipa_server.routers.tts import router as tts_router
 
 logger = logging.getLogger("ipa_server")
@@ -147,6 +147,11 @@ def get_app() -> FastAPI:
     app.include_router(ipa_catalog_router)
     app.include_router(models_router)
     app.include_router(realtime_router)
+
+    @app.on_event("shutdown")
+    async def _on_shutdown() -> None:
+        """Tear down the /v1/quick-compare kernel singleton on server stop."""
+        await teardown_kernel_singleton()
 
     return app
 
