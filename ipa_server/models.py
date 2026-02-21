@@ -1,5 +1,79 @@
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Literal, Optional, Tuple
 from pydantic import BaseModel, Field
+
+
+# ---------------------------------------------------------------------------
+# IPA Display — visualización dual (técnica / casual) con colores
+# ---------------------------------------------------------------------------
+
+class IPADisplayToken(BaseModel):
+    """Token IPA individual con color semántico y transliteración coloquial."""
+
+    ipa: str = Field(..., description="Símbolo IPA canónico (modo técnico)")
+    casual: str = Field(..., description="Transliteración coloquial (modo casual)")
+    color: Literal["green", "yellow", "red", "gray"] = Field(
+        ..., description="Color semántico: green=correcto, yellow=cercano, red=error, gray=OOV"
+    )
+    op: str = Field(..., description="Operación de edición: eq, sub, ins, del")
+    ref: Optional[str] = Field(None, description="Token de referencia (IPA objetivo)")
+    hyp: Optional[str] = Field(None, description="Token observado (IPA hipótesis)")
+    articulatory_distance: Optional[float] = Field(
+        None, description="Distancia articulatoria [0,1]. None si no aplica."
+    )
+    level: Literal["phonemic", "phonetic"] = Field(
+        default="phonemic", description="Nivel de representación"
+    )
+
+
+class IPADisplay(BaseModel):
+    """Visualización dual de IPA: técnica (IPA puro) y casual (transliteración).
+
+    Incluye colores por token (verde/amarillo/rojo/gris) para mostrar al aprendiz
+    dónde acertó, estuvo cerca o cometió un error.
+
+    Compatibilidad
+    --------------
+    Soporta nivel fonémico y fonético. El campo ``level`` indica cuál se usa.
+    """
+
+    mode: Literal["technical", "casual"] = Field(
+        default="technical",
+        description="Modo de display seleccionado por el aprendiz",
+    )
+    level: Literal["phonemic", "phonetic"] = Field(
+        default="phonemic",
+        description="Nivel de representación: phonemic (abstracto) o phonetic (alófonos)",
+    )
+    ref_technical: str = Field(
+        ..., description="IPA objetivo completo en modo técnico (fonemas separados por espacio)"
+    )
+    ref_casual: str = Field(
+        ..., description="IPA objetivo en transliteración coloquial"
+    )
+    hyp_technical: str = Field(
+        ..., description="IPA observado completo en modo técnico"
+    )
+    hyp_casual: str = Field(
+        ..., description="IPA observado en transliteración coloquial"
+    )
+    score_color: Literal["green", "yellow", "red"] = Field(
+        default="green",
+        description="Color global del score: green ≥ 80, yellow 50-79, red < 50",
+    )
+    legend: Dict[str, str] = Field(
+        default_factory=lambda: {
+            "green": "Correcto",
+            "yellow": "Cercano (dist < 0.3)",
+            "red": "Error fonémico",
+            "gray": "Fuera de inventario (OOV)",
+        },
+        description="Leyenda de colores para mostrar al aprendiz",
+    )
+    tokens: List[IPADisplayToken] = Field(
+        default_factory=list,
+        description="Tokens individuales con color y transliteración",
+    )
+
 
 class TranscriptionResponse(BaseModel):
     """Respuesta exitosa de transcripción."""
@@ -56,6 +130,14 @@ class CompareResponse(BaseModel):
         json_schema_extra={"example": [["h", "h"], ["o", "u"]]}
     )
     meta: Dict[str, Any] = Field(default_factory=dict, description="Metadatos adicionales de la comparación")
+    display: Optional[IPADisplay] = Field(
+        default=None,
+        description=(
+            "Visualización dual del IPA con colores por token. "
+            "Incluye modo técnico (IPA puro) y casual (transliteración coloquial). "
+            "Poblado cuando el cliente solicita display=true."
+        ),
+    )
 
 class ErrorReport(BaseModel):
     """Reporte canonico de errores usado como input para el LLM."""
