@@ -146,22 +146,23 @@ class LevenshteinComparator(BasePlugin):
 
         ops = list(reversed(ops_reversed))
         alignment = list(reversed(alignment_reversed))
-        per = self._calculate_per(errors, len(ref_tokens), len(hyp_tokens))
+        distance = dp[n][m]
+        per = self._calculate_per(distance, len(ref_tokens), len(hyp_tokens))
         return {
             "per": per,
             "ops": ops,
             "alignment": alignment,
             "meta": {
-                "distance": dp[n][m],
+                "distance": distance,
                 "use_articulatory": self._use_articulatory,
             },
         }
 
     @staticmethod
-    def _calculate_per(errors: int, ref_len: int, hyp_len: int) -> float:
+    def _calculate_per(distance: float, ref_len: int, hyp_len: int) -> float:
         if ref_len == 0:
-            return 0.0 if hyp_len == 0 else 1.0
-        return errors / ref_len
+            return 0.0 if distance == 0 else 1.0
+        return distance / ref_len
 
 
 __all__ = ["LevenshteinComparator"]

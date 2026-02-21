@@ -7,6 +7,7 @@ from __future__ import annotations
 from typing import Optional, TYPE_CHECKING
 
 from ipa_core.compare.levenshtein import LevenshteinComparator
+from ipa_core.compare.articulatory import articulatory_distance
 from ipa_core.phonology.representation import (
     PhonologicalRepresentation,
     ComparisonResult,
@@ -93,14 +94,21 @@ async def compare_representations(
             if op["op"] == "eq":
                 continue
 
-            ref = op.get("ref", "")
-            hyp = op.get("hyp", "")
+            ref = op.get("ref") or ""
+            hyp = op.get("hyp") or ""
 
             if op["op"] == "sub":
                 if (ref, hyp) in profile.acceptable_variants or (hyp, ref) in profile.acceptable_variants:
                     weighted_errors += profile.allophone_error_weight
                 else:
-                    weighted_errors += profile.phoneme_error_weight
+                    if use_articulatory and ref and hyp:
+                        # Scale by articulatory distance so phonetically similar
+                        # substitutions contribute less than completely different ones.
+                        # This keeps score consistent with the articulatory per.
+                        art_dist = articulatory_distance(ref, hyp)
+                        weighted_errors += art_dist * profile.phoneme_error_weight
+                    else:
+                        weighted_errors += profile.phoneme_error_weight
             else:  # ins/del
                 weighted_errors += profile.phoneme_error_weight
 
