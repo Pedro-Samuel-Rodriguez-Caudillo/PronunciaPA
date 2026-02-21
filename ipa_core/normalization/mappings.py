@@ -11,7 +11,11 @@ from typing import Dict
 # Mapeos de caracteres Unicode visualmente similares a sus formas canónicas IPA
 UNICODE_MAPPINGS: Dict[str, str] = {
     # Consonantes
-    "ɡ": "g",       # U+0261 (IPA voiced velar stop) → U+0067 (ASCII g)
+    # NOTE: U+0261 (ɡ) IS the canonical IPA voiced velar stop.
+    # Do NOT map it to ASCII 'g' (U+0067) — that would undo the Allosaurus
+    # fix in postprocess.py which correctly converts ASCII g → ɡ.
+    # The two transforms would silently cancel each other out.
+    "ɡ": "ɡ",       # U+0261 (IPA voiced velar stop) — keep canonical form
     "ɢ": "ɢ",       # U+0262 (keep uvular)
     "ʔ": "ʔ",       # U+0294 (glottal stop - keep)
     
