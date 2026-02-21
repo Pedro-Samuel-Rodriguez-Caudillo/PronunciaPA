@@ -29,9 +29,12 @@ from ipa_core.services.feedback import FeedbackService
 from ipa_core.services.feedback_store import FeedbackStore
 from ipa_core.services.transcription import TranscriptionService
 from ipa_core.types import AudioInput
+from ipa_core.display.ipa_display import build_display, DisplayMode
 from ipa_server.models import (
     CompareResponse,
     FeedbackResponse,
+    IPADisplay,
+    IPADisplayToken,
     TextRefResponse,
     TranscriptionResponse,
 )
@@ -275,6 +278,11 @@ async def compare(
     textref: Optional[str] = Form(None, description="Nombre del proveedor texto→IPA"),
     comparator: Optional[str] = Form(None, description="Nombre del comparador"),
     pack: Optional[str] = Form(None, description="Language pack (dialecto) a usar"),
+    display_mode: Optional[str] = Form(
+        None,
+        description="Modo de display IPA: 'technical' (IPA puro) o 'casual' (transliteración). "
+                    "Si se proporciona, la respuesta incluye el campo 'display' con tokens coloreados.",
+    ),
     persist: Optional[bool] = Form(False, description="Si True, guarda el audio procesado"),
     user_id: Optional[str] = Form(None, description="ID de usuario (opcional)"),
     kernel: Kernel = Depends(_get_kernel),
@@ -373,6 +381,32 @@ async def compare(
             payload["meta"]["warnings"] = quality_warnings
         if profile_meta:
             payload["meta"]["user_profile"] = profile_meta
+
+        # Poblar campo display si el cliente lo solicita
+        if display_mode is not None:
+            dm: DisplayMode = "casual" if display_mode == "casual" else "technical"
+            try:
+                disp_result = build_display(
+                    payload.get("ops", []),
+                    mode=dm,
+                    level=effective_level,  # type: ignore[arg-type]
+                    score=float(payload.get("score") or 0.0),
+                )
+                d = disp_result.as_dict()
+                payload["display"] = IPADisplay(
+                    mode=d["mode"],
+                    level=d["level"],
+                    ref_technical=d["ref_technical"],
+                    ref_casual=d["ref_casual"],
+                    hyp_technical=d["hyp_technical"],
+                    hyp_casual=d["hyp_casual"],
+                    score_color=d["score_color"],
+                    legend=d["legend"],
+                    tokens=[IPADisplayToken(**t) for t in d["tokens"]],
+                ).model_dump()
+            except Exception as _disp_exc:
+                logger.warning("build_display falló: %s", _disp_exc)
+
         return payload
     finally:
         await kernel.teardown()

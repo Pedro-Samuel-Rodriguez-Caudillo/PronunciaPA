@@ -151,34 +151,22 @@ class LexiconTextRef(BasePlugin):
             else:
                 oov_words.append((idx, word))
 
-        # Segunda pasada: batch fallback a eSpeak para OOV
+        # Segunda pasada: fallback a eSpeak para OOV — una llamada por palabra
+        # para respetar límites de palabra (eSpeak no señaliza word boundaries).
         if oov_words:
             if self._espeak is not None:
-                # Enviar todas las palabras OOV en una sola llamada para eficiencia
-                oov_text = " ".join(w for _, w in oov_words)
-                try:
-                    result = await self._espeak.to_ipa(oov_text, lang=lang)
-                    oov_tokens = result.get("tokens", [])
-                    # Distribuir tokens entre palabras OOV de forma proporcional
-                    # (eSpeak no devuelve límites de palabra, así que asignamos en bloque)
-                    for idx, _ in oov_words:
+                for idx, word in oov_words:
+                    try:
+                        res = await self._espeak.to_ipa(word, lang=lang)
+                        word_tokens[idx] = res.get("tokens", [])
+                        sources.append("espeak_fallback")
+                    except Exception:  # noqa: BLE001
                         word_tokens[idx] = []
-                    # Asignar todos los tokens OOV al primer slot OOV como bloque
-                    if oov_words:
-                        word_tokens[oov_words[0][0]] = oov_tokens
-                    for _, _ in oov_words[1:]:
-                        pass  # slots vacíos (tokens ya incluidos en bloque)
-                    sources.extend(["espeak_fallback"] * len(oov_words))
-                except Exception:  # noqa: BLE001
-                    # eSpeak no disponible: marcar como vacíos
-                    for idx, _ in oov_words:
-                        word_tokens[idx] = []
-                    sources.extend(["oov_skipped"] * len(oov_words))
+                        sources.append("oov_skipped")
             else:
-                # Sin fallback: palabras OOV → sin tokens
                 for idx, _ in oov_words:
                     word_tokens[idx] = []
-                sources.extend(["oov_skipped"] * len(oov_words))
+                    sources.append("oov_skipped")
 
         # Construir secuencia final respetando orden de palabras
         for idx in range(len(words)):

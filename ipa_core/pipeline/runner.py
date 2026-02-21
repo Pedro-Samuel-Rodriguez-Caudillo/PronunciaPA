@@ -32,6 +32,7 @@ from ipa_core.phonology.representation import (
 from ipa_core.pipeline.transcribe import EvaluationMode
 from ipa_core.pipeline.ipa_cleaning import clean_asr_tokens, clean_textref_tokens
 from ipa_core.compare.compare import compare_representations
+from ipa_core.compare.oov_handler import OOVHandler
 
 
 # Issues que impiden llamar al ASR — el audio no tiene información fonética útil.
@@ -160,15 +161,38 @@ async def execute_pipeline(
                 target_repr = PhonologicalRepresentation.phonetic(target_phonemic.ipa)
             observed_repr = observed_phonetic
 
-        # 5. Comparar con ScoringProfile del pack o defaults
+        # 5. OOV handling con inventario del pack (si disponible)
+        if pack is not None and hasattr(pack, 'get_inventory'):
+            raw_inventory = pack.get_inventory() or []
+            if raw_inventory:
+                oov_handler = OOVHandler(raw_inventory, collapse_threshold=0.3, level=evaluation_level)
+                target_filtered = oov_handler.filter_sequence(target_repr.segments)
+                observed_filtered = oov_handler.filter_sequence(observed_repr.segments)
+                target_repr = PhonologicalRepresentation(
+                    level=target_repr.level,
+                    ipa=target_repr.ipa,
+                    segments=target_filtered,
+                )
+                observed_repr = PhonologicalRepresentation(
+                    level=observed_repr.level,
+                    ipa=observed_repr.ipa,
+                    segments=observed_filtered,
+                )
+
+        # 6. Comparar con ScoringProfile del pack o defaults
         if pack is not None:
             profile = pack.get_scoring_profile(mode)
+            # Extraer error_weights del manifest si está disponible
+            error_weights = None
+            if hasattr(pack, 'manifest') and hasattr(pack.manifest, 'error_weights'):
+                error_weights = pack.manifest.error_weights
             return await compare_representations(
                 target_repr,
                 observed_repr,
                 mode=mode,
                 evaluation_level=evaluation_level,
                 profile=profile,
+                error_weights=error_weights,
             )
         
         # Path sin pack: usar comparador inyectado si existe
