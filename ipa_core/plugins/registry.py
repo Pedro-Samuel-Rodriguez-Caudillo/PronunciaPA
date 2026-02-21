@@ -206,7 +206,9 @@ def _register_defaults() -> None:
 
     # LLM
     from ipa_core.llm.stub import StubLLMAdapter
+    from ipa_core.llm.rule_based import RuleBasedFeedbackAdapter
     register("llm", "stub", lambda p: StubLLMAdapter(p))
+    register("llm", "rule_based", lambda p: RuleBasedFeedbackAdapter())
     try:
         from ipa_core.llm.llama_cpp import LlamaCppAdapter
         from ipa_core.llm.onnx import OnnxLLMAdapter

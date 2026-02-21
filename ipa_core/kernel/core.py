@@ -218,10 +218,18 @@ def _resolve_llm(
     *,
     strict_mode: bool = False,
 ) -> Optional[LLMAdapter]:
+    name = (cfg.llm.name or "auto").lower()
+    name = _normalize_llm_name(name)
+
+    # RuleBasedFeedbackAdapter no requiere model_pack: se puede activar con
+    # PRONUNCIAPA_LLM=rule_based sin necesidad de descargar ningún modelo.
+    if name == "rule_based":
+        return registry.resolve_llm("rule_based", {}, strict_mode=strict_mode)
+
     if not model_pack:
         return None
+
     runtime_kind = (model_pack.runtime.kind or "").lower()
-    name = (cfg.llm.name or "auto").lower()
     if name == "auto":
         name = runtime_kind
     name = _normalize_llm_name(name)

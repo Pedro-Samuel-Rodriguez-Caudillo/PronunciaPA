@@ -56,13 +56,30 @@ async def generate_feedback(
     report: dict[str, Any],
     *,
     llm,
-    model_pack: ModelPack,
-    model_pack_dir: Path,
+    model_pack: Optional[ModelPack] = None,
+    model_pack_dir: Optional[Path] = None,
     retry: bool = True,
     prompt_path: Optional[Path] = None,
     output_schema_path: Optional[Path] = None,
 ) -> dict[str, Any]:
-    """Generate LLM feedback from an Error Report."""
+    """Generate LLM feedback from an Error Report.
+
+    Cuando ``llm`` es un ``RuleBasedFeedbackAdapter`` (``llm.rule_based``
+    es True), el reporte se pasa directamente como JSON y no se requiere
+    ``model_pack`` ni ``model_pack_dir``.
+    """
+    # Path de respaldo basado en reglas: no requiere model_pack ni prompt
+    if getattr(llm, "rule_based", False):
+        raw = await llm.complete(json.dumps(report, ensure_ascii=False), params={})
+        try:
+            return json.loads(raw)
+        except (json.JSONDecodeError, ValueError):
+            return generate_fallback_feedback(report)
+
+    # Path LLM normal: requiere model_pack
+    if model_pack is None or model_pack_dir is None:
+        raise ValidationError("model_pack y model_pack_dir son requeridos para LLM.")
+
     prompt = _build_prompt(report, model_pack, model_pack_dir, prompt_path=prompt_path)
     output_schema = _load_output_schema(
         model_pack,
@@ -107,7 +124,12 @@ class FeedbackService:
         output_schema_path: Optional[Path] = None,
         user_id: Optional[str] = None,
     ) -> dict[str, Any]:
-        if not self._kernel.llm or not self._kernel.model_pack or not self._kernel.model_pack_dir:
+        if not self._kernel.llm:
+            raise NotReadyError("LLM not configured.")
+        _is_rule_based = getattr(self._kernel.llm, "rule_based", False)
+        if not _is_rule_based and (
+            not self._kernel.model_pack or not self._kernel.model_pack_dir
+        ):
             raise NotReadyError("LLM/model pack not configured.")
 
         quality_res, quality_warnings, profile_meta = assess_audio_quality(
@@ -212,8 +234,8 @@ class FeedbackService:
         feedback = await generate_feedback(
             report,
             llm=self._kernel.llm,
-            model_pack=self._kernel.model_pack,
-            model_pack_dir=self._kernel.model_pack_dir,
+            model_pack=self._kernel.model_pack or None,
+            model_pack_dir=self._kernel.model_pack_dir or None,
             prompt_path=prompt_path,
             output_schema_path=output_schema_path,
         )
