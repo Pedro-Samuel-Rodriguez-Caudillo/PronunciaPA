@@ -163,7 +163,10 @@ async def execute_pipeline(
 
         # 5. OOV handling con inventario del pack (si disponible)
         if pack is not None and hasattr(pack, 'get_inventory'):
-            raw_inventory = pack.get_inventory() or []
+            phonetic_inv = pack.get_inventory()
+            # get_inventory() devuelve PhoneticInventory (no iterable directamente);
+            # extraer la lista de símbolos válidos para OOVHandler.
+            raw_inventory = list(phonetic_inv.get_all_phones()) if phonetic_inv is not None else []
             if raw_inventory:
                 oov_handler = OOVHandler(raw_inventory, collapse_threshold=0.3, level=evaluation_level)
                 target_filtered = oov_handler.filter_sequence(target_repr.segments)
