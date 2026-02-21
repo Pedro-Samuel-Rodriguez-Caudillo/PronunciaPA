@@ -73,6 +73,18 @@ class PhoneticInventory:
             if any(a.symbol == symbol for a in allos):
                 return True
         return False
+
+    def is_valid_phone(self, phone: str) -> bool:
+        """Verificar si un sonido (fonema o alófono) es válido en el inventario."""
+        return self.is_phoneme(phone) or self.is_allophone(phone)
+
+    def is_valid_symbol(self, symbol: str) -> bool:
+        """Verificar si un símbolo es válido (fonema, alófono u otro símbolo conocido)."""
+        return self.is_valid_phone(symbol)
+
+    def get_oov_phones(self, tokens: list) -> list:
+        """Retornar tokens que no están en el inventario (fuera del vocabulario)."""
+        return [t for t in tokens if not self.is_valid_phone(t)]
     
     def get_base_phoneme(self, symbol: str) -> Optional[str]:
         """Obtener el fonema base de un alófono."""

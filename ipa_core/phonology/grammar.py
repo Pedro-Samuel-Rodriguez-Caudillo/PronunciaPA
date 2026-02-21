@@ -14,7 +14,14 @@ import yaml
 
 from ipa_core.phonology.rule import PhonologicalRule
 from ipa_core.phonology.inventory import PhoneticInventory
-from ipa_core.phonology.representation import tokenize_ipa
+from ipa_core.phonology.representation import (
+    tokenize_ipa,
+    DEFAULT_MULTIGRAPHS,
+    DIPHTHONG_MULTIGRAPHS,
+)
+
+# Multigraphs usados por la gramática para colapso consistente
+_GRAMMAR_MULTIGRAPHS = (*DEFAULT_MULTIGRAPHS, *DIPHTHONG_MULTIGRAPHS)
 
 
 @dataclass
@@ -123,7 +130,7 @@ class PhonologicalGrammar:
 
         # Colapsar segmento a segmento usando inventario
         collapsed = []
-        for seg in tokenize_ipa(result):
+        for seg in tokenize_ipa(result, multigraphs=_GRAMMAR_MULTIGRAPHS):
             base = self.inventory.collapse_to_phoneme(seg)
             collapsed.append(base)
 
