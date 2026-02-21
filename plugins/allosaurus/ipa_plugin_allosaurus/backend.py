@@ -34,7 +34,7 @@ class AllosaurusASR(BasePlugin):
     def __init__(self, params: Optional[dict[str, Any]] = None, *, recognizer: Any | None = None) -> None:
         super().__init__()
         params = params or {}
-        self._default_lang: str = params.get("lang", "eng")
+        self._default_lang: str = params.get("lang", "spa")
 
         self._model_dir: Optional[str] = params.get("model_dir")
         self._recognizer = recognizer

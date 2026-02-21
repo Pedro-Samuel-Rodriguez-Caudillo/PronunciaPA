@@ -246,6 +246,26 @@ class UnifiedIPABackend(BasePlugin):
         requested_lang = self._normalize_lang(lang) or self._default_lang
         allosaurus_lang = self._resolve_allosaurus_lang(requested_lang)
 
+        # Garantizar WAV PCM limpio: Flutter/Windows a veces genera WAVs con
+        # sub-chunks extra (LIST/INFO) que rompen wave.open() de allosaurus.
+        from ipa_core.audio.files import ensure_wav
+        clean_path, is_tmp = ensure_wav(audio_path)
+        try:
+            return await self._recognize_allosaurus(clean_path, allosaurus_lang, requested_lang)
+        finally:
+            if is_tmp:
+                import os
+                try:
+                    os.unlink(clean_path)
+                except OSError:
+                    pass
+
+    async def _recognize_allosaurus(
+        self,
+        audio_path: str,
+        allosaurus_lang: Optional[str],
+        requested_lang: Optional[str],
+    ) -> "ASRResult":
         # Reconocer (compat: signature posicional o keyword lang_id).
         if allosaurus_lang:
             try:

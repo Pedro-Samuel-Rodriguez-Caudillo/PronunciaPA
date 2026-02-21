@@ -63,6 +63,7 @@ class Wav2Vec2Backend(BasePlugin, ASRBackend):
         cache_dir: Optional[Path] = None,
         force_ipa: bool = False,
     ) -> None:
+        super().__init__()  # initialize BasePlugin lifecycle state
         self._model_name = model_name
         self._device = device
         self._cache_dir = cache_dir
@@ -152,24 +153,48 @@ class Wav2Vec2Backend(BasePlugin, ASRBackend):
         )
         
         # Inference
+        import torch.nn.functional as F
+
         with torch.no_grad():
             inputs = inputs.input_values.to(self._device)
             logits = self._model(inputs).logits
-        
+
         # Decodificar
         predicted_ids = torch.argmax(logits, dim=-1)
         transcription = self._processor.batch_decode(predicted_ids)[0]
-        
+
         # Tokenizar resultado
         tokens = list(transcription.replace(" ", ""))
-        
+
+        # Calcular confidence scores por frame desde softmax de logits
+        # y filtrar frames de blank (CTC padding token)
+        probs = F.softmax(logits, dim=-1)          # [1, T, vocab]
+        max_probs = probs.max(dim=-1).values[0]    # [T]
+        blank_id = self._processor.tokenizer.pad_token_id
+        non_blank_mask = predicted_ids[0] != blank_id
+        non_blank_probs = max_probs[non_blank_mask].tolist()
+
+        if non_blank_probs:
+            avg_confidence = sum(non_blank_probs) / len(non_blank_probs)
+            n = len(tokens)
+            if len(non_blank_probs) >= n:
+                confidences = non_blank_probs[:n]
+            else:
+                confidences = non_blank_probs + [avg_confidence] * (n - len(non_blank_probs))
+        else:
+            avg_confidence = 0.0
+            confidences = [0.0] * len(tokens)
+
         return {
             "tokens": tokens,
             "raw_text": transcription,
+            "confidences": confidences,
             "meta": {
                 "backend": "wav2vec2",
                 "model": self._model_name,
                 "device": self._device,
+                "confidence_avg": round(avg_confidence, 3),
+                "confidence_available": True,
             },
         }
     

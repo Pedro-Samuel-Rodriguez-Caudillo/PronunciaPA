@@ -92,7 +92,7 @@ class AllosaurusBackend(BasePlugin):
         def load_model():
             return read_recognizer(self._model_name)
         
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         self._model = await loop.run_in_executor(None, load_model)
         self._ready = True
     
@@ -102,11 +102,14 @@ class AllosaurusBackend(BasePlugin):
         self._ready = False
     
     def _resolve_lang(self, lang: Optional[str]) -> Optional[str]:
-        """Resolver código de idioma a formato Allosaurus."""
-        if lang is None:
-            return self._lang
-        
-        resolved = lang or self._lang
+        """Resolver código de idioma a formato Allosaurus.
+
+        SIEMPRE aplica _LANG_MAP independientemente de si ``lang`` llega de
+        la llamada o del default de instancia.  Sin esto, self._lang="es"
+        se pasa directamente a Allosaurus que espera "spa", lo que provoca
+        fallback silencioso al inventario universal.
+        """
+        resolved = lang if lang is not None else self._lang
         if resolved:
             return self._LANG_MAP.get(resolved, resolved)
         return None
@@ -155,7 +158,7 @@ class AllosaurusBackend(BasePlugin):
                     timestamp=self._emit_timestamps,
                 )
         
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         raw_output = await loop.run_in_executor(None, recognize)
         
         # Parsear salida
@@ -166,9 +169,11 @@ class AllosaurusBackend(BasePlugin):
             "raw_text": raw_output if isinstance(raw_output, str) else " ".join(tokens),
             "time_stamps": timestamps,
             "meta": {
+                "backend": "allosaurus",
                 "model": self._model_name,
                 "lang": resolved_lang,
                 "device": self._device,
+                "confidence_available": False,
             },
         }
     
@@ -239,12 +244,16 @@ class AllosaurusBackendStub(BasePlugin):
             raise NotReadyError("Stub no inicializado.")
         
         return {
-            "tokens": self._mock_tokens,
+            "tokens": list(self._mock_tokens),  # copy — never expose mutable instance state
             "raw_text": " ".join(self._mock_tokens),
             "time_stamps": self._mock_timestamps,
+            "confidences": [1.0] * len(self._mock_tokens),
             "meta": {
+                "backend": "allosaurus_stub",
                 "model": "stub",
                 "lang": lang,
+                "confidence_avg": 1.0,
+                "confidence_available": True,
             },
         }
 

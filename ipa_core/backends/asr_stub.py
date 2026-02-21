@@ -135,9 +135,19 @@ class StubASR(BasePlugin):
     async def transcribe(self, audio: AudioInput, *, lang: Optional[str] = None, **kw) -> ASRResult:  # noqa: D401
         # Legacy mode: fixed tokens override
         if self._fixed_tokens is not None:
+            n = len(self._fixed_tokens)
             return {
                 "tokens": list(self._fixed_tokens),
-                "meta": {"backend": "stub", "mode": "fixed", "lang": lang or ""},
+                "raw_text": " ".join(self._fixed_tokens),  # required for legacy fallback path
+                "confidences": [1.0] * n,
+                "meta": {
+                    "backend": "stub",
+                    "model": "stub-fixed",  # required by port contract
+                    "mode": "fixed",
+                    "lang": lang or "",
+                    "confidence_avg": 1.0,
+                    "confidence_available": True,
+                },
             }
 
         # Audio-aware mode: read file and generate varied output
@@ -150,12 +160,27 @@ class StubASR(BasePlugin):
                 "StubASR: generated %d tokens from %.1fs audio (seed=%s)",
                 len(tokens), duration, digest[:4].hex(),
             )
+            # Generar confidences en rango [0.7, 1.0] usando el mismo RNG del audio
+            seed = struct.unpack(">I", digest[:4])[0]
+            rng = random.Random(seed + 1)  # +1 para diferenciarlo del RNG de tokens
+            confidences = [round(0.7 + rng.random() * 0.3, 3) for _ in tokens]
         else:
             # No audio file available — return a short default
             tokens = ["o", "l", "a"]
+            confidences = [1.0, 1.0, 1.0]
             logger.warning("StubASR: no audio file found, returning default tokens")
 
+        avg_confidence = sum(confidences) / len(confidences) if confidences else 0.0
         return {
             "tokens": tokens,
-            "meta": {"backend": "stub", "mode": "audio_aware", "lang": effective_lang},
+            "raw_text": " ".join(tokens),  # required for legacy raw_text fallback path
+            "confidences": confidences,
+            "meta": {
+                "backend": "stub",
+                "model": "stub-audio-aware",  # required by port contract
+                "mode": "audio_aware",
+                "lang": effective_lang,
+                "confidence_avg": round(avg_confidence, 3),
+                "confidence_available": True,
+            },
         }
