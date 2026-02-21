@@ -34,6 +34,36 @@ from ipa_core.pipeline.ipa_cleaning import clean_asr_tokens, clean_textref_token
 from ipa_core.compare.compare import compare_representations
 
 
+# Issues que impiden llamar al ASR — el audio no tiene información fonética útil.
+# LOW_SNR solo es una advertencia: el ASR puede intentarlo de todas formas,
+# pero si luego devuelve tokens vacíos usaremos el feedback de calidad.
+_BLOCKING_QUALITY_ISSUES = {"no_speech", "too_quiet", "too_short", "clipping"}
+
+
+def _check_quality_gate(pre_res: dict[str, Any]) -> None:
+    """Lanza ValidationError con feedback al usuario si la calidad es bloqueante.
+
+    Solo bloquea en issues críticos (sin voz, demasiado silencioso, clipping,
+    muy corto). LOW_SNR solo advierte: el ASR intentará de todas formas.
+    """
+    quality = pre_res.get("meta", {}).get("audio_quality")
+    if not quality or quality.get("passed", True):
+        return
+    issues = set(quality.get("issues", []))
+    if issues & _BLOCKING_QUALITY_ISSUES:
+        msg = (
+            quality.get("user_feedback")
+            or "Audio de baja calidad: no se puede transcribir."
+        )
+        raise ValidationError(msg)
+
+
+def _quality_enriched_error(pre_res: dict[str, Any], fallback: str) -> ValidationError:
+    """Retorna ValidationError usando feedback de calidad si está disponible."""
+    feedback = pre_res.get("meta", {}).get("audio_quality", {}).get("user_feedback")
+    return ValidationError(feedback or fallback)
+
+
 async def execute_pipeline(
     pre: Preprocessor,
     asr: ASRBackend,
@@ -73,58 +103,96 @@ async def execute_pipeline(
     -------
     ComparisonResult
     """
-    lang = lang or ""
+    # lang intentionally kept as-is (None = backend uses its own configured default).
+    # Do NOT add `lang = lang or "es"` here — that silently forces Spanish for all
+    # callers who omit lang.  Each backend resolves its own default via _resolve_lang().
 
     # 1. Preproceso de audio (cadena completa si BasicPreprocessor tiene audio_chain)
     pre_audio_res = await pre.process_audio(audio)
     processed_audio = pre_audio_res.get("audio", audio)
 
-    # 2. ASR → tokens limpios → normalización → representación fonética
-    asr_result = await asr.transcribe(processed_audio, lang=lang or None)
-    raw_asr_tokens = asr_result.get("tokens")
-    if not raw_asr_tokens:
-        raise ValidationError("ASR no devolvió tokens IPA")
-    cleaned_asr = clean_asr_tokens(raw_asr_tokens, lang=lang)
-    if not cleaned_asr:
-        raise ValidationError("ASR no devolvió tokens IPA válidos tras limpieza")
-    norm_asr = await pre.normalize_tokens(cleaned_asr)
-    asr_tokens = norm_asr.get("tokens", cleaned_asr)
-    observed_phonetic = PhonologicalRepresentation.phonetic("".join(asr_tokens))
+    # Bloquear temprano si la calidad impide cualquier reconocimiento útil.
+    # Esto da al usuario feedback accionable en lugar de un error genérico de ASR.
+    _check_quality_gate(pre_audio_res)
 
-    # 3. TextRef → tokens limpios → normalización → representación fonémica
-    tr_result = await textref.to_ipa(text, lang=lang or "")
-    raw_ref_tokens = tr_result.get("tokens", [])
-    cleaned_ref = clean_textref_tokens(raw_ref_tokens, lang=lang)
-    norm_ref = await pre.normalize_tokens(cleaned_ref)
-    ref_tokens = norm_ref.get("tokens", cleaned_ref)
-    target_phonemic = PhonologicalRepresentation.phonemic("".join(ref_tokens))
+    try:
+        # 2. ASR → tokens limpios → normalización → representación fonética
+        asr_result = await asr.transcribe(processed_audio, lang=lang)
+        raw_asr_tokens = asr_result.get("tokens")
+        if not raw_asr_tokens:
+            raise _quality_enriched_error(pre_audio_res, "ASR no devolvió tokens IPA")
+        cleaned_asr = clean_asr_tokens(raw_asr_tokens, lang=lang)
+        if not cleaned_asr:
+            raise _quality_enriched_error(
+                pre_audio_res, "ASR no devolvió tokens IPA válidos tras limpieza"
+            )
+        
+        # Pasar inventario del pack si existe para normalización robusta
+        norm_params = {}
+        if pack is not None and hasattr(pack, 'get_inventory'):
+            norm_params["inventory"] = pack.get_inventory()
 
-    # 4. Alinear al nivel solicitado
-    if evaluation_level == "phonemic":
+        norm_asr = await pre.normalize_tokens(cleaned_asr, **norm_params)
+        asr_tokens = norm_asr.get("tokens", cleaned_asr)
+        observed_phonetic = PhonologicalRepresentation.phonetic("".join(asr_tokens))
+
+        # 3. TextRef → tokens limpios → normalización → representación fonémica
+        tr_result = await textref.to_ipa(text, lang=lang or "")
+        raw_ref_tokens = tr_result.get("tokens", [])
+        cleaned_ref = clean_textref_tokens(raw_ref_tokens, lang=lang)
+        norm_ref = await pre.normalize_tokens(cleaned_ref, **norm_params)
+        ref_tokens = norm_ref.get("tokens", cleaned_ref)
+        target_phonemic = PhonologicalRepresentation.phonemic("".join(ref_tokens))
+
+        # 4. Alinear al nivel solicitado
+        if evaluation_level == "phonemic":
+            if pack is not None:
+                collapsed_ipa = pack.collapse(observed_phonetic.ipa, mode=mode)
+                observed_repr = PhonologicalRepresentation.phonemic(collapsed_ipa)
+            else:
+                observed_repr = PhonologicalRepresentation.phonemic(observed_phonetic.ipa)
+            target_repr = target_phonemic
+        else:  # phonetic
+            if pack is not None:
+                derived_ipa = pack.derive(target_phonemic.ipa, mode=mode)
+                target_repr = PhonologicalRepresentation.phonetic(derived_ipa)
+            else:
+                target_repr = PhonologicalRepresentation.phonetic(target_phonemic.ipa)
+            observed_repr = observed_phonetic
+
+        # 5. Comparar con ScoringProfile del pack o defaults
         if pack is not None:
-            collapsed_ipa = pack.collapse(observed_phonetic.ipa, mode=mode)
-            observed_repr = PhonologicalRepresentation.phonemic(collapsed_ipa)
-        else:
-            observed_repr = PhonologicalRepresentation.phonemic(observed_phonetic.ipa)
-        target_repr = target_phonemic
-    else:  # phonetic
-        if pack is not None:
-            derived_ipa = pack.derive(target_phonemic.ipa, mode=mode)
-            target_repr = PhonologicalRepresentation.phonetic(derived_ipa)
-        else:
-            target_repr = PhonologicalRepresentation.phonetic(target_phonemic.ipa)
-        observed_repr = observed_phonetic
+            profile = pack.get_scoring_profile(mode)
+            return await compare_representations(
+                target_repr,
+                observed_repr,
+                mode=mode,
+                evaluation_level=evaluation_level,
+                profile=profile,
+            )
+        
+        # Path sin pack: usar comparador inyectado si existe
+        if comp is not None:
+            res = await comp.compare(target_repr.segments, observed_repr.segments, weights=weights)
+            # Convertir CompareResult a ComparisonResult
+            return ComparisonResult(
+                target=target_repr,
+                observed=observed_repr,
+                mode=mode,
+                evaluation_level=evaluation_level,
+                distance=res.get("meta", {}).get("distance", 0.0),
+                score=max(0.0, (1.0 - res.get("per", 0.0)) * 100.0),
+                operations=res.get("ops", []),
+            )
 
-    # 5. Comparar con ScoringProfile del pack o defaults
-    profile = pack.get_scoring_profile(mode) if pack is not None else None
-
-    return await compare_representations(
-        target_repr,
-        observed_repr,
-        mode=mode,
-        evaluation_level=evaluation_level,
-        profile=profile,
-    )
+        return await compare_representations(
+            target_repr,
+            observed_repr,
+            mode=mode,
+            evaluation_level=evaluation_level,
+        )
+    finally:
+        _cleanup_preprocessor_res(pre_audio_res)
 
 
 async def run_pipeline(
@@ -143,25 +211,34 @@ async def run_pipeline(
     Wrapper compatible que usa el comparador ``comp`` proporcionado.
     Para el pipeline unificado con packs, usar ``execute_pipeline()``.
     """
-    lang = lang or ""
+    # lang intentionally kept as-is (see note in execute_pipeline).
     # 1. Preproceso de audio
     pre_audio_res = await pre.process_audio(audio)
     processed_audio = pre_audio_res.get("audio", audio)
 
-    # 2. Transcripción ASR
-    asr_result = await asr.transcribe(processed_audio, lang=lang or None)
+    # Bloquear temprano si la calidad impide el reconocimiento (feedback accionable).
+    _check_quality_gate(pre_audio_res)
 
-    # 3. Resolución y normalización de hipótesis
-    hyp_tokens = await _resolve_hyp_tokens(pre, asr_result, lang=lang)
+    try:
+        # 2. Transcripción ASR
+        asr_result = await asr.transcribe(processed_audio, lang=lang)
 
-    # 4. Obtención, limpieza y normalización de referencia
-    tr_result = await textref.to_ipa(text, lang=lang or "")
-    ref_tokens_raw = clean_textref_tokens(tr_result.get("tokens", []), lang=lang)
-    ref_pre_res = await pre.normalize_tokens(ref_tokens_raw)
-    ref_tokens = ref_pre_res.get("tokens", [])
+        # 3. Resolución y normalización de hipótesis
+        try:
+            hyp_tokens = await _resolve_hyp_tokens(pre, asr_result, lang=lang)
+        except ValidationError:
+            raise _quality_enriched_error(pre_audio_res, "ASR no devolvió tokens IPA")
 
-    # 5. Comparación usando el comparador inyectado
-    return await comp.compare(ref_tokens, hyp_tokens, weights=weights)
+        # 4. Obtención, limpieza y normalización de referencia
+        tr_result = await textref.to_ipa(text, lang=lang or "")
+        ref_tokens_raw = clean_textref_tokens(tr_result.get("tokens", []), lang=lang)
+        ref_pre_res = await pre.normalize_tokens(ref_tokens_raw)
+        ref_tokens = ref_pre_res.get("tokens", [])
+
+        # 5. Comparación usando el comparador inyectado
+        return await comp.compare(ref_tokens, hyp_tokens, weights=weights)
+    finally:
+        _cleanup_preprocessor_res(pre_audio_res)
 
 
 async def run_pipeline_with_pack(
@@ -201,11 +278,34 @@ async def _resolve_hyp_tokens(
     pre: Preprocessor,
     asr_result: dict[str, Any],
     lang: Optional[str] = None,
+    inventory: Optional[Any] = None,
 ) -> list[Token]:
     """Extrae, limpia y normaliza tokens IPA del ASR (usado internamente)."""
     tokens = asr_result.get("tokens")
     if tokens:
         tokens = clean_asr_tokens(tokens, lang=lang)
-        res = await pre.normalize_tokens(tokens)
+        norm_params = {}
+        if inventory is not None:
+            norm_params["inventory"] = inventory
+        res = await pre.normalize_tokens(tokens, **norm_params)
         return res.get("tokens", [])
     raise ValidationError("ASR no devolvió tokens IPA")
+
+
+def _cleanup_preprocessor_res(res: dict[str, Any]) -> None:
+    """Elimina archivos temporales creados por el preprocesador."""
+    import os
+    from ipa_core.audio.files import cleanup_temp
+    
+    meta = res.get("meta", {})
+    # 1. Archivo principal si es diferente del original y marcado como temporal
+    # Note: Currently BasicPreprocessor doesn't explicitly flag 'is_temp' in res, 
+    # but AudioProcessingChain marks steps.
+    
+    # 2. Archivos en los metadatos de los pasos
+    for step_key in ["ensure_wav", "vad_trim", "agc"]:
+        step_meta = meta.get(step_key, {})
+        if isinstance(step_meta, dict):
+            path = step_meta.get("path")
+            if path and os.path.exists(path):
+                cleanup_temp(path)
