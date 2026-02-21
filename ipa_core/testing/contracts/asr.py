@@ -34,15 +34,23 @@ class ASRContract:
             result = await backend.transcribe(audio, lang="es")
             
             assert isinstance(result, dict)
-            # tokens is required by the contract implicitly if it's an ASRResult
-            # Actually ASRResult is TypedDict(total=False), but tokens is the main output.
-            assert "tokens" in result or "raw_text" in result
-            if "tokens" in result:
-                assert isinstance(result["tokens"], list)
-                for t in result["tokens"]:
-                    assert isinstance(t, str)
-            if "meta" in result:
-                assert isinstance(result["meta"], dict)
+            # 'tokens' is required by the pipeline (execute_pipeline raises
+            # ValidationError if absent).  A backend returning only 'raw_text'
+            # would pass this contract but hard-fail in production.
+            assert "tokens" in result, "ASRResult MUST contain 'tokens' key"
+            assert isinstance(result["tokens"], list)
+            for t in result["tokens"]:
+                assert isinstance(t, str)
+            # 'raw_text' is optional but recommended for debuggability
+            if "raw_text" in result:
+                assert isinstance(result["raw_text"], str)
+            # meta is required per port contract (backend/model/lang keys)
+            assert "meta" in result, "ASRResult MUST contain 'meta' key"
+            assert isinstance(result["meta"], dict)
+            for required_meta_key in ("backend", "model", "lang"):
+                assert required_meta_key in result["meta"], (
+                    f"ASRResult.meta MUST contain '{required_meta_key}'"
+                )
         finally:
             await backend.teardown()
 

@@ -51,12 +51,15 @@ class ASRResult(TypedDict, total=False):
     - tokens: lista de tokens IPA resultantes.
     - raw_text: texto sin procesar si el backend lo produce.
     - time_stamps: lista de tuplas (inicio, fin) por token o segmento.
+    - confidences: score de confianza por token [0.0, 1.0], misma longitud que tokens.
+                   Ausente si el backend no lo soporta.
     - meta: información adicional útil para depurar (modelo, versión, etc.).
     """
 
     tokens: list[Token]
     raw_text: str
     time_stamps: list[tuple[float, float]]
+    confidences: list[float]
     meta: dict[str, Any]
 
 
