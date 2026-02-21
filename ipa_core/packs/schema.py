@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -79,6 +79,43 @@ class ModeProfile(BaseModel):
         return value
 
 
+class ErrorWeights(BaseModel):
+    """Pesos de error configurables por tipo de error fonético.
+
+    Permiten que el pack ajuste cuánto penaliza el sistema cada tipo
+    de error según las prioridades del idioma/dialecto.
+
+    Campos
+    ------
+    semantic:
+        Peso para errores que cambian el significado (mínimo par semántico).
+    frequency:
+        Peso inverso a la frecuencia léxica — errores en palabras raras
+        penalizan menos que en palabras muy comunes.
+    articulatory:
+        Escalar adicional sobre la distancia articulatoria.  Un valor >1
+        amplifica las diferencias fonéticas; <1 las suaviza.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    semantic: float = Field(
+        default=1.0,
+        ge=0.0,
+        description="Peso para errores con impacto semántico.",
+    )
+    frequency: float = Field(
+        default=1.0,
+        ge=0.0,
+        description="Escalar de frecuencia léxica (1.0 = sin ajuste).",
+    )
+    articulatory: float = Field(
+        default=1.0,
+        ge=0.0,
+        description="Escalar sobre la distancia articulatoria.",
+    )
+
+
 class TTSConfig(BaseModel):
     """TTS configuration for local playback."""
 
@@ -129,6 +166,20 @@ class LanguagePack(BaseModel):
     templates: Optional[PackResource] = None
     tts: Optional[TTSConfig] = None
     modes: list[ModeProfile] = Field(default_factory=list)
+
+    # Léxico inline (palabra → IPA precomputado).  Permite funcionamiento
+    # offline sin archivos externos adicionales.  Para packs grandes se
+    # recomienda un archivo separado apuntado por ``lexicon`` (PackResource).
+    inline_lexicon: Dict[str, str] = Field(
+        default_factory=dict,
+        description="Léxico precargado {palabra: IPA} para consulta offline sin archivos externos.",
+    )
+
+    # Pesos de error configurables por tipo.
+    error_weights: ErrorWeights = Field(
+        default_factory=ErrorWeights,
+        description="Pesos de error por tipo (semántico, frecuencia, articulatorio).",
+    )
 
     @field_validator("schema_version")
     @classmethod
@@ -205,6 +256,7 @@ class ModelPack(BaseModel):
 
 
 __all__ = [
+    "ErrorWeights",
     "LanguagePack",
     "ModelPack",
     "ModeProfile",

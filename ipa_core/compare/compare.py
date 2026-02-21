@@ -16,6 +16,7 @@ from ipa_core.phonology.representation import (
 
 if TYPE_CHECKING:
     from ipa_core.plugins.language_pack import ScoringProfile
+    from ipa_core.packs.schema import ErrorWeights
 
 
 async def compare_representations(
@@ -26,6 +27,7 @@ async def compare_representations(
     evaluation_level: RepresentationLevel = "phonemic",
     profile: Optional["ScoringProfile"] = None,
     use_articulatory: bool = True,
+    error_weights: Optional["ErrorWeights"] = None,
 ) -> ComparisonResult:
     """Comparar dos representaciones fonológicas.
     
@@ -43,7 +45,12 @@ async def compare_representations(
         Perfil de scoring opcional.
     use_articulatory : bool
         Si usar pesos articulatorios.
-        
+    error_weights : ErrorWeights, optional
+        Pesos de error del LanguagePack (semantic/frequency/articulatory).
+        Si se proporciona, el escalar ``articulatory`` ajusta la distancia
+        articulatoria y los pesos ``semantic``/``frequency`` pueden usarse
+        en cálculos downstream.
+
     Retorna
     -------
     ComparisonResult
@@ -72,6 +79,11 @@ async def compare_representations(
         else:
             min_cost = 0.3  # Balance
     
+    # Aplicar escalar articulatorio del pack (si está disponible)
+    art_scalar: float = 1.0
+    if error_weights is not None:
+        art_scalar = error_weights.articulatory
+
     # Crear comparador
     comparator = LevenshteinComparator(
         use_articulatory=use_articulatory,
@@ -104,9 +116,9 @@ async def compare_representations(
                     if use_articulatory and ref and hyp:
                         # Scale by articulatory distance so phonetically similar
                         # substitutions contribute less than completely different ones.
-                        # This keeps score consistent with the articulatory per.
+                        # Apply error_weights.articulatory scalar if provided.
                         art_dist = articulatory_distance(ref, hyp)
-                        weighted_errors += art_dist * profile.phoneme_error_weight
+                        weighted_errors += art_dist * art_scalar * profile.phoneme_error_weight
                     else:
                         weighted_errors += profile.phoneme_error_weight
             else:  # ins/del

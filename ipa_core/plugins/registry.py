@@ -158,6 +158,28 @@ def _register_defaults() -> None:
         register("textref", "epitran", lambda p: EpitranTextRef(default_lang=p.get("default_lang", "es")))
     register("textref", "espeak", lambda p: EspeakTextRef(default_lang=p.get("default_lang", "es")))
 
+    # LexiconTextRef — léxico inline del pack + fallback a eSpeak
+    try:
+        from ipa_core.textref.lexicon import LexiconTextRef
+    except Exception as exc:
+        logger.warning("LexiconTextRef unavailable: %s", exc)
+    else:
+        def _create_lexicon_textref(p: dict) -> LexiconTextRef:
+            lang = p.get("default_lang", "es")
+            lexicon: dict = p.get("lexicon", {})
+            espeak_fb = None
+            if p.get("espeak_fallback", True):
+                try:
+                    espeak_fb = EspeakTextRef(default_lang=lang)
+                except Exception:
+                    pass
+            return LexiconTextRef(
+                lexicon=lexicon,
+                espeak_fallback=espeak_fb,
+                default_lang=lang,
+            )
+        register("textref", "lexicon", _create_lexicon_textref)
+
     # Comparator
     from ipa_core.compare.levenshtein import LevenshteinComparator
     from ipa_core.compare.noop import NoOpComparator

@@ -3,6 +3,62 @@
  * Generated based on Backend Pydantic Models.
  */
 
+// ---------------------------------------------------------------------------
+// IPA Display — visualización dual técnica/casual con tokens coloreados
+// ---------------------------------------------------------------------------
+
+/** Color semántico de un token IPA. */
+export type TokenColor = 'green' | 'yellow' | 'red' | 'gray';
+
+/** Modo de visualización seleccionado por el aprendiz. */
+export type DisplayMode = 'technical' | 'casual';
+
+/** Nivel de representación fonológica. */
+export type RepresentationLevel = 'phonemic' | 'phonetic';
+
+/** Token IPA individual con color semántico y transliteración coloquial. */
+export interface IPADisplayToken {
+  /** Símbolo IPA canónico (modo técnico). */
+  ipa: string;
+  /** Transliteración coloquial legible (modo casual). */
+  casual: string;
+  /** Color semántico: green=correcto, yellow=cercano, red=error, gray=OOV. */
+  color: TokenColor;
+  /** Operación de edición: eq, sub, ins, del. */
+  op: 'eq' | 'sub' | 'ins' | 'del';
+  /** Token de referencia (IPA objetivo). Null para inserciones. */
+  ref?: string | null;
+  /** Token observado (IPA hipótesis). Null para borrados. */
+  hyp?: string | null;
+  /** Distancia articulatoria [0,1]. Null si no aplica. */
+  articulatory_distance?: number | null;
+  /** Nivel de representación de este token. */
+  level: RepresentationLevel;
+}
+
+/** Resultado completo de la visualización dual de IPA. */
+export interface IPADisplay {
+  /** Modo de display activo. */
+  mode: DisplayMode;
+  /** Nivel de representación. */
+  level: RepresentationLevel;
+  /** IPA objetivo completo en modo técnico. */
+  ref_technical: string;
+  /** IPA objetivo en transliteración coloquial. */
+  ref_casual: string;
+  /** IPA observado completo en modo técnico. */
+  hyp_technical: string;
+  /** IPA observado en transliteración coloquial. */
+  hyp_casual: string;
+  /** Color global del score: green ≥ 80, yellow 50-79, red < 50. */
+  score_color: TokenColor;
+  /** Leyenda de colores para mostrar al aprendiz. */
+  legend: Record<string, string>;
+  /** Tokens individuales con color y transliteración. */
+  tokens: IPADisplayToken[];
+}
+
+
 export interface TranscriptionResponse {
   /** Transcripción completa en formato IPA */
   ipa: string;
@@ -53,6 +109,11 @@ export interface CompareResponse {
   alignment: Array<[string | null, string | null]>;
   /** Metadatos adicionales de la comparación */
   meta: Record<string, any>;
+  /**
+   * Visualización dual del IPA con tokens coloreados.
+   * Solo presente cuando el cliente envía display_mode=technical|casual.
+   */
+  display?: IPADisplay | null;
 }
 
 export interface ErrorReport {

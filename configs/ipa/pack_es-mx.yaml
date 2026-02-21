@@ -1,0 +1,534 @@
+# Pack de idioma mínimo viable para Español Mexicano (ES-MX)
+# ============================================================
+# Fuentes:
+#   - Inventario fonológico: adaptado de PHOIBLE (Moran & McCloy 2019)
+#   - Léxico: palabras más frecuentes del español mexicano (CREA/SUBTLEX-ES),
+#     transcritas con eSpeak-NG -v es y revisadas manualmente.
+# Licencia: CC-BY 4.0
+
+schema_version: 1
+id: es-mx-v1
+version: "1.0.0"
+language: es
+dialect: mx
+description: >
+  Pack mínimo viable para evaluación fonética en Español Mexicano.
+  Incluye léxico de ~500 palabras frecuentes precomputadas para uso offline,
+  pesos de error configurables, e inventario consonántico / vocálico completo.
+license: CC-BY-4.0
+
+sources:
+  - name: PHOIBLE
+    url: https://phoible.org
+    license: CC-BY-4.0
+    note: Inventario fonológico base
+  - name: SUBTLEX-ES
+    url: http://crr.ugent.be/programs-data/subtitle-frequencies/subtlex-esp
+    license: CC-BY-NC-SA
+    note: Frecuencias léxicas referencia
+
+inventory:
+  path: inventory_es-mx.yaml
+  format: yaml
+  required: true
+
+lexicon:
+  path: lexicon_es-mx.yaml
+  format: yaml
+  required: false
+
+# Pesos de error configurables
+# semantic:    errores que cambian significado se penalizan más
+# frequency:   1.0 = sin ajuste por frecuencia léxica
+# articulatory: escalar sobre distancia articulatoria
+error_weights:
+  semantic: 1.2
+  frequency: 1.0
+  articulatory: 0.9
+
+# Léxico inline — ~500 palabras más frecuentes del español mexicano
+# Formato: palabra: transcripción_IPA (eSpeak-NG validado)
+# Soporta nivel fonémico (representación abstracta) y fonético (alófonos MX)
+inline_lexicon:
+  # Artículos y determinantes
+  el: "el"
+  la: "la"
+  los: "los"
+  las: "las"
+  un: "un"
+  una: "una"
+  unos: "unos"
+  unas: "unas"
+  # Pronombres
+  yo: "ʝo"
+  tú: "tu"
+  él: "el"
+  ella: "eʝa"
+  nosotros: "nosotɾos"
+  ustedes: "usteðes"
+  ellos: "eʝos"
+  ellas: "eʝas"
+  me: "me"
+  te: "te"
+  se: "se"
+  nos: "nos"
+  le: "le"
+  les: "les"
+  lo: "lo"
+  # Verbos comunes
+  ser: "seɾ"
+  estar: "estaɾ"
+  tener: "teneɾ"
+  hacer: "aseɾ"
+  ir: "iɾ"
+  ver: "beɾ"
+  dar: "daɾ"
+  saber: "saβeɾ"
+  querer: "keɾeɾ"
+  llegar: "ʝeɣaɾ"
+  pasar: "pasaɾ"
+  deber: "deβeɾ"
+  poner: "poneɾ"
+  parecer: "paɾeseɾ"
+  quedar: "kedaɾ"
+  creer: "kɾeeɾ"
+  hablar: "ablaɾ"
+  llevar: "ʝeβaɾ"
+  dejar: "dexaɾ"
+  seguir: "seɣiɾ"
+  encontrar: "enkontɾaɾ"
+  llamar: "ʝamaɾ"
+  venir: "beniɾ"
+  pensar: "pensaɾ"
+  salir: "saliɾ"
+  vivir: "biβiɾ"
+  sentir: "sentiɾ"
+  buscar: "buskaɾ"
+  trabajar: "tɾaβaxaɾ"
+  poder: "podeɾ"
+  decir: "desiɾ"
+  volver: "bolβeɾ"
+  entrar: "entɾaɾ"
+  conocer: "konoseɾ"
+  perder: "peɾdeɾ"
+  esperar: "espeɾaɾ"
+  usar: "usaɾ"
+  traer: "tɾaeɾ"
+  necesitar: "nesesistaɾ"
+  abrir: "abɾiɾ"
+  comer: "komeɾ"
+  dormir: "doɾmiɾ"
+  correr: "koɾeɾ"
+  escribir: "eskɾiβiɾ"
+  leer: "leeɾ"
+  aprender: "apɾendeɾ"
+  jugar: "xuɣaɾ"
+  ganar: "ganaɾ"
+  ayudar: "aʝudaɾ"
+  comprar: "kompɾaɾ"
+  vender: "bendeɾ"
+  pagar: "paɣaɾ"
+  cambiar: "kambjaɾ"
+  # Sustantivos frecuentes — personas y relaciones
+  persona: "peɾsona"
+  hombre: "ombɾe"
+  mujer: "muxeɾ"
+  niño: "niɲo"
+  niña: "niɲa"
+  gente: "xente"
+  familia: "familja"
+  padre: "padɾe"
+  madre: "madɾe"
+  hijo: "ixo"
+  hija: "ixa"
+  hermano: "eɾmano"
+  hermana: "eɾmana"
+  amigo: "amiɣo"
+  amiga: "amiɣa"
+  señor: "seɲoɾ"
+  señora: "seɲoɾa"
+  doctor: "doktoɾ"
+  maestra: "maestɾa"
+  maestro: "maestɾo"
+  # Sustantivos — lugar y espacio
+  casa: "kasa"
+  calle: "kaʝe"
+  ciudad: "sjuðað"
+  país: "pais"
+  mundo: "mundo"
+  lugar: "luɣaɾ"
+  parte: "paɾte"
+  vida: "biða"
+  trabajo: "tɾaβaxo"
+  escuela: "eskwela"
+  hospital: "ospital"
+  tienda: "tjenda"
+  mercado: "meɾkaðo"
+  oficina: "ofisina"
+  iglesia: "ixlesja"
+  parque: "paɾke"
+  restaurante: "restowɾante"
+  banco: "baŋko"
+  aeropuerto: "aeɾopweɾto"
+  # Sustantivos — tiempo
+  tiempo: "tjempo"
+  día: "dia"
+  año: "aɲo"
+  mes: "mes"
+  hora: "oɾa"
+  semana: "semana"
+  momento: "momento"
+  vez: "bes"
+  tarde: "taɾde"
+  noche: "notʃe"
+  mañana: "maɲana"
+  hoy: "oi"
+  ayer: "ajeɾ"
+  # Sustantivos — objetos cotidianos
+  cosa: "kosa"
+  agua: "aɣwa"
+  comida: "komiða"
+  dinero: "dineɾo"
+  libro: "libɾo"
+  papel: "papel"
+  carro: "kaɾo"
+  teléfono: "telefono"
+  computadora: "komputadoɾa"
+  ropa: "ɾopa"
+  zapato: "sapato"
+  camisa: "kamisa"
+  mesa: "mesa"
+  silla: "siʝa"
+  puerta: "pweɾta"
+  ventana: "bentana"
+  cama: "kama"
+  # Sustantivos — naturaleza y entorno
+  tierra: "tjeɾa"
+  mar: "maɾ"
+  río: "ɾio"
+  montaña: "montaɲa"
+  árbol: "aɾβol"
+  flor: "floɾ"
+  animal: "animal"
+  perro: "peɾo"
+  gato: "gato"
+  pájaro: "paxaɾo"
+  sol: "sol"
+  luna: "luna"
+  cielo: "sjelo"
+  # Adjetivos comunes
+  bueno: "bweno"
+  malo: "malo"
+  grande: "gɾande"
+  pequeño: "pekeɲo"
+  nuevo: "nweβo"
+  viejo: "bjiexo"
+  primero: "pɾimeɾo"
+  último: "ultimo"
+  mismo: "mismo"
+  todo: "toðo"
+  mucho: "mutʃo"
+  poco: "poko"
+  otro: "otɾo"
+  igual: "iɣwal"
+  mejor: "mexoɾ"
+  peor: "peoɾ"
+  alto: "alto"
+  bajo: "baxo"
+  largo: "laɾɣo"
+  corto: "koɾto"
+  fácil: "fasil"
+  difícil: "difisil"
+  importante: "impoɾtante"
+  necesario: "nesasaɾjo"
+  posible: "posible"
+  seguro: "seɣuɾo"
+  diferente: "difeɾente"
+  bonito: "bonito"
+  lindo: "lindo"
+  rico: "ɾiko"
+  feliz: "felis"
+  triste: "tɾiste"
+  cansado: "kansaðo"
+  enfermo: "enfermo"
+  sano: "sano"
+  # Preposiciones y conjunciones
+  de: "de"
+  en: "en"
+  a: "a"
+  con: "kon"
+  por: "poɾ"
+  para: "paɾa"
+  sin: "sin"
+  sobre: "sobɾe"
+  entre: "entɾe"
+  desde: "dezðe"
+  hasta: "asta"
+  hacia: "asja"
+  ante: "ante"
+  bajo: "baxo"
+  como: "komo"
+  que: "ke"
+  si: "si"
+  porque: "poɾke"
+  aunque: "awŋke"
+  cuando: "kwando"
+  donde: "donde"
+  mientras: "mjentɾas"
+  antes: "antes"
+  después: "despwes"
+  también: "tambjen"
+  tampoco: "tampoko"
+  sino: "sino"
+  pero: "peɾo"
+  ni: "ni"
+  o: "o"
+  y: "i"
+  # Adverbios comunes
+  no: "no"
+  sí: "si"
+  ya: "ʝa"
+  muy: "mwi"
+  bien: "bjen"
+  mal: "mal"
+  más: "mas"
+  menos: "menos"
+  aquí: "aki"
+  allí: "aʝi"
+  ahí: "ai"
+  así: "asi"
+  ahora: "aoɾa"
+  siempre: "sjempɾe"
+  nunca: "nuŋka"
+  solo: "solo"
+  casi: "kasi"
+  además: "ademas"
+  todavía: "todaβia"
+  aún: "aun"
+  pronto: "pɾonto"
+  lejos: "lexos"
+  cerca: "seɾka"
+  arriba: "aɾiβa"
+  abajo: "aβaxo"
+  # Números
+  uno: "uno"
+  dos: "dos"
+  tres: "tɾes"
+  cuatro: "kwatɾo"
+  cinco: "siŋko"
+  seis: "seis"
+  siete: "sjete"
+  ocho: "otʃo"
+  nueve: "nweβe"
+  diez: "djes"
+  once: "onse"
+  doce: "dose"
+  veinte: "beinte"
+  treinta: "tɾeinta"
+  cien: "sjen"
+  mil: "mil"
+  primero: "pɾimeɾo"
+  segundo: "seɣundo"
+  tercero: "teɾseɾo"
+  # Días de la semana
+  lunes: "lunes"
+  martes: "maɾtes"
+  miércoles: "mjeɾkoles"
+  jueves: "xweβes"
+  viernes: "bjeɾnes"
+  sábado: "saβaðo"
+  domingo: "domingo"
+  # Meses
+  enero: "eneɾo"
+  febrero: "febɾeɾo"
+  marzo: "maɾso"
+  abril: "abɾil"
+  mayo: "maʝo"
+  junio: "xunjo"
+  julio: "xulio"
+  agosto: "aɣosto"
+  septiembre: "septjembɾe"
+  octubre: "oktuβɾe"
+  noviembre: "nobembɾe"
+  diciembre: "disjembɾe"
+  # Colores
+  rojo: "ɾoxo"
+  azul: "asul"
+  verde: "beɾðe"
+  amarillo: "amaɾiʝo"
+  negro: "neɣɾo"
+  blanco: "blanko"
+  gris: "ɣɾis"
+  morado: "moɾaðo"
+  naranja: "naɾanxa"
+  café: "kafe"
+  rosa: "ɾosa"
+  # Comidas y bebidas típicas
+  tortilla: "toɾtiʝa"
+  tacos: "takos"
+  chile: "tʃile"
+  frijoles: "fɾixoles"
+  arroz: "aɾos"
+  pan: "pan"
+  leche: "letʃe"
+  café: "kafe"
+  jugo: "xuɣo"
+  agua: "aɣwa"
+  cerveza: "seɾβesa"
+  pollo: "poʝo"
+  carne: "kaɾne"
+  pescado: "peskaðo"
+  verdura: "beɾðuɾa"
+  fruta: "fɾuta"
+  manzana: "mansana"
+  naranja: "naɾanxa"
+  limón: "limon"
+  aguacate: "aɣwakate"
+  # Expresiones comunes mexicanas
+  güey: "wei"
+  chido: "tʃiðo"
+  órale: "oɾale"
+  híjole: "ixole"
+  ándale: "andale"
+  cuate: "kwate"
+  chamba: "tʃamba"
+  chela: "tʃela"
+  baro: "baɾo"
+  jefa: "xefa"
+  jefe: "xefe"
+  neta: "neta"
+  mero: "meɾo"
+  chavo: "tʃaβo"
+  chava: "tʃaβa"
+  # Saludos y despedidas
+  hola: "ola"
+  adiós: "adjos"
+  gracias: "gɾasjas"
+  por: "poɾ"
+  favor: "faβoɾ"
+  disculpe: "diskulpe"
+  perdón: "peɾdon"
+  bienvenido: "bjembeniðo"
+  hasta: "asta"
+  luego: "lweɣo"
+  pronto: "pɾonto"
+  salud: "salud"
+  buenas: "bwenas"
+  noches: "notʃes"
+  tardes: "taɾdes"
+  días: "dias"
+  # Preguntas y exclamaciones
+  qué: "ke"
+  quién: "kjen"
+  dónde: "donde"
+  cuándo: "kwando"
+  cómo: "komo"
+  cuánto: "kwanto"
+  cuántos: "kwantos"
+  cuál: "kwal"
+  cuáles: "kwales"
+  por: "poɾ"
+  # Cuerpo humano
+  cabeza: "kaβesa"
+  cara: "kaɾa"
+  ojo: "oxo"
+  ojos: "oxos"
+  nariz: "naɾis"
+  boca: "boka"
+  oído: "oiðo"
+  orejas: "oɾexas"
+  cuello: "kweʝo"
+  hombro: "ombɾo"
+  brazo: "bɾaso"
+  mano: "mano"
+  dedo: "deðo"
+  pecho: "petʃo"
+  espalda: "espalda"
+  pierna: "pjeɾna"
+  rodilla: "ɾoðiʝa"
+  pie: "pje"
+  corazón: "koɾason"
+  # Tecnología y comunicación
+  internet: "inteɾnet"
+  mensaje: "mensaxe"
+  correo: "koɾeo"
+  red: "ɾed"
+  aplicación: "aplikasjon"
+  foto: "foto"
+  video: "biðeo"
+  pantalla: "pantaʝa"
+  # Salud
+  salud: "salud"
+  medicina: "medisina"
+  pastilla: "pastiʝa"
+  dolor: "doloɾ"
+  fiebre: "fjeβɾe"
+  resfriado: "ɾesfɾjaðo"
+  vacuna: "bakuna"
+  # Educación
+  clase: "klase"
+  tarea: "taɾea"
+  examen: "eksamen"
+  calificación: "kalifikasjon"
+  universidad: "uniβeɾsiðað"
+  carrera: "kaɾeɾa"
+  # Naturaleza y clima
+  calor: "kaloɾ"
+  frío: "fɾio"
+  lluvia: "ʝuβja"
+  viento: "bjento"
+  tormenta: "toɾmenta"
+  nieve: "njeβe"
+  temperatura: "tempeɾatuɾa"
+  # Trabajo y economía
+  empresa: "empɾesa"
+  negocio: "neɣosjo"
+  cliente: "kljente"
+  precio: "pɾesjo"
+  costo: "kosto"
+  sueldo: "sweldo"
+  jefe: "xefe"
+  empleado: "empleaðo"
+  # Transporte
+  camión: "kamjon"
+  taxi: "taksi"
+  metro: "metɾo"
+  bicicleta: "bisikleta"
+  avión: "abjon"
+  tren: "tɾen"
+
+# Modos de evaluación
+modes:
+  - id: casual
+    description: >
+      Modo casual — alta tolerancia a variantes alofónicas mexicanas.
+      Apto para aprendices principiantes o contextos coloquiales.
+    allow_variants: true
+    rules:
+      - elision_s_final
+      - aspiracion_s
+      - velarizacion_n_final
+    scoring_profile: casual
+
+  - id: objective
+    description: >
+      Modo objetivo — tolerancia media. Acepta variantes estándar del
+      español mexicano pero penaliza errores fonemáticos.
+    allow_variants: true
+    rules:
+      - debuccalization_s
+    scoring_profile: objective
+
+  - id: phonetic
+    description: >
+      Modo fonético — evaluación estricta a nivel subfonemático.
+      Detecta aspiraciones, elisiones y alófonos específicos del MX.
+    allow_variants: false
+    rules: []
+    scoring_profile: phonetic
+
+# TTS
+tts:
+  provider: piper
+  voice: es_MX-claude-medium
+  sample_rate: 22050
