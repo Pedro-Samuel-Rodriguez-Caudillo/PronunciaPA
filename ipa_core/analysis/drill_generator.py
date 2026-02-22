@@ -220,7 +220,168 @@ def _confusion_difficulty(distance: float) -> int:
         return 1  # Muy diferente → fácil
 
 
+# ---------------------------------------------------------------------------
+# Agrupación por proximidad articulatoria
+# ---------------------------------------------------------------------------
+
+def group_phones_by_articulatory_proximity(
+    phones: list[str],
+    *,
+    threshold: float = 0.35,
+) -> list[list[str]]:
+    """Agrupar fonemas por similitud articulatoria usando clustering greedy.
+
+    Fonemas articulatoriamente cercanos (distancia < threshold) se
+    colocan en el mismo grupo.  Útil para:
+    - Ejercicios de minimal pairs dentro del mismo lugar de articulación.
+    - Ordenar drills de fácil a difícil dentro de un grupo fonémico.
+    - Identificar fonemas que comparte el alumno con su L1.
+
+    Parámetros
+    ----------
+    phones : list[str]
+        Lista de símbolos IPA a agrupar.
+    threshold : float
+        Distancia articulatoria máxima para pertenecer al mismo cluster.
+        Defecto 0.35 (fonemas bastante similares).
+
+    Retorna
+    -------
+    list[list[str]]
+        Lista de grupos.  Cada grupo es una lista de fonemas similares
+        ordenados de menor a mayor distancia al centroide (primero = más
+        representativo).
+
+    Ejemplo
+    -------
+    >>> group_phones_by_articulatory_proximity(["p","b","m","t","d","n"])
+    [["p","b","m"], ["t","d","n"]]  # bilabiales vs alveolares
+    """
+    if not phones:
+        return []
+
+    remaining = list(phones)
+    groups: list[list[str]] = []
+
+    while remaining:
+        seed = remaining.pop(0)
+        group = [seed]
+        still_remaining = []
+        for candidate in remaining:
+            dist = calculate_articulatory_distance(seed, candidate)
+            if dist <= threshold:
+                group.append(candidate)
+            else:
+                still_remaining.append(candidate)
+        remaining = still_remaining
+        groups.append(group)
+
+    return groups
+
+
+def generate_drills_by_proximity(
+    phones: list[str],
+    *,
+    lang: str = "es",
+    threshold: float = 0.35,
+    max_drills_per_group: int = 3,
+) -> list[DrillSet]:
+    """Generar DrillSets agrupados por proximidad articulatoria.
+
+    A diferencia de ``generate_drills_from_errors``, esta función toma
+    una lista de fonemas objetivo (p.ej. del perfil del alumno) y genera
+    conjuntos de ejercicios organizados por grupo articulatorio.
+
+    Parámetros
+    ----------
+    phones : list[str]
+        Fonemas a practicar.
+    lang : str
+        Idioma base.
+    threshold : float
+        Umbral de distancia para agrupar.
+    max_drills_per_group : int
+        Máximo de DrillItems por grupo.
+
+    Retorna
+    -------
+    list[DrillSet]
+        Un DrillSet por grupo articulatorio encontrado.
+    """
+    groups = group_phones_by_articulatory_proximity(phones, threshold=threshold)
+    drill_sets: list[DrillSet] = []
+
+    for group in groups:
+        if not group:
+            continue
+
+        seed = group[0]
+        items: list[DrillItem] = []
+        minimal_pairs: list[MinimalPair] = []
+
+        lang_base = lang.split("-")[0]
+        mp_db = _MINIMAL_PAIRS.get(lang_base, {})
+
+        for i, phone_a in enumerate(group[:max_drills_per_group]):
+            hints = _build_hints(phone_a)
+            items.append(DrillItem(
+                text=f"Practica el sonido [{phone_a}]",
+                ipa=phone_a,
+                target_phones=[phone_a],
+                difficulty=1 + (i % 5),
+                hints=hints,
+            ))
+
+            # Pares mínimos intragrupo (contraste entre sonidos del mismo grupo)
+            for phone_b in group[i + 1 : i + 3]:
+                dist = calculate_articulatory_distance(phone_a, phone_b)
+                difficulty_pair = _confusion_difficulty(dist)
+                items.append(DrillItem(
+                    text=f"Distingue [{phone_a}] de [{phone_b}]",
+                    ipa=f"{phone_a} ~ {phone_b}",
+                    target_phones=[phone_a, phone_b],
+                    difficulty=difficulty_pair,
+                    hints=hints,
+                ))
+
+            # Buscar pares mínimos en la BD
+            if phone_a in mp_db:
+                for entry in mp_db[phone_a][:2]:
+                    word_a, word_b, contrast, position = entry
+                    minimal_pairs.append(MinimalPair(
+                        word_a=word_a,
+                        word_b=word_b,
+                        ipa_a="",
+                        ipa_b="",
+                        target_phone=phone_a,
+                        contrast_phone=contrast,
+                        position=position,
+                    ))
+
+        feats = get_phone_features(seed)
+        group_name = (
+            f"{feats.get('place', '')} {feats.get('manner', '')}".strip()
+            or f"Grupo '{seed}'"
+        )
+        drill_sets.append(DrillSet(
+            name=f"Fonemas {group_name}: {', '.join(f'[{p}]' for p in group[:5])}",
+            description=(
+                f"Ejercicios para el grupo articulatorio de [{seed}]. "
+                f"{len(group)} fonema(s) similares."
+            ),
+            lang=lang,
+            target_phones=group,
+            items=items,
+            minimal_pairs=minimal_pairs,
+        ))
+
+    return drill_sets
+
+
 __all__ = [
     "extract_confusion_pairs",
     "generate_drills_from_errors",
+    "group_phones_by_articulatory_proximity",
+    "generate_drills_by_proximity",
 ]
+

@@ -33,6 +33,7 @@ from ipa_core.pipeline.transcribe import EvaluationMode
 from ipa_core.pipeline.ipa_cleaning import clean_asr_tokens, clean_textref_tokens
 from ipa_core.compare.compare import compare_representations
 from ipa_core.compare.oov_handler import OOVHandler
+from ipa_core.ports.oov import OOVHandlerPort
 
 
 # Issues que impiden llamar al ASR — el audio no tiene información fonética útil.
@@ -78,6 +79,7 @@ async def execute_pipeline(
     mode: EvaluationMode = "objective",
     evaluation_level: RepresentationLevel = "phonemic",
     weights: Optional[CompareWeights] = None,
+    oov_handler: Optional[OOVHandlerPort] = None,
 ) -> ComparisonResult:
     """Pipeline unificado: preproceso → ASR → TextRef → comparación.
 
@@ -161,16 +163,22 @@ async def execute_pipeline(
                 target_repr = PhonologicalRepresentation.phonetic(target_phonemic.ipa)
             observed_repr = observed_phonetic
 
-        # 5. OOV handling con inventario del pack (si disponible)
+        # 5. OOV handling con inventario del pack (si disponible).
+        # Si se inyectó un OOVHandlerPort custom se usa directamente;
+        # si no, se construye el OOVHandler por defecto con el inventario del pack.
         if pack is not None and hasattr(pack, 'get_inventory'):
             phonetic_inv = pack.get_inventory()
             # get_inventory() devuelve PhoneticInventory (no iterable directamente);
             # extraer la lista de símbolos válidos para OOVHandler.
             raw_inventory = list(phonetic_inv.get_all_phones()) if phonetic_inv is not None else []
             if raw_inventory:
-                oov_handler = OOVHandler(raw_inventory, collapse_threshold=0.3, level=evaluation_level)
-                target_filtered = oov_handler.filter_sequence(target_repr.segments)
-                observed_filtered = oov_handler.filter_sequence(observed_repr.segments)
+                _oov = (
+                    oov_handler
+                    if oov_handler is not None
+                    else OOVHandler(raw_inventory, collapse_threshold=0.3, level=evaluation_level)
+                )
+                target_filtered = _oov.filter_sequence(target_repr.segments)
+                observed_filtered = _oov.filter_sequence(observed_repr.segments)
                 target_repr = PhonologicalRepresentation(
                     level=target_repr.level,
                     ipa=target_repr.ipa,
@@ -282,6 +290,7 @@ async def run_pipeline_with_pack(
     lang: Optional[str] = None,
     mode: EvaluationMode = "objective",
     evaluation_level: RepresentationLevel = "phonemic",
+    oov_handler: Optional["OOVHandlerPort"] = None,
 ) -> ComparisonResult:
     """Wrapper delgado sobre execute_pipeline() con pack.
 
@@ -294,6 +303,7 @@ async def run_pipeline_with_pack(
         pre, asr, textref,
         audio=audio, text=text, lang=lang,
         pack=pack, mode=mode, evaluation_level=evaluation_level,
+        oov_handler=oov_handler,
     )
 
 

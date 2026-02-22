@@ -141,6 +141,16 @@ class OOVHandler:
         self._stats = OOVStats()
 
     # ------------------------------------------------------------------
+    # Ciclo de vida (OOVHandlerPort)
+    # ------------------------------------------------------------------
+
+    async def setup(self) -> None:
+        """No-op: no hay recursos externos que inicializar."""
+
+    async def teardown(self) -> None:
+        """No-op: no hay recursos externos que limpiar."""
+
+    # ------------------------------------------------------------------
     # Interfaz pública
     # ------------------------------------------------------------------
 

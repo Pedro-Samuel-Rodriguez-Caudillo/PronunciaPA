@@ -8,10 +8,27 @@ La función principal ``articulatory_distance()`` usa rasgos SPE
 en la base de datos SPE, y cae de respaldo a índices de Enum cuando
 alguno no está cubierto.  Esto elimina el artefacto de tratar
 ordinales como escala métrica lineal.
+
+Tabla explícita de distancias entre lugares de articulación
+-----------------------------------------------------------
+``PLACE_DISTANCE_TABLE`` codifica distancias fonéticamente motivadas entre
+each par de lugares de articulación.  A diferencia de la distancia ordinal
+(abs(a.value - b.value)), esta tabla refleja la topología del tracto vocal:
+- Lugares adyacentes (bilabial↔labiodental) = ~0.1
+- Lugares muy distantes (bilabial↔glotal) = 1.0
+El camino BILABIAL → LABIODENTAL → DENTAL → ALVEOLAR → POSTALVEOLAR →
+RETROFLEX → PALATAL → VELAR → UVULAR → PHARYNGEAL → GLOTTAL refleja
+la progresión anatómica de delantera a trasera en el tracto vocal.
+
+Distinción tense/lax en vocales
+--------------------------------
+``Tenseness`` y la columna correspondiente en ``VowelFeatures`` permiten
+diferenciar pares tense/lax (i/ɪ, u/ʊ, e/ɛ, o/ɔ) en el respaldo ordinal,
+alineando con el rasgo SPE ``tense`` que ya existe en FeatureBundle.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Dict, Optional, Set, Tuple
 
@@ -29,6 +46,92 @@ class Place(Enum):
     UVULAR = 8
     PHARYNGEAL = 9
     GLOTTAL = 10
+
+
+# Tabla explícita de distancias entre lugares de articulación.
+# Codifica la topología del tracto vocal: lugares adyacentes son más cercanos.
+# Valores simétricos en [0.0, 1.0].  Basado en distancias anatómicas estándar.
+#
+# Para interpretar: 0.0 = mismo lugar, 1.0 = máxima distancia.
+# Formato: (Place_A, Place_B) → float.  Sólo se almacena el par ordenado
+# (menor.value, mayor.value) para compacidad; _place_dist() consulta ambas.
+_P = Place  # alias corto
+_PLACE_RAW: list[tuple[Place, Place, float]] = [
+    # Bilabial ↔ *
+    (_P.BILABIAL, _P.LABIODENTAL, 0.1),
+    (_P.BILABIAL, _P.DENTAL,      0.3),
+    (_P.BILABIAL, _P.ALVEOLAR,    0.4),
+    (_P.BILABIAL, _P.POSTALVEOLAR,0.5),
+    (_P.BILABIAL, _P.RETROFLEX,   0.6),
+    (_P.BILABIAL, _P.PALATAL,     0.7),
+    (_P.BILABIAL, _P.VELAR,       0.8),
+    (_P.BILABIAL, _P.UVULAR,      0.9),
+    (_P.BILABIAL, _P.PHARYNGEAL,  0.9),
+    (_P.BILABIAL, _P.GLOTTAL,     1.0),
+    # Labiodental ↔ *
+    (_P.LABIODENTAL, _P.DENTAL,      0.2),
+    (_P.LABIODENTAL, _P.ALVEOLAR,    0.3),
+    (_P.LABIODENTAL, _P.POSTALVEOLAR,0.4),
+    (_P.LABIODENTAL, _P.RETROFLEX,   0.5),
+    (_P.LABIODENTAL, _P.PALATAL,     0.6),
+    (_P.LABIODENTAL, _P.VELAR,       0.7),
+    (_P.LABIODENTAL, _P.UVULAR,      0.8),
+    (_P.LABIODENTAL, _P.PHARYNGEAL,  0.9),
+    (_P.LABIODENTAL, _P.GLOTTAL,     1.0),
+    # Dental ↔ *
+    (_P.DENTAL, _P.ALVEOLAR,     0.1),
+    (_P.DENTAL, _P.POSTALVEOLAR, 0.2),
+    (_P.DENTAL, _P.RETROFLEX,    0.3),
+    (_P.DENTAL, _P.PALATAL,      0.5),
+    (_P.DENTAL, _P.VELAR,        0.6),
+    (_P.DENTAL, _P.UVULAR,       0.7),
+    (_P.DENTAL, _P.PHARYNGEAL,   0.8),
+    (_P.DENTAL, _P.GLOTTAL,      0.9),
+    # Alveolar ↔ *
+    (_P.ALVEOLAR, _P.POSTALVEOLAR, 0.1),
+    (_P.ALVEOLAR, _P.RETROFLEX,    0.2),
+    (_P.ALVEOLAR, _P.PALATAL,      0.4),
+    (_P.ALVEOLAR, _P.VELAR,        0.5),
+    (_P.ALVEOLAR, _P.UVULAR,       0.6),
+    (_P.ALVEOLAR, _P.PHARYNGEAL,   0.7),
+    (_P.ALVEOLAR, _P.GLOTTAL,      0.8),
+    # Postalveolar ↔ *
+    (_P.POSTALVEOLAR, _P.RETROFLEX,  0.1),
+    (_P.POSTALVEOLAR, _P.PALATAL,    0.3),
+    (_P.POSTALVEOLAR, _P.VELAR,      0.4),
+    (_P.POSTALVEOLAR, _P.UVULAR,     0.5),
+    (_P.POSTALVEOLAR, _P.PHARYNGEAL, 0.6),
+    (_P.POSTALVEOLAR, _P.GLOTTAL,    0.7),
+    # Retroflex ↔ *
+    (_P.RETROFLEX, _P.PALATAL,    0.2),
+    (_P.RETROFLEX, _P.VELAR,      0.4),
+    (_P.RETROFLEX, _P.UVULAR,     0.5),
+    (_P.RETROFLEX, _P.PHARYNGEAL, 0.6),
+    (_P.RETROFLEX, _P.GLOTTAL,    0.7),
+    # Palatal ↔ *
+    (_P.PALATAL, _P.VELAR,      0.2),
+    (_P.PALATAL, _P.UVULAR,     0.4),
+    (_P.PALATAL, _P.PHARYNGEAL, 0.6),
+    (_P.PALATAL, _P.GLOTTAL,    0.8),
+    # Velar ↔ *
+    (_P.VELAR, _P.UVULAR,     0.2),
+    (_P.VELAR, _P.PHARYNGEAL, 0.4),
+    (_P.VELAR, _P.GLOTTAL,    0.6),
+    # Uvular ↔ *
+    (_P.UVULAR, _P.PHARYNGEAL, 0.2),
+    (_P.UVULAR, _P.GLOTTAL,    0.5),
+    # Pharyngeal ↔ *
+    (_P.PHARYNGEAL, _P.GLOTTAL, 0.3),
+]
+
+# Construir tabla simétrica para consulta rápida O(1)
+PLACE_DISTANCE_TABLE: Dict[Tuple[Place, Place], float] = {}
+for _a, _b, _d in _PLACE_RAW:
+    PLACE_DISTANCE_TABLE[(_a, _b)] = _d
+    PLACE_DISTANCE_TABLE[(_b, _a)] = _d
+for _p in Place:
+    PLACE_DISTANCE_TABLE[(_p, _p)] = 0.0
+del _P, _PLACE_RAW, _a, _b, _d, _p
 
 
 class Manner(Enum):
@@ -75,6 +178,16 @@ class Roundedness(Enum):
     ROUNDED = 1
 
 
+class Tenseness(Enum):
+    """Tensión vocálica (tense vs lax).
+    
+    Distingue pares como /i/ (tense) vs /ɪ/ (lax), /u/ vs /ʊ/, etc.
+    Codifica el rasgo SPE ``tense`` para el respaldo Enum en vocal_distance.
+    """
+    LAX = 0
+    TENSE = 1
+
+
 @dataclass
 class ConsonantFeatures:
     """Rasgos articulatorios de una consonante."""
@@ -89,6 +202,7 @@ class VowelFeatures:
     height: Height
     backness: Backness
     roundedness: Roundedness
+    tenseness: Tenseness = field(default=Tenseness.TENSE)
 
 
 # Mapeo de consonantes IPA a rasgos articulatorios
@@ -159,41 +273,44 @@ CONSONANT_FEATURES: Dict[str, ConsonantFeatures] = {
 }
 
 # Mapeo de vocales IPA a rasgos articulatorios
+# El cuarto argumento (Tenseness) distingue pares tense/lax:
+#   tense: i, y, e, ø, o, u, a, ɑ  →  Tenseness.TENSE (default)
+#   lax:   ɪ, ʊ, ɛ, œ, ɔ, æ, ə   →  Tenseness.LAX
 VOWEL_FEATURES: Dict[str, VowelFeatures] = {
-    # Close vowels
-    "i": VowelFeatures(Height.CLOSE, Backness.FRONT, Roundedness.UNROUNDED),
-    "y": VowelFeatures(Height.CLOSE, Backness.FRONT, Roundedness.ROUNDED),
-    "ɨ": VowelFeatures(Height.CLOSE, Backness.CENTRAL, Roundedness.UNROUNDED),
-    "ʉ": VowelFeatures(Height.CLOSE, Backness.CENTRAL, Roundedness.ROUNDED),
-    "ɯ": VowelFeatures(Height.CLOSE, Backness.BACK, Roundedness.UNROUNDED),
-    "u": VowelFeatures(Height.CLOSE, Backness.BACK, Roundedness.ROUNDED),
+    # Close vowels — tense
+    "i": VowelFeatures(Height.CLOSE, Backness.FRONT, Roundedness.UNROUNDED, Tenseness.TENSE),
+    "y": VowelFeatures(Height.CLOSE, Backness.FRONT, Roundedness.ROUNDED, Tenseness.TENSE),
+    "ɨ": VowelFeatures(Height.CLOSE, Backness.CENTRAL, Roundedness.UNROUNDED, Tenseness.TENSE),
+    "ʉ": VowelFeatures(Height.CLOSE, Backness.CENTRAL, Roundedness.ROUNDED, Tenseness.TENSE),
+    "ɯ": VowelFeatures(Height.CLOSE, Backness.BACK, Roundedness.UNROUNDED, Tenseness.TENSE),
+    "u": VowelFeatures(Height.CLOSE, Backness.BACK, Roundedness.ROUNDED, Tenseness.TENSE),
     
-    # Near-close vowels
-    "ɪ": VowelFeatures(Height.NEAR_CLOSE, Backness.NEAR_FRONT, Roundedness.UNROUNDED),
-    "ʊ": VowelFeatures(Height.NEAR_CLOSE, Backness.NEAR_BACK, Roundedness.ROUNDED),
+    # Near-close vowels — lax (ɪ/ʊ son el prototipo de pares lax)
+    "ɪ": VowelFeatures(Height.NEAR_CLOSE, Backness.NEAR_FRONT, Roundedness.UNROUNDED, Tenseness.LAX),
+    "ʊ": VowelFeatures(Height.NEAR_CLOSE, Backness.NEAR_BACK, Roundedness.ROUNDED, Tenseness.LAX),
     
-    # Close-mid vowels
-    "e": VowelFeatures(Height.CLOSE_MID, Backness.FRONT, Roundedness.UNROUNDED),
-    "ø": VowelFeatures(Height.CLOSE_MID, Backness.FRONT, Roundedness.ROUNDED),
-    "o": VowelFeatures(Height.CLOSE_MID, Backness.BACK, Roundedness.ROUNDED),
+    # Close-mid vowels — tense
+    "e": VowelFeatures(Height.CLOSE_MID, Backness.FRONT, Roundedness.UNROUNDED, Tenseness.TENSE),
+    "ø": VowelFeatures(Height.CLOSE_MID, Backness.FRONT, Roundedness.ROUNDED, Tenseness.TENSE),
+    "o": VowelFeatures(Height.CLOSE_MID, Backness.BACK, Roundedness.ROUNDED, Tenseness.TENSE),
     
-    # Mid vowels
-    "ə": VowelFeatures(Height.MID, Backness.CENTRAL, Roundedness.UNROUNDED),
+    # Mid vowels — lax (schwa es reducida/lax por excelencia)
+    "ə": VowelFeatures(Height.MID, Backness.CENTRAL, Roundedness.UNROUNDED, Tenseness.LAX),
     
-    # Open-mid vowels
-    "ɛ": VowelFeatures(Height.OPEN_MID, Backness.FRONT, Roundedness.UNROUNDED),
-    "œ": VowelFeatures(Height.OPEN_MID, Backness.FRONT, Roundedness.ROUNDED),
-    "ʌ": VowelFeatures(Height.OPEN_MID, Backness.BACK, Roundedness.UNROUNDED),
-    "ɔ": VowelFeatures(Height.OPEN_MID, Backness.BACK, Roundedness.ROUNDED),
+    # Open-mid vowels — lax
+    "ɛ": VowelFeatures(Height.OPEN_MID, Backness.FRONT, Roundedness.UNROUNDED, Tenseness.LAX),
+    "œ": VowelFeatures(Height.OPEN_MID, Backness.FRONT, Roundedness.ROUNDED, Tenseness.LAX),
+    "ʌ": VowelFeatures(Height.OPEN_MID, Backness.BACK, Roundedness.UNROUNDED, Tenseness.LAX),
+    "ɔ": VowelFeatures(Height.OPEN_MID, Backness.BACK, Roundedness.ROUNDED, Tenseness.LAX),
     
-    # Near-open vowels
-    "æ": VowelFeatures(Height.NEAR_OPEN, Backness.FRONT, Roundedness.UNROUNDED),
-    "ɐ": VowelFeatures(Height.NEAR_OPEN, Backness.CENTRAL, Roundedness.UNROUNDED),
+    # Near-open vowels — lax
+    "æ": VowelFeatures(Height.NEAR_OPEN, Backness.FRONT, Roundedness.UNROUNDED, Tenseness.LAX),
+    "ɐ": VowelFeatures(Height.NEAR_OPEN, Backness.CENTRAL, Roundedness.UNROUNDED, Tenseness.LAX),
     
-    # Open vowels
-    "a": VowelFeatures(Height.OPEN, Backness.FRONT, Roundedness.UNROUNDED),
-    "ɑ": VowelFeatures(Height.OPEN, Backness.BACK, Roundedness.UNROUNDED),
-    "ɒ": VowelFeatures(Height.OPEN, Backness.BACK, Roundedness.ROUNDED),
+    # Open vowels — tense
+    "a": VowelFeatures(Height.OPEN, Backness.FRONT, Roundedness.UNROUNDED, Tenseness.TENSE),
+    "ɑ": VowelFeatures(Height.OPEN, Backness.BACK, Roundedness.UNROUNDED, Tenseness.TENSE),
+    "ɒ": VowelFeatures(Height.OPEN, Backness.BACK, Roundedness.ROUNDED, Tenseness.TENSE),
 }
 
 
@@ -272,14 +389,21 @@ def consonant_distance(phone_a: str, phone_b: str) -> float:
     if spe is not None:
         return spe
 
-    # Respaldo: índices de Enum (cobertura más amplia)
+    # Respaldo: tabla explícita de lugares + modos (cobertura más amplia)
     feat_a = CONSONANT_FEATURES.get(phone_a)
     feat_b = CONSONANT_FEATURES.get(phone_b)
 
     if feat_a is None or feat_b is None:
         return 1.0  # Máxima distancia si no tenemos datos
 
-    place_diff = abs(feat_a.place.value - feat_b.place.value) / 10.0
+    # Usar tabla de distancias explícita entre lugares de articulación.
+    # Es más precisa que abs(ordinal_a - ordinal_b) / 10 porque refleja
+    # la topología real del tracto vocal (p.ej. bilabial↔labiodental = 0.1
+    # pero bilabial↔glotal = 1.0, no sólo la diferencia de índice).
+    place_diff = PLACE_DISTANCE_TABLE.get(
+        (feat_a.place, feat_b.place),
+        abs(feat_a.place.value - feat_b.place.value) / 10.0,  # fallback seguro
+    )
     manner_diff = abs(feat_a.manner.value - feat_b.manner.value) / 7.0
     voicing_diff = abs(feat_a.voicing.value - feat_b.voicing.value)
 
@@ -311,7 +435,7 @@ def vowel_distance(phone_a: str, phone_b: str) -> float:
     if spe is not None:
         return spe
 
-    # Respaldo: índices de Enum
+    # Respaldo: índices de Enum (incluye tenseness)
     feat_a = VOWEL_FEATURES.get(phone_a)
     feat_b = VOWEL_FEATURES.get(phone_b)
 
@@ -321,8 +445,12 @@ def vowel_distance(phone_a: str, phone_b: str) -> float:
     height_diff = abs(feat_a.height.value - feat_b.height.value) / 6.0
     backness_diff = abs(feat_a.backness.value - feat_b.backness.value) / 4.0
     round_diff = abs(feat_a.roundedness.value - feat_b.roundedness.value)
+    # Penalización por diferencia tense/lax (p.ej. i vs ɪ, u vs ʊ).
+    # Peso menor que altura/anterioridad porque tense/lax es un rasgo
+    # secundario en muchos sistemas vocálicos.
+    tense_diff = abs(feat_a.tenseness.value - feat_b.tenseness.value) * 0.15
 
-    distance = (0.5 * height_diff + 0.3 * backness_diff + 0.2 * round_diff)
+    distance = (0.45 * height_diff + 0.25 * backness_diff + 0.15 * round_diff + tense_diff)
     return min(1.0, distance)
 
 
@@ -418,10 +546,12 @@ __all__ = [
     "Height",
     "Backness",
     "Roundedness",
+    "Tenseness",
     "ConsonantFeatures",
     "VowelFeatures",
     "CONSONANT_FEATURES",
     "VOWEL_FEATURES",
+    "PLACE_DISTANCE_TABLE",
     "consonant_distance",
     "vowel_distance",
     "is_consonant",

@@ -50,19 +50,209 @@ class AllosaurusBackend(BasePlugin):
     # Declara que este backend produce IPA directo
     output_type = "ipa"
     
-    # Mapeo de códigos ISO a códigos Allosaurus
-    _LANG_MAP = {
-        "en": "eng",
-        "es": "spa",
-        "fr": "fra",
-        "de": "deu",
-        "it": "ita",
-        "pt": "por",
-        "zh": "cmn",
-        "ja": "jpn",
-        "ko": "kor",
-        "ar": "ara",
-        "ru": "rus",
+    # Mapeo de códigos ISO 639-1 (2 letras) / BCP-47 a códigos Allosaurus (ISO 639-3).
+    # Allosaurus usa códigos ISO 639-3 de Phoible para restringir el inventario.
+    # Fuente: https://github.com/xinjli/allosaurus — lista completa de lenguas soportadas.
+    # Cubre las ~200 lenguas más habladas y muchas lenguas documentadas en Phoible.
+    _LANG_MAP: dict[str, str] = {
+        # ── Indo-europeas ──────────────────────────────────────────────────────
+        "en": "eng",    # Inglés
+        "de": "deu",    # Alemán
+        "fr": "fra",    # Francés
+        "es": "spa",    # Español
+        "it": "ita",    # Italiano
+        "pt": "por",    # Portugués
+        "nl": "nld",    # Neerlandés
+        "pl": "pol",    # Polaco
+        "cs": "ces",    # Checo
+        "sk": "slk",    # Eslovaco
+        "sl": "slv",    # Esloveno
+        "hr": "hrv",    # Croata
+        "sr": "srp",    # Serbio
+        "bs": "bos",    # Bosnio
+        "bg": "bul",    # Búlgaro
+        "mk": "mkd",    # Macedonio
+        "ro": "ron",    # Rumano
+        "uk": "ukr",    # Ucraniano
+        "ru": "rus",    # Ruso
+        "be": "bel",    # Bielorruso
+        "lt": "lit",    # Lituano
+        "lv": "lav",    # Letón
+        "et": "est",    # Estonio (rama urálica, no IE; incluido aquí por proximidad)
+        "sv": "swe",    # Sueco
+        "no": "nob",    # Noruego Bokmål
+        "nb": "nob",    # Noruego Bokmål (alias)
+        "nn": "nno",    # Noruego Nynorsk
+        "da": "dan",    # Danés
+        "is": "isl",    # Islandés
+        "fo": "fao",    # Feroés
+        "ga": "gle",    # Irlandés
+        "cy": "cym",    # Galés
+        "br": "bre",    # Bretón
+        "ca": "cat",    # Catalán
+        "gl": "glg",    # Gallego
+        "oc": "oci",    # Occitano
+        "la": "lat",    # Latín
+        "el": "ell",    # Griego moderno
+        "grc": "grc",   # Griego antiguo
+        "hy": "hye",    # Armenio
+        "sq": "sqi",    # Albanés
+        "fa": "pes",    # Persa (Farsi)
+        "ps": "pus",    # Pashto
+        "ku": "kmr",    # Kurdo sorani
+        "ckb": "ckb",   # Kurdo central
+        "ur": "urd",    # Urdu
+        "hi": "hin",    # Hindi
+        "bn": "ben",    # Bengalí
+        "pa": "pan",    # Punjabi
+        "gu": "guj",    # Gujarati
+        "mr": "mar",    # Marathi
+        "ne": "nep",    # Nepalés
+        "si": "sin",    # Cingalés
+        "or": "ori",    # Oriya
+        "as": "asm",    # Asamés
+        "sd": "snd",    # Sindhi
+        # ── Dravídicas ────────────────────────────────────────────────────────
+        "ta": "tam",    # Tamil
+        "te": "tel",    # Telugu
+        "kn": "kan",    # Kannada
+        "ml": "mal",    # Malayalam
+        # ── Sino-tibetanas ────────────────────────────────────────────────────
+        "zh": "cmn",    # Chino mandarín
+        "zh-cn": "cmn", # Mandarín (China)
+        "zh-tw": "cmn", # Mandarín (Taiwán)
+        "yue": "yue",   # Cantonés
+        "wuu": "wuu",   # Chino wu (shanghainés)
+        "nan": "nan",   # Min Nan (hokkien)
+        "my": "mya",    # Birmano
+        "bo": "bod",    # Tibetano
+        "dz": "dzo",    # Dzongkha
+        # ── Japonesa y coreana ────────────────────────────────────────────────
+        "ja": "jpn",    # Japonés
+        "ko": "kor",    # Coreano
+        # ── Urálicas ──────────────────────────────────────────────────────────
+        "fi": "fin",    # Finés
+        "hu": "hun",    # Húngaro
+        "et": "est",    # Estonio (también urálica)
+        "kpv": "kpv",   # Komi-Zyryan
+        "koi": "koi",   # Komi-Permyak
+        "mhr": "mhr",   # Mari del este
+        "udm": "udm",   # Udmurto
+        "myv": "myv",   # Erzya (Mordvino)
+        "mdf": "mdf",   # Moksha
+        "smn": "smn",   # Sami inari
+        "sme": "sme",   # Sami del norte
+        # ── Turco-altaicas ────────────────────────────────────────────────────
+        "tr": "tur",    # Turco
+        "az": "azj",    # Azerbaiyano
+        "kk": "kaz",    # Kazajo
+        "ky": "kir",    # Kirguís
+        "uz": "uzb",    # Uzbeko
+        "tk": "tuk",    # Turkmeno
+        "tt": "tat",    # Tártaro
+        "ba": "bak",    # Bashkiro
+        "cv": "chv",    # Chuvasio
+        "ug": "uig",    # Uigur
+        "sah": "sah",   # Yakuto
+        "mn": "khk",    # Mongol (Jalkha)
+        # ── Semíticas / Afro-asiáticas ────────────────────────────────────────
+        "ar": "ara",    # Árabe estándar moderno
+        "arb": "arb",   # Árabe estándar (alias)
+        "he": "heb",    # Hebreo
+        "mt": "mlt",    # Maltés
+        "am": "amh",    # Amhárico
+        "ti": "tir",    # Tigriña
+        "so": "som",    # Somalí
+        "ha": "hau",    # Hausa
+        "om": "orm",    # Oromo
+        "aa": "aar",    # Afar
+        # ── Nilo-Saharianas / Niger-Congo ─────────────────────────────────────
+        "sw": "swh",    # Swahili
+        "yo": "yor",    # Yoruba
+        "ig": "ibo",    # Igbo
+        "zu": "zul",    # Zulú
+        "xh": "xho",    # Xhosa
+        "af": "afr",    # Afrikaans
+        "sn": "sna",    # Shona
+        "ny": "nya",    # Chichewa / Nyanja
+        "rw": "kin",    # Kinyarwanda
+        "rn": "run",    # Kirundí
+        "ln": "lin",    # Lingala
+        "kg": "kon",    # Kongo
+        "lu": "lub",    # Luba
+        "wo": "wol",    # Wolof
+        "ff": "ful",    # Fula / Fulani
+        "bm": "bam",    # Bambara
+        "ak": "aka",    # Akan (Twi/Fante)
+        "ee": "ewe",    # Ewe
+        "tw": "twi",    # Twi
+        "st": "sot",    # Sotho del sur
+        "tn": "tsn",    # Tswana
+        "ss": "ssw",    # Swazi
+        "ts": "tso",    # Tsonga
+        "ve": "ven",    # Venda
+        "nr": "nbl",    # Ndebele del sur
+        "nd": "nde",    # Ndebele del norte
+        "sg": "sag",    # Sango
+        "mg": "mlg",    # Malgache
+        # ── Austronesias ──────────────────────────────────────────────────────
+        "id": "ind",    # Indonesio
+        "ms": "zsm",    # Malayo
+        "tl": "tgl",    # Tagalo / Filipino
+        "jv": "jav",    # Javanés
+        "su": "sun",    # Sundanés
+        "mi": "mri",    # Maorí
+        "fj": "fij",    # Fiyiano
+        "sm": "smo",    # Samoano
+        "to": "ton",    # Tongano
+        "haw": "haw",   # Hawaiano
+        "mg": "mlg",    # Malgache (también Austronesia)
+        "ceb": "ceb",   # Cebuano
+        "ilo": "ilo",   # Ilocano
+        "war": "war",   # Waray-Waray
+        # ── Tai-Kadai / Austro-Asiáticas ──────────────────────────────────────
+        "th": "tha",    # Tailandés
+        "lo": "lao",    # Laosiano
+        "km": "khm",    # Jemer
+        "vi": "vie",    # Vietnamita
+        "mn": "khk",    # Mongol
+        # ── Caucásicas ────────────────────────────────────────────────────────
+        "ka": "kat",    # Georgiano
+        "ab": "abk",    # Abjasio
+        "ce": "che",    # Checheno
+        "av": "ava",    # Avar
+        "lbe": "lbe",   # Laki
+        "ady": "ady",   # Adyghe
+        "inh": "inh",   # Ingush
+        # ── Lenguas de signos y otras ─────────────────────────────────────────
+        "eu": "eus",    # Euskera (aislada)
+        "ka": "kat",    # Georgiano
+        "mn": "khk",    # Mongol
+        "hy": "hye",    # Armenio (también IE pero incluido aquí para agrupación)
+        # ── Lenguas indígenas americanas ──────────────────────────────────────
+        "qu": "que",    # Quechua
+        "ay": "aym",    # Aimara
+        "gn": "grn",    # Guaraní
+        "nah": "nah",   # Náhuatl (varios dialectos)
+        "mam": "mam",   # Mam (maya)
+        "kek": "kek",   # Q'eqchi' (maya)
+        "oto": "ote",   # Otomí
+        "zap": "zai",   # Zapoteca
+        "mix": "mix",   # Mixteca
+        "tzh": "tze",   # Tzeltal
+        "tzo": "tzo",   # Tzotzil
+        "chk": "chk",   # Chuukés
+        # ── Variedades / regionales ───────────────────────────────────────────
+        "pt-br": "por",  # Portugués brasileño → por
+        "pt-pt": "por",  # Portugués europeo → por
+        "es-mx": "spa",  # Español mexicano → spa
+        "es-es": "spa",  # Español castellano → spa
+        "es-ar": "spa",  # Español argentino → spa
+        "fr-ca": "fra",  # Francés canadiense → fra
+        "en-gb": "eng",  # Inglés británico → eng
+        "en-us": "eng",  # Inglés americano → eng
+        "en-au": "eng",  # Inglés australiano → eng
+        "zh-yue": "yue", # Cantonés
     }
     
     def __init__(
