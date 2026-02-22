@@ -9,6 +9,11 @@ Requiere ``nltk`` con el corpus ``cmudict`` descargado::
 Para palabras fuera del diccionario (OOV) usa eSpeak como fallback
 si está disponible; de lo contrario, retorna los grafemas.
 
+Cache
+-----
+Los resultados se cachean por (texto, lang) en un LRU interno de 5 000
+entradas para evitar búsquedas repetidas en el diccionario.
+
 Uso
 ---
     from ipa_core.textref.cmu_dict import CMUDictTextRef
@@ -23,6 +28,7 @@ import logging
 import re
 from typing import Any, Dict, List, Optional
 
+from ipa_core.textref.cache import TextRefCache
 from ipa_core.types import Token
 
 logger = logging.getLogger(__name__)
@@ -80,6 +86,9 @@ _ARPABET_TO_IPA: Dict[str, str] = {
 # Schwa para vocales átonas (stress = 0)
 _SCHWA_PHONES = {"AH0": "ə", "ER0": "ɚ"}
 
+# Nombre canónico del proveedor para el cache (debe ser único)
+_PROVIDER_NAME = "cmudict"
+
 
 def _arpabet_to_ipa_token(phone: str) -> str:
     """Convertir un fonema ARPAbet (con o sin dígito de stress) a IPA.
@@ -114,6 +123,8 @@ class CMUDictTextRef:
     default_lang : str
         Idioma por defecto. Solo ``"en"`` está soportado; para otros
         idiomas retorna resultado vacío y avisa.
+    cache_size : int
+        Número máximo de entradas en el cache LRU. Default: 5000.
     """
 
     output_type = "ipa"
@@ -123,12 +134,14 @@ class CMUDictTextRef:
         *,
         oov_fallback: str = "espeak",
         default_lang: str = "en",
+        cache_size: int = 5000,
     ) -> None:
         self._oov_fallback = oov_fallback
         self._default_lang = default_lang
         self._cmudict: Optional[Dict[str, List[List[str]]]] = None
         self._espeak: Any = None
         self._ready = False
+        self._cache: TextRefCache = TextRefCache(max_size=cache_size)
 
     async def setup(self) -> None:
         """Cargar CMU Dict y preparar fallback."""
@@ -172,7 +185,7 @@ class CMUDictTextRef:
         *,
         lang: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Convertir texto en inglés a tokens IPA.
+        """Convertir texto en inglés a tokens IPA (con cache LRU).
 
         Parámetros
         ----------
@@ -185,20 +198,34 @@ class CMUDictTextRef:
         -------
         dict con ``{"tokens": [...], "meta": {...}}``
         """
+        if not self._ready:
+            from ipa_core.errors import NotReadyError
+            raise NotReadyError("CMUDictTextRef no inicializado. Llama setup() primero.")
+
         effective_lang = (lang or self._default_lang).lower()
 
+        # Buscar en cache antes de computar
+        return await self._cache.get_or_compute(
+            text,
+            effective_lang,
+            _PROVIDER_NAME,
+            lambda: self._compute_ipa(text, effective_lang),
+        )
+
+    async def _compute_ipa(
+        self,
+        text: str,
+        effective_lang: str,
+    ) -> Dict[str, Any]:
+        """Computar la transcripción IPA (llamada solo cuando no está en cache)."""
         # CMU Dict es solo para inglés (cualquier variante)
         if effective_lang not in ("en", "en-us", "en-gb", "en-au", "en-ca", "en-nz", "en-in"):
             logger.warning(
                 "CMUDictTextRef solo soporta inglés; lang='%s' recibido.", effective_lang
             )
             if self._espeak is not None:
-                return await self._espeak.to_ipa(text, lang=lang)
+                return await self._espeak.to_ipa(text, lang=effective_lang)
             return {"tokens": list(text), "meta": {"method": "grapheme_fallback"}}
-
-        if not self._ready:
-            from ipa_core.errors import NotReadyError
-            raise NotReadyError("CMUDictTextRef no inicializado. Llama setup() primero.")
 
         words = text.strip().split()
         all_tokens: List[Token] = []
@@ -258,6 +285,10 @@ class CMUDictTextRef:
 
         # grapheme fallback
         return list(word.lower())
+
+    def cache_stats(self) -> dict:
+        """Retornar estadísticas del cache LRU (para diagnóstico)."""
+        return self._cache.get_stats().to_dict()
 
 
 __all__ = ["CMUDictTextRef"]

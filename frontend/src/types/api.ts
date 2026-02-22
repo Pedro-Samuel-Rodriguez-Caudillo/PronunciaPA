@@ -8,7 +8,7 @@
 // ---------------------------------------------------------------------------
 
 /** Color semántico de un token IPA. */
-export type TokenColor = 'green' | 'yellow' | 'red' | 'gray';
+export type TokenColor = 'green' | 'yellow' | 'red' | 'gray' | 'purple';
 
 /** Modo de visualización seleccionado por el aprendiz. */
 export type DisplayMode = 'technical' | 'casual';
@@ -34,6 +34,8 @@ export interface IPADisplayToken {
   articulatory_distance?: number | null;
   /** Nivel de representación de este token. */
   level: RepresentationLevel;
+  /** True cuando la sustitución es una variante alofónica en modo fonético (b~β, d~ð, g~ɣ, …). */
+  is_allophone?: boolean;
 }
 
 /** Resultado completo de la visualización dual de IPA. */
