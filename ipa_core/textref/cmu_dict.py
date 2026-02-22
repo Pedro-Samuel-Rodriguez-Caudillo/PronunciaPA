@@ -185,10 +185,10 @@ class CMUDictTextRef:
         -------
         dict con ``{"tokens": [...], "meta": {...}}``
         """
-        effective_lang = lang or self._default_lang
+        effective_lang = (lang or self._default_lang).lower()
 
-        # CMU Dict es solo para inglés
-        if effective_lang not in ("en", "en-us", "en-gb", "en-au"):
+        # CMU Dict es solo para inglés (cualquier variante)
+        if effective_lang not in ("en", "en-us", "en-gb", "en-au", "en-ca", "en-nz", "en-in"):
             logger.warning(
                 "CMUDictTextRef solo soporta inglés; lang='%s' recibido.", effective_lang
             )
@@ -222,13 +222,25 @@ class CMUDictTextRef:
                 all_tokens.extend(fallback_tokens)
                 meta_words.append({"word": raw_word, "source": self._oov_fallback, "tokens": fallback_tokens})
 
+        # Nota dialectal: CMU Dict usa pronunciaciones del inglés americano general (GA).
+        # Para en-GB/en-AU las palabras conocidas usan pronunciación GA; solo las OOV
+        # usan eSpeak con la voz del dialecto correcto (pasada en effective_lang).
+        dialect_note = None
+        if effective_lang in ("en-gb", "en-au", "en-ca", "en-nz", "en-in"):
+            dialect_note = (
+                f"Pronunciaciones de palabras conocidas en GA (inglés americano). "
+                f"Palabras OOV usan eSpeak voz '{effective_lang}'."
+            )
+
         return {
             "tokens": all_tokens,
             "meta": {
                 "method": "cmudict",
+                "dialect": effective_lang,
                 "oov_words": oov_words,
                 "oov_count": len(oov_words),
                 "words": meta_words,
+                **({"dialect_note": dialect_note} if dialect_note else {}),
             },
         }
 

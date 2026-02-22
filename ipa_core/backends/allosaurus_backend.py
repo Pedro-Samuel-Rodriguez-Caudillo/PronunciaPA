@@ -6,8 +6,11 @@ que produce transcripciones IPA directamente desde audio.
 from __future__ import annotations
 
 import asyncio
+import logging
 from pathlib import Path
 from typing import Any, Optional, TYPE_CHECKING
+
+logger = logging.getLogger(__name__)
 
 from ipa_core.errors import NotReadyError, ValidationError
 from ipa_core.plugins.base import BasePlugin

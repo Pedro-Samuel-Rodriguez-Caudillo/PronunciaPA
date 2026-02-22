@@ -1,5 +1,5 @@
 .PHONY: test-unit test-int sync-types dev dev-web server flutter \
-        install install-full install-espeak install-nltk setup
+        install install-full install-espeak install-nltk setup test-bench bench
 
 PYTHON := python
 ifeq ($(OS),Windows_NT)
@@ -94,6 +94,17 @@ test-int:
 		scripts/tests/test_cli_transcribe_errors.py
 
 sync-types:
-	@echo "🔄 Synchronizing TypeScript API types from OpenAPI schema..."
+	@echo "Synchronizing TypeScript API types from OpenAPI schema..."
 	$(PYTHON) scripts/sync_api_types.py
-	@echo "✅ Type synchronization complete"
+	@echo "Type synchronization complete"
+
+## Benchmark TTS round-trip en stub mode (CI-safe, sin modelos reales)
+test-bench:
+	PRONUNCIAPA_ASR=stub PYTHONPATH=. $(PYTHON) scripts/benchmark_tts_roundtrip.py \
+		--lang es --stub --words 10
+
+## Benchmark con modelos reales (requiere Allosaurus + eSpeak)
+bench:
+	PYTHONPATH=. $(PYTHON) scripts/benchmark_tts_roundtrip.py \
+		--lang $(LANG) --words $(or $(WORDS),30) --verbose \
+		$(if $(OUTPUT),--output $(OUTPUT),)

@@ -19,7 +19,8 @@ Valores por defecto
 - textref: "auto" (cascada: espeak → epitran → grapheme)
 - comparator: "levenshtein" (distancia de edición estándar)
 - tts: "default" (selector automático)
-- llm: "auto" (detecta runtime disponible)
+- llm: "rule_based" (genera consejos sin modelos externos; usa "ollama" o
+                    "llama_cpp" cuando tengas un model_pack configurado)
 
 Coerción de tipos
 -----------------
@@ -73,7 +74,7 @@ class AppConfig(BaseModel):
     textref: PluginCfg = Field(default_factory=lambda: PluginCfg(name="auto"))
     comparator: PluginCfg = Field(default_factory=lambda: PluginCfg(name="levenshtein"))
     tts: PluginCfg = Field(default_factory=lambda: PluginCfg(name="default"))
-    llm: PluginCfg = Field(default_factory=lambda: PluginCfg(name="auto"))
+    llm: PluginCfg = Field(default_factory=lambda: PluginCfg(name="rule_based"))
     options: OptionsCfg = Field(default_factory=OptionsCfg)
     language_pack: Optional[str] = None
     model_pack: Optional[str] = None

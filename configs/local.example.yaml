@@ -1,0 +1,114 @@
+# PronunciaPA — Configuración local de ejemplo
+# ──────────────────────────────────────────────
+# Copia este archivo como configs/local.yaml y ajusta los valores.
+# Prioridad: variables de entorno > local.yaml > defaults del código.
+#
+# Inicio rápido (sin modelos):
+#   cp configs/local.example.yaml configs/local.yaml
+#   PRONUNCIAPA_ASR=stub uvicorn ipa_server.main:get_app --reload --port 8000
+#
+# Con Allosaurus + eSpeak (recomendado):
+#   pip install -e '.[dev,asr,speech]' && sudo apt install espeak-ng
+#   uvicorn ipa_server.main:get_app --reload --port 8000
+
+version: 1
+strict_mode: false   # false = fallbacks automáticos; true = falla rápido
+
+
+# ── Idioma por defecto ───────────────────────────────────────────────────────
+options:
+  lang: es           # es | en | fr | de | pt | …
+
+
+# ── Preprocesamiento de audio ────────────────────────────────────────────────
+preprocessor:
+  name: basic        # único disponible actualmente
+
+
+# ── ASR (Audio → IPA) ────────────────────────────────────────────────────────
+# Opciones:
+#   stub        — sin modelo, para desarrollo rápido            (PRONUNCIAPA_ASR=stub)
+#   allosaurus  — universal, 200+ idiomas, ~500 MB, CPU OK      (PRONUNCIAPA_ASR=allosaurus)
+#   unified_ipa — elige entre allosaurus / wav2vec2-ipa / xlsr-ipa
+backend:
+  name: allosaurus
+  # Para unified_ipa descomenta:
+  # name: unified_ipa
+  # params:
+  #   engine: allosaurus   # allosaurus | wav2vec2-ipa | xlsr-ipa
+  #   device: cpu          # cpu | cuda | mps
+
+
+# ── TextRef (Texto → IPA de referencia) ─────────────────────────────────────
+# Opciones:
+#   grapheme  — solo grafemas, no requiere nada externo
+#   espeak    — eSpeak-NG, requiere: sudo apt install espeak-ng  (recomendado)
+#   cmudict   — CMU Dict para inglés, requiere: pip install nltk + nltk.download('cmudict')
+#   epitran   — Epitran, requiere: pip install epitran
+#   auto      — cascada: espeak → epitran → grapheme
+textref:
+  name: espeak
+  params:
+    default_lang: es
+
+
+# ── Comparador (IPA hipótesis vs IPA referencia) ─────────────────────────────
+comparator:
+  name: levenshtein  # levenshtein (con pesos articulatorios) | noop
+
+
+# ── LLM (consejos de pronunciación) ─────────────────────────────────────────
+# Opciones:
+#   rule_based — sin modelo, genera consejos basados en reglas    (DEFAULT)
+#   ollama     — Ollama local, requiere: https://ollama.ai
+#   llama_cpp  — llama.cpp, requiere binario + modelo .gguf
+#   stub       — respuesta fija, solo para tests
+llm:
+  name: rule_based
+
+# Para Ollama (descomenta cuando tengas Ollama corriendo):
+# llm:
+#   name: ollama
+#   params:
+#     base_url: http://localhost:11434
+#     model: phi3:mini     # phi3:mini | llama3:8b | tinyllama | …
+#     temperature: 0.7
+#     num_ctx: 4096
+#     timeout: 120
+
+# Para llama.cpp (descomenta con tu ruta de modelo):
+# llm:
+#   name: llama_cpp
+#   params:
+#     model_path: data/models/llm/phi-3-mini.gguf
+#     n_ctx: 4096
+#     n_gpu_layers: 0   # 0 = CPU; >0 = capas en GPU
+
+
+# ── TTS (Text-to-Speech) ─────────────────────────────────────────────────────
+# Opciones:
+#   default — auto-detecta entre espeak y piper
+#   system  — eSpeak-NG del sistema
+#   piper   — Piper TTS (alta calidad), requiere modelo .onnx
+tts:
+  name: default
+  params:
+    prefer: espeak   # espeak | piper
+
+
+# ── Language Pack (reglas fonológicas) ───────────────────────────────────────
+# Activa reglas fonológicas específicas del idioma/dialecto.
+# Descomenta la línea correspondiente al idioma que uses.
+# language_pack: es-mx    # Español mexicano
+# language_pack: es-es    # Español castellano
+# language_pack: en-us    # Inglés americano
+
+
+# ── Realtime / WebSocket ─────────────────────────────────────────────────────
+realtime:
+  silence_timeout_ms: 1000
+  chunk_interval_ms: 200
+  max_buffer_seconds: 30
+  vad:
+    energy_threshold: 0.01
+    frame_ms: 30

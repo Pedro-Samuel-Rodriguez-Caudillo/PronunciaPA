@@ -93,6 +93,74 @@ class TestAllosaurusBackendStub:
         assert result["meta"]["lang"] == "en"
 
 
+class TestPadAudioIfShort:
+    """Tests para AllosaurusBackend._pad_audio_if_short."""
+
+    def _make_wav(self, path: Path, duration_ms: int, sr: int = 16000) -> Path:
+        n_frames = int(sr * duration_ms / 1000)
+        with wave.open(str(path), "w") as wf:
+            wf.setnchannels(1)
+            wf.setsampwidth(2)
+            wf.setframerate(sr)
+            wf.writeframes(bytes(n_frames * 2))
+        return path
+
+    def _wav_duration_ms(self, path: str) -> int:
+        with wave.open(path, "rb") as wf:
+            return int(wf.getnframes() * 1000 / wf.getframerate())
+
+    def test_no_padding_when_long_enough(self, tmp_path):
+        wav = self._make_wav(tmp_path / "long.wav", duration_ms=800)
+        out_path, is_tmp = AllosaurusBackend._pad_audio_if_short(
+            str(wav), False, min_ms=700, pad_ms=150
+        )
+        assert out_path == str(wav)     # mismo archivo
+        assert not is_tmp               # no es temporal
+        assert self._wav_duration_ms(out_path) == 800
+
+    def test_padding_applied_when_short(self, tmp_path):
+        wav = self._make_wav(tmp_path / "short.wav", duration_ms=300)
+        out_path, is_tmp = AllosaurusBackend._pad_audio_if_short(
+            str(wav), False, min_ms=700, pad_ms=150
+        )
+        assert out_path != str(wav)     # archivo diferente
+        assert is_tmp                   # es temporal
+        # 300 ms original + 2 × 150 ms de silencio = 600 ms
+        assert self._wav_duration_ms(out_path) == 600
+        import os; os.unlink(out_path)
+
+    def test_padding_preserves_sample_rate(self, tmp_path):
+        wav = self._make_wav(tmp_path / "sr.wav", duration_ms=200, sr=16000)
+        out_path, _ = AllosaurusBackend._pad_audio_if_short(
+            str(wav), False, min_ms=700, pad_ms=100
+        )
+        with wave.open(out_path, "rb") as wf:
+            assert wf.getframerate() == 16000
+            assert wf.getsampwidth() == 2
+            assert wf.getnchannels() == 1
+        import os; os.unlink(out_path)
+
+    def test_padding_removes_old_temp(self, tmp_path):
+        """Cuando is_tmp=True, el archivo original se elimina después del padding."""
+        import os
+        wav = self._make_wav(tmp_path / "tmp.wav", duration_ms=100)
+        old_path = str(wav)
+        out_path, is_tmp = AllosaurusBackend._pad_audio_if_short(
+            old_path, True, min_ms=700, pad_ms=150
+        )
+        assert not os.path.exists(old_path)   # temporal original eliminado
+        assert is_tmp
+        os.unlink(out_path)
+
+    def test_bad_file_returns_original_path(self, tmp_path):
+        """Si el archivo no existe o es inválido, retorna el path original sin fallar."""
+        result_path, result_tmp = AllosaurusBackend._pad_audio_if_short(
+            "/nonexistent/path.wav", False, min_ms=700, pad_ms=150
+        )
+        assert result_path == "/nonexistent/path.wav"
+        assert not result_tmp
+
+
 class TestAllosaurusBackend:
     """Tests para el backend real de Allosaurus."""
     
