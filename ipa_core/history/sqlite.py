@@ -124,8 +124,12 @@ class SQLiteHistory:
         if self._db_path != ":memory:":
             Path(self._db_path).parent.mkdir(parents=True, exist_ok=True)
 
-        self._conn = await aiosqlite.connect(self._db_path)
-        self._conn.row_factory = aiosqlite.Row
+        # Re-import locally so Pylance sees a non-None module type.
+        import aiosqlite as _aio  # type: ignore[import]
+
+        self._conn = await _aio.connect(self._db_path)
+        assert self._conn is not None  # narrow Optional[Any] → Any
+        self._conn.row_factory = _aio.Row
         await self._conn.executescript(_CREATE_ATTEMPTS)
         await self._conn.executescript(_CREATE_PHONEME)
         await self._conn.commit()
