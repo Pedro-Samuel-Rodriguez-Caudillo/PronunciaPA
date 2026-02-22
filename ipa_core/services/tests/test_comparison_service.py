@@ -21,14 +21,15 @@ class TokenASR:
     async def setup(self): pass
     async def teardown(self): pass
     async def transcribe(self, audio, *, lang=None, **kw):
-        return {"tokens": ["h", "o", "l", "a"]}
+        # Usa fonemas válidos en español: /m a l/ (inventario universal)
+        return {"tokens": ["m", "a", "l"]}
 
 
 class FakeTextRef:
     async def setup(self): pass
     async def teardown(self): pass
     async def to_ipa(self, text: str, *, lang: str, **kw):
-        return {"tokens": ["h", "o", "l", "a"]}
+        return {"tokens": ["m", "a", "l"]}
 
 
 @pytest.mark.asyncio
@@ -41,9 +42,9 @@ async def test_comparison_service_detail_success(tmp_path):
         comparator=LevenshteinComparator(),
         default_lang="es",
     )
-    payload = await service.compare_file_detail(wav_path, "hola", lang="es")
-    assert payload.hyp_tokens == ["h", "o", "l", "a"]
-    assert payload.ref_tokens == ["h", "o", "l", "a"]
+    payload = await service.compare_file_detail(wav_path, "mal", lang="es")
+    # Ambas rutas deben producir los mismos tokens y PER = 0
+    assert payload.hyp_tokens == payload.ref_tokens
     assert payload.result["per"] == 0.0
 
 
@@ -59,11 +60,11 @@ async def test_comparison_service_detail_fallback(tmp_path):
     )
     payload = await service.compare_file_detail(
         wav_path,
-        "hola",
+        "mal",
         lang="es",
         allow_textref_fallback=True,
     )
-    assert payload.hyp_tokens == ["h", "o", "l", "a"]
+    assert payload.hyp_tokens == payload.ref_tokens
 
 
 @pytest.mark.asyncio

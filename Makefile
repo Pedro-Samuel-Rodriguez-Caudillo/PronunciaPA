@@ -1,4 +1,5 @@
-.PHONY: test-unit test-int sync-types dev dev-web server flutter
+.PHONY: test-unit test-int sync-types dev dev-web server flutter \
+        install install-full install-espeak install-nltk setup
 
 PYTHON := python
 ifeq ($(OS),Windows_NT)
@@ -11,6 +12,50 @@ ifeq ($(OS),Windows_NT)
 		endif
 	endif
 endif
+
+# ── Instalación ──────────────────────────────────────────
+
+## Instala dependencias mínimas (stub backends, sin modelos)
+install:
+	pip install -e '.[dev]'
+
+## Instala todo: Allosaurus + eSpeak + CMU Dict + Ollama client
+install-full:
+	pip install -e '.[dev,speech,asr,ollama,cmudict]'
+	@$(MAKE) install-nltk
+	@echo ""
+	@echo "Recuerda instalar eSpeak-NG en tu sistema:"
+	@$(MAKE) install-espeak
+
+## Descarga el corpus CMU Dict de NLTK (necesario para textref=cmudict)
+install-nltk:
+	$(PYTHON) -c "import nltk; nltk.download('cmudict', quiet=False)"
+
+## Muestra instrucciones para instalar eSpeak-NG
+install-espeak:
+	@echo "── eSpeak-NG ──────────────────────────────────────"
+	@echo "  Ubuntu/Debian : sudo apt install espeak-ng"
+	@echo "  Fedora/RHEL   : sudo dnf install espeak-ng"
+	@echo "  macOS         : brew install espeak-ng"
+	@echo "  Windows       : https://github.com/espeak-ng/espeak-ng/releases"
+	@echo "───────────────────────────────────────────────────"
+
+## Instalación completa interactiva (guía paso a paso)
+setup: install-full
+	@echo ""
+	@echo "✓ Python deps instalados"
+	@echo ""
+	@echo "Configuración recomendada para iniciar el servidor:"
+	@echo ""
+	@echo "  PRONUNCIAPA_ASR=allosaurus \\"
+	@echo "  PRONUNCIAPA_TEXTREF=espeak \\"
+	@echo "  PRONUNCIAPA_LLM=rule_based \\"
+	@echo "  uvicorn ipa_server.main:get_app --reload --port 8000"
+	@echo ""
+	@echo "Sin modelos (modo rápido para desarrollo):"
+	@echo ""
+	@echo "  PRONUNCIAPA_ASR=stub PRONUNCIAPA_TEXTREF=grapheme \\"
+	@echo "  uvicorn ipa_server.main:get_app --reload --port 8000"
 
 # ── Dev launchers ────────────────────────────────────────
 dev:
