@@ -6,25 +6,16 @@ from typing import Any, Optional
 from ipa_core.errors import NotReadyError, ValidationError
 from ipa_core.plugins.base import BasePlugin
 from ipa_core.types import ASRResult, AudioInput
+from ipa_core.backends.lang_map import ALLOSAURUS_LANG_MAP, resolve_lang as _resolve_lang_code
 
 try:  # Carga diferida para evitar fallos en entornos sin el modelo.
     from allosaurus.app import read_recognizer
 except (ImportError, TypeError):  # pragma: no cover
     read_recognizer = None  # type: ignore[assignment]
 
-# Mapeo de códigos ISO 639-1 (2 letras) a ISO 639-3 (3 letras) que usa Allosaurus
-LANG_MAP = {
-    "es": "spa",  # Español
-    "en": "eng",  # Inglés
-    "fr": "fra",  # Francés
-    "de": "deu",  # Alemán
-    "it": "ita",  # Italiano
-    "pt": "por",  # Portugués
-    "zh": "cmn",  # Chino mandarín
-    "ja": "jpn",  # Japonés
-    "ko": "kor",  # Coreano
-    "ar": "ara",  # Árabe
-}
+# Mapeo completo ISO 639-1/BCP-47 → ISO 639-3 (Allosaurus).
+# Importado desde ipa_core.backends.lang_map para centralizar la definición.
+LANG_MAP = ALLOSAURUS_LANG_MAP
 
 
 class AllosaurusASR(BasePlugin):
@@ -62,8 +53,8 @@ class AllosaurusASR(BasePlugin):
             raise ValidationError("AudioInput requiere 'path'")
 
         current_lang = lang or self._default_lang
-        # Convertir código de idioma a formato ISO 639-3 si es necesario
-        allosaurus_lang = LANG_MAP.get(current_lang, current_lang)
+        # Convertir código de idioma a formato ISO 639-3 (soporta BCP-47)
+        allosaurus_lang = _resolve_lang_code(current_lang)
         # Allosaurus 1.0.x: recognize(path, lang_id) - lang_id es posicional
         raw: str = self._recognizer.recognize(path, allosaurus_lang)  # type: ignore[attr-defined]
         tokens = [tok for tok in raw.strip().split() if tok]

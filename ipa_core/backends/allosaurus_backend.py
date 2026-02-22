@@ -16,6 +16,7 @@ from ipa_core.types import ASRResult, AudioInput
 if TYPE_CHECKING:
     pass
 
+from ipa_core.backends.lang_map import resolve_lang as _resolve_lang_code, ALLOSAURUS_LANG_MAP
 
 # Carga diferida de Allosaurus
 # Nota: panphon (dependencia) puede fallar en Python < 3.10 con TypeError
@@ -30,10 +31,10 @@ except (ImportError, TypeError) as e:
 
 class AllosaurusBackend(BasePlugin):
     """Backend ASR usando Allosaurus para transcripción fonética.
-    
+
     Allosaurus es un reconocedor fonético universal que produce
     tokens IPA directamente sin necesidad de G2P intermedio.
-    
+
     Parámetros
     ----------
     model_name : str
@@ -46,24 +47,12 @@ class AllosaurusBackend(BasePlugin):
     emit_timestamps : bool
         Si True, intenta obtener timestamps por token.
     """
-    
+
     # Declara que este backend produce IPA directo
     output_type = "ipa"
-    
-    # Mapeo de códigos ISO a códigos Allosaurus
-    _LANG_MAP = {
-        "en": "eng",
-        "es": "spa",
-        "fr": "fra",
-        "de": "deu",
-        "it": "ita",
-        "pt": "por",
-        "zh": "cmn",
-        "ja": "jpn",
-        "ko": "kor",
-        "ar": "ara",
-        "ru": "rus",
-    }
+
+    # Mapeo completo de códigos ISO 639-1/BCP-47 → ISO 639-3 (Allosaurus)
+    _LANG_MAP = ALLOSAURUS_LANG_MAP
     
     def __init__(
         self,
@@ -102,16 +91,16 @@ class AllosaurusBackend(BasePlugin):
         self._ready = False
     
     def _resolve_lang(self, lang: Optional[str]) -> Optional[str]:
-        """Resolver código de idioma a formato Allosaurus.
+        """Resolver código de idioma a formato Allosaurus (ISO 639-3).
 
-        SIEMPRE aplica _LANG_MAP independientemente de si ``lang`` llega de
-        la llamada o del default de instancia.  Sin esto, self._lang="es"
-        se pasa directamente a Allosaurus que espera "spa", lo que provoca
-        fallback silencioso al inventario universal.
+        Soporta ISO 639-1, ISO 639-3, y variantes BCP-47 ("es-mx" → "spa").
+        SIEMPRE resuelve independientemente de si ``lang`` llega de la llamada
+        o del default de instancia para evitar que "es" pase tal cual a
+        Allosaurus (que espera "spa"), causando fallback al inventario universal.
         """
         resolved = lang if lang is not None else self._lang
         if resolved:
-            return self._LANG_MAP.get(resolved, resolved)
+            return _resolve_lang_code(resolved)
         return None
     
     async def transcribe(

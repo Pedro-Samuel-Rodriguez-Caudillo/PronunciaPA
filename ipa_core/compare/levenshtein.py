@@ -148,6 +148,10 @@ class LevenshteinComparator(BasePlugin):
         alignment = list(reversed(alignment_reversed))
         distance = dp[n][m]
         per = self._calculate_per(distance, len(ref_tokens), len(hyp_tokens))
+
+        from ipa_core.compare.metrics import compute_phoneme_f1
+        f1_metrics = compute_phoneme_f1(ops)
+
         return {
             "per": per,
             "ops": ops,
@@ -155,6 +159,9 @@ class LevenshteinComparator(BasePlugin):
             "meta": {
                 "distance": distance,
                 "use_articulatory": self._use_articulatory,
+                "f1": f1_metrics["f1"],
+                "precision": f1_metrics["precision"],
+                "recall": f1_metrics["recall"],
             },
         }
 

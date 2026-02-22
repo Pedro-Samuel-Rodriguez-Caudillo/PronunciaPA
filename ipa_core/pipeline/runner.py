@@ -33,6 +33,7 @@ from ipa_core.pipeline.transcribe import EvaluationMode
 from ipa_core.pipeline.ipa_cleaning import clean_asr_tokens, clean_textref_tokens
 from ipa_core.compare.compare import compare_representations
 from ipa_core.compare.oov_handler import OOVHandler
+from ipa_core.ports.oov import OOVHandlerFactory, default_oov_factory
 
 
 # Issues que impiden llamar al ASR — el audio no tiene información fonética útil.
@@ -78,6 +79,7 @@ async def execute_pipeline(
     mode: EvaluationMode = "objective",
     evaluation_level: RepresentationLevel = "phonemic",
     weights: Optional[CompareWeights] = None,
+    oov_factory: Optional[OOVHandlerFactory] = None,
 ) -> ComparisonResult:
     """Pipeline unificado: preproceso → ASR → TextRef → comparación.
 
@@ -168,7 +170,8 @@ async def execute_pipeline(
             # extraer la lista de símbolos válidos para OOVHandler.
             raw_inventory = list(phonetic_inv.get_all_phones()) if phonetic_inv is not None else []
             if raw_inventory:
-                oov_handler = OOVHandler(raw_inventory, collapse_threshold=0.3, level=evaluation_level)
+                _factory = oov_factory if oov_factory is not None else default_oov_factory
+                oov_handler = _factory(raw_inventory, collapse_threshold=0.3, level=evaluation_level)
                 target_filtered = oov_handler.filter_sequence(target_repr.segments)
                 observed_filtered = oov_handler.filter_sequence(observed_repr.segments)
                 target_repr = PhonologicalRepresentation(

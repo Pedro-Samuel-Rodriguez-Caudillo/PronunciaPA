@@ -16,6 +16,7 @@ from ipa_core.plugins import registry
 from ipa_core.ports.asr import ASRBackend
 from ipa_core.ports.compare import Comparator
 from ipa_core.ports.history import HistoryPort
+from ipa_core.ports.oov import OOVHandlerFactory, default_oov_factory
 from ipa_core.ports.preprocess import Preprocessor
 from ipa_core.ports.textref import TextRefProvider
 from ipa_core.ports.tts import TTSProvider
@@ -41,6 +42,7 @@ class Kernel:
     model_pack: Optional[ModelPack] = None
     model_pack_dir: Optional[Path] = None
     history: Optional[HistoryPort] = None
+    oov_factory: OOVHandlerFactory = default_oov_factory
 
     async def setup(self) -> None:
         """Inicializar todos los componentes."""
@@ -102,6 +104,7 @@ class Kernel:
                 mode=mode,
                 evaluation_level=evaluation_level,
                 weights=weights,
+                oov_factory=self.oov_factory,
             )
             return result.to_dict()
         return await run_pipeline(
@@ -134,6 +137,7 @@ class Kernel:
             pack=self.language_pack,
             mode=mode,
             evaluation_level=evaluation_level,
+            oov_factory=self.oov_factory,
         )
 
 
