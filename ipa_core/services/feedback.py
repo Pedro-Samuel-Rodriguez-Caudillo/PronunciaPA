@@ -52,6 +52,20 @@ def build_error_report(
     )
 
 
+def _normalize_llm_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """Coerce common LLM formatting quirks to match the output schema.
+
+    Some small models return ``drills[].text`` as a list instead of a string.
+    This normalises it in-place so schema validation doesn't fail.
+    """
+    drills = payload.get("drills")
+    if isinstance(drills, list):
+        for drill in drills:
+            if isinstance(drill, dict) and isinstance(drill.get("text"), list):
+                drill["text"] = " / ".join(str(t) for t in drill["text"])
+    return payload
+
+
 async def generate_feedback(
     report: dict[str, Any],
     *,
@@ -88,7 +102,7 @@ async def generate_feedback(
     )
     raw = await llm.complete(prompt, params=model_pack.params)
     try:
-        payload = extract_json_object(raw)
+        payload = _normalize_llm_payload(extract_json_object(raw))
         validate_json_schema(payload, output_schema)
         return payload
     except ValidationError:
@@ -98,7 +112,7 @@ async def generate_feedback(
     fix_prompt = prompt + "\nReturn ONLY valid JSON. Fix any schema violations.\n"
     raw = await llm.complete(fix_prompt, params=model_pack.params)
     try:
-        payload = extract_json_object(raw)
+        payload = _normalize_llm_payload(extract_json_object(raw))
         validate_json_schema(payload, output_schema)
         return payload
     except ValidationError:

@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "id": "ollama-phi3mini",
+  "version": "1.0.0",
+  "description": "Phi-3 Mini via Ollama — feedback fonético preciso en español/inglés",
+  "runtime": {
+    "kind": "ollama",
+    "params": {
+      "model": "phi3:mini",
+      "temperature": 0.3,
+      "num_ctx": 4096
+    }
+  },
+  "files": [
+    {"path": "prompt.txt"},
+    {"path": "schema.json"}
+  ],
+  "prompt": {"path": "prompt.txt"},
+  "output_schema": {"path": "schema.json"},
+  "params": {}
+}

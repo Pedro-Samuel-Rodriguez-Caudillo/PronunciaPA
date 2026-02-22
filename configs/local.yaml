@@ -2,7 +2,7 @@
 version: 1
 strict_mode: false  # Modo flexible: usa fallbacks automáticos si algo falla
 language_pack: es-mx
-# model_pack: model/qwen2.5-7b-instruct  # Comentado: descomentar cuando el modelo esté descargado
+model_pack: data/model_packs/ollama-phi3mini
 
 # Preprocesamiento
 preprocessor:
@@ -61,7 +61,7 @@ llm:
   name: ollama
   params:
     base_url: http://localhost:11434
-    model: tinyllama  # or phi3:mini for better quality
+    model: phi3:mini  # tinyllama also available but phi3 follows instructions better
     temperature: 0.7
     num_ctx: 4096
     timeout: 120
