@@ -142,7 +142,11 @@ async def execute_pipeline(
         # 3. TextRef → tokens limpios → normalización → representación fonémica
         tr_result = await textref.to_ipa(text, lang=lang or "")
         raw_ref_tokens = tr_result.get("tokens", [])
-        cleaned_ref = clean_textref_tokens(raw_ref_tokens, lang=lang)
+        cleaned_ref = clean_textref_tokens(
+            raw_ref_tokens,
+            lang=lang,
+            preserve_allophones=(evaluation_level == "phonetic"),
+        )
         norm_ref = await pre.normalize_tokens(cleaned_ref, **norm_params)
         ref_tokens = norm_ref.get("tokens", cleaned_ref)
         target_phonemic = PhonologicalRepresentation.phonemic("".join(ref_tokens))
@@ -269,7 +273,7 @@ async def run_pipeline(
 
         # 4. Obtención, limpieza y normalización de referencia
         tr_result = await textref.to_ipa(text, lang=lang or "")
-        ref_tokens_raw = clean_textref_tokens(tr_result.get("tokens", []), lang=lang)
+        ref_tokens_raw = clean_textref_tokens(tr_result.get("tokens", []), lang=lang, preserve_allophones=False)
         ref_pre_res = await pre.normalize_tokens(ref_tokens_raw)
         ref_tokens = ref_pre_res.get("tokens", [])
 

@@ -179,6 +179,21 @@ def _register_defaults() -> None:
     register("textref", "auto", _create_auto_textref)
     register("textref", "default", _create_auto_textref)
 
+    # CMUDictTextRef — CMU Pronouncing Dictionary para inglés
+    try:
+        from ipa_core.textref.cmu_dict import CMUDictTextRef
+    except Exception as exc:
+        logger.warning("CMUDictTextRef unavailable: %s", exc)
+    else:
+        register(
+            "textref",
+            "cmudict",
+            lambda p: CMUDictTextRef(
+                oov_fallback=p.get("oov_fallback", "espeak"),
+                default_lang=p.get("default_lang", "en"),
+            ),
+        )
+
     # LexiconTextRef — léxico inline del pack + fallback a eSpeak
     try:
         from ipa_core.textref.lexicon import LexiconTextRef

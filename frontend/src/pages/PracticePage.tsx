@@ -29,10 +29,26 @@ const COMPARE_MODES: { value: CompareMode; label: string }[] = [
   { value: 'phonetic', label: 'Fonético' },
 ];
 
-const TRANSCRIPTION_MODES: { value: TranscriptionMode; label: string }[] = [
-  { value: 'auto', label: 'Auto' },
-  { value: 'phonemic', label: 'Fonémico' },
-  { value: 'phonetic', label: 'Fonético' },
+const TRANSCRIPTION_MODES: { value: TranscriptionMode; label: string; description: string }[] = [
+  {
+    value: 'auto',
+    label: 'Auto',
+    description: 'El sistema elige el nivel más adecuado según el idioma y contexto.',
+  },
+  {
+    value: 'phonemic',
+    label: 'Fonémico',
+    description:
+      '/b/ y [β] cuentan igual — evalúa si la pronunciación es inteligible. ' +
+      'Ideal para aprendizaje general.',
+  },
+  {
+    value: 'phonetic',
+    label: 'Fonético',
+    description:
+      '[β] ≠ /b/ — detecta variaciones exactas de sonido incluyendo alófonos. ' +
+      'Ideal para adoptar o corregir un dialecto específico.',
+  },
 ];
 
 const FEEDBACK_LEVELS: { value: FeedbackLevel; label: string }[] = [
