@@ -148,15 +148,36 @@ def _register_defaults() -> None:
     # TextRef
     from ipa_core.textref.espeak import EspeakTextRef
     from ipa_core.textref.simple import GraphemeTextRef
+    from ipa_core.textref.cascading import CascadingTextRef
     register("textref", "grapheme", lambda _: GraphemeTextRef())
-    register("textref", "default", lambda _: GraphemeTextRef())
     try:
         from ipa_core.textref.epitran import EpitranTextRef
     except Exception as exc:
         logger.warning("Epitran TextRef unavailable: %s", exc)
+        _epitran_cls = None
     else:
+        _epitran_cls = EpitranTextRef
         register("textref", "epitran", lambda p: EpitranTextRef(default_lang=p.get("default_lang", "es")))
     register("textref", "espeak", lambda p: EspeakTextRef(default_lang=p.get("default_lang", "es")))
+
+    def _create_auto_textref(p: dict) -> CascadingTextRef:
+        """Construye la cadena automática: espeak → epitran → grapheme."""
+        providers: list = []
+        lang = p.get("default_lang", "es")
+        try:
+            providers.append(EspeakTextRef(default_lang=lang))
+        except Exception:
+            pass
+        if _epitran_cls is not None:
+            try:
+                providers.append(_epitran_cls(default_lang=lang))
+            except Exception:
+                pass
+        providers.append(GraphemeTextRef())
+        return CascadingTextRef(providers)
+
+    register("textref", "auto", _create_auto_textref)
+    register("textref", "default", _create_auto_textref)
 
     # LexiconTextRef — léxico inline del pack + fallback a eSpeak
     try:

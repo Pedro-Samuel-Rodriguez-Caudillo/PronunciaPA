@@ -15,6 +15,7 @@ from ipa_core.phonology.representation import RepresentationLevel, ComparisonRes
 from ipa_core.plugins import registry
 from ipa_core.ports.asr import ASRBackend
 from ipa_core.ports.compare import Comparator
+from ipa_core.ports.history import HistoryPort
 from ipa_core.ports.preprocess import Preprocessor
 from ipa_core.ports.textref import TextRefProvider
 from ipa_core.ports.tts import TTSProvider
@@ -39,6 +40,7 @@ class Kernel:
     llm: Optional[LLMAdapter] = None
     model_pack: Optional[ModelPack] = None
     model_pack_dir: Optional[Path] = None
+    history: Optional[HistoryPort] = None
 
     async def setup(self) -> None:
         """Inicializar todos los componentes."""
@@ -61,9 +63,13 @@ class Kernel:
             await self.tts.setup()
         if self.llm:
             await self.llm.setup()
+        if self.history:
+            await self.history.setup()
 
     async def teardown(self) -> None:
         """Limpiar todos los componentes."""
+        if self.history:
+            await self.history.teardown()
         if self.tts:
             await self.tts.teardown()
         if self.llm:
@@ -175,6 +181,7 @@ def create_kernel(cfg: AppConfig) -> Kernel:
     model_pack, model_pack_dir = _load_model_pack(cfg)
     tts = _resolve_tts(cfg, language_pack, strict_mode=strict)
     llm = _resolve_llm(cfg, model_pack, model_pack_dir, strict_mode=strict)
+    history = _create_history()
     return Kernel(
         pre=pre,
         asr=asr,
@@ -185,7 +192,14 @@ def create_kernel(cfg: AppConfig) -> Kernel:
         llm=llm,
         model_pack=model_pack,
         model_pack_dir=model_pack_dir,
+        history=history,
     )
+
+
+def _create_history() -> HistoryPort:
+    """Crear la implementación de historial (por defecto: en memoria)."""
+    from ipa_core.history.memory import InMemoryHistory
+    return InMemoryHistory()
 
 
 def _load_language_pack(cfg: AppConfig) -> Optional[LanguagePack]:

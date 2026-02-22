@@ -43,6 +43,25 @@ def _safe_filename_part(value: str, *, fallback: str = "audio") -> str:
     return (cleaned or fallback)[:40]
 
 
+def _tts_configured() -> bool:
+    """Retorna True si TTS está configurado y disponible en la config activa.
+
+    Evita generar ``audio_url`` que apuntarían a endpoints que retornarían 500
+    cuando TTS no está configurado (modo minimal / stub).
+    """
+    try:
+        cfg = loader.load_config()
+        name = (cfg.tts.name or "").lower()
+        # "none" o vacío = TTS desactivado explícitamente
+        if name in ("", "none"):
+            return False
+        # Intentar resolver sin lanzar excepción
+        registry.resolve_tts(name, cfg.tts.params, strict_mode=False)
+        return True
+    except Exception:
+        return False
+
+
 def _resolve_full_sound_id(lang: str, sound_id: str) -> str:
     if sound_id.startswith(f"{lang}/"):
         return sound_id
@@ -143,9 +162,10 @@ async def get_ipa_sounds(
         if category:
             sounds = [s for s in sounds if category in s.get("tags", [])]
 
+        tts_ok = _tts_configured()
         for sound in sounds:
             sound_id = sound.get("id")
-            if sound_id:
+            if sound_id and tts_ok:
                 sound["audio_url"] = f"/api/ipa-sounds/audio?sound_id={quote(sound_id)}"
 
         return {"language": lang, "total": len(sounds), "sounds": sounds}
@@ -384,11 +404,19 @@ async def get_sound_drills(
 async def get_sound_lesson(
     lang: str,
     sound_id: str,
-    include_audio: bool = True,
+    include_audio: Optional[bool] = None,
     max_drills: int = 10,
     generate: bool = True,
 ):
-    """Retorna una lección completa para un sonido IPA."""
+    """Retorna una lección completa para un sonido IPA.
+
+    ``include_audio`` controla si se generan URLs de audio para drills y
+    ejemplos.  Por defecto (None) se detecta automáticamente según si TTS
+    está configurado, evitando URLs rotas cuando TTS no está disponible.
+    Pasar ``include_audio=true`` o ``include_audio=false`` fuerza el valor.
+    """
+    if include_audio is None:
+        include_audio = _tts_configured()
     learning_file = _CATALOG_DIR / f"{lang}_learning.yaml"
     basic_file = _CATALOG_DIR / f"{lang}.yaml"
     full_sound_id = _resolve_full_sound_id(lang, sound_id)

@@ -27,6 +27,7 @@ from ipa_core.errors import (
 from ipa_server.realtime import realtime_router
 from ipa_server.routers.drills import router as drills_router
 from ipa_server.routers.health import router as health_router
+from ipa_server.routers.history import router as history_router
 from ipa_server.routers.ipa_catalog import router as ipa_catalog_router
 from ipa_server.routers.models import router as models_router
 from ipa_server.routers.pipeline import router as pipeline_router, teardown_kernel_singleton
@@ -143,6 +144,7 @@ def get_app() -> FastAPI:
     app.include_router(health_router)
     app.include_router(pipeline_router)
     app.include_router(drills_router)
+    app.include_router(history_router)
     app.include_router(tts_router)
     app.include_router(ipa_catalog_router)
     app.include_router(models_router)
