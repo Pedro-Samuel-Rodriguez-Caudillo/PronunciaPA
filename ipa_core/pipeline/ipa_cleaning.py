@@ -56,9 +56,18 @@ def clean_textref_tokens(
 
     TextRef (espeak, epitran) produce IPA **fonético** que incluye alófonos
     (β, ð, ɣ) y marcadores de acento (ˈ). Para que la comparación sea
-    justa contra el ASR (que puede producir las formas stop: b, d, ɡ),
+    justa contra el ASR (que produce las formas fonémicas: b, d, ɡ),
     se normalizan los alófonos al fonema canónico mediante ``apply_lang_fixes=True``.
     Las marcas de acento se eliminan en ``filter_silence_tokens``.
+
+    Sin esta normalización, una pronunciación correcta del español /b/ entre
+    vocales produciría:
+      - ASR (Allosaurus/spa):  ``"b"``  (fonema, inventario restringido)
+      - TextRef (eSpeak/es):   ``"β"``  (alófono fricativo)
+      - Resultado:             DISCREPANCIA aunque la pronunciación sea perfecta
+
+    Al aplicar los mismos ``_LANG_FIXES`` en ambas rutas, ambos tokens llegan
+    como ``"b"`` a la comparación y el resultado es justo.
 
     A diferencia de ``clean_asr_tokens``, **no** se colapsan duplicados
     (p. ej. /ll/ geminada en español es legítima).
@@ -83,9 +92,10 @@ def clean_textref_tokens(
         lang=lang,
         collapse_duplicates=False,
         strip_artifacts=True,
-        apply_lang_fixes=False,  # espeak produce IPA fonético puro (\u03b2, \u00f0, \u0263, w)
-        # Las equivalencias fonémicas (b↔\u03b2, d↔\u00f0, u↔w) se resuelven en
-        # acceptable_variants del scoring profile, no aquí.
+        apply_lang_fixes=True,  # Normaliza alófonos (β, ð, ɣ) → fonemas (b, d, ɡ)
+        # para que ASR y TextRef lleguen a la misma representación fonémica.
+        # Esto es simétrico con clean_asr_tokens y elimina la causa raíz de
+        # las discrepancias sistemáticas sin LanguagePack.
     )
 
 

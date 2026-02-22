@@ -319,12 +319,17 @@ class UnifiedIPABackend(BasePlugin):
         # Decodificar
         predicted_ids = torch.argmax(logits, dim=-1)
         transcription = self._processor.batch_decode(predicted_ids)[0]
-        
-        # Tokenizar - separar por espacios o caracteres
-        if " " in transcription:
+
+        # Tokenizar usando el tokenizador IPA-aware que preserva multigrafos
+        # como africadas (tʃ, dʒ) y diacríticos combinantes.
+        # El split simple por espacio funciona cuando el modelo emite tokens
+        # separados por espacio, pero si emite una cadena continua el split
+        # carácter a carácter rompe africadas: "tʃabla" → ["t","ʃ","a",...] ✗
+        from ipa_core.textref.tokenize import tokenize_ipa
+        if " " in transcription.strip():
             tokens = transcription.strip().split()
         else:
-            tokens = list(transcription.strip())
+            tokens = tokenize_ipa(transcription.strip())
         
         return {
             "tokens": tokens,

@@ -312,14 +312,20 @@ class AllosaurusBackend(BasePlugin):
         **kw: Any,
     ) -> ASRResult:
         """Transcribir audio a tokens IPA.
-        
+
+        Garantiza WAV PCM 16 kHz mono antes de pasarlo a Allosaurus.
+        El AudioProcessingChain del pipeline ya hace esta conversión, pero
+        si falla silenciosamente o el backend se usa directamente, sin esta
+        garantía Allosaurus recibe audio mal formateado y produce tokens
+        basura o un string vacío.
+
         Parámetros
         ----------
         audio : AudioInput
             Diccionario con path, sample_rate y channels.
         lang : str | None
             Código de idioma para restringir inventario.
-            
+
         Retorna
         -------
         ASRResult
@@ -327,33 +333,31 @@ class AllosaurusBackend(BasePlugin):
         """
         if not self._ready or self._model is None:
             raise NotReadyError("AllosaurusBackend no inicializado. Llama setup() primero.")
-        
+
         audio_path = Path(audio["path"])
         if not audio_path.exists():
             raise ValidationError(f"Archivo de audio no existe: {audio_path}")
-        
+
         resolved_lang = self._resolve_lang(lang)
-        
-        # Ejecutar reconocimiento en thread separado
-        def recognize():
-            if resolved_lang:
-                return self._model.recognize(
-                    str(audio_path),
-                    lang_id=resolved_lang,
-                    timestamp=self._emit_timestamps,
-                )
-            else:
-                return self._model.recognize(
-                    str(audio_path),
-                    timestamp=self._emit_timestamps,
-                )
-        
-        loop = asyncio.get_running_loop()
-        raw_output = await loop.run_in_executor(None, recognize)
-        
+
+        # Garantizar WAV PCM 16 kHz mono antes de invocar Allosaurus.
+        # Allosaurus internamente usa wave.open() y asume 16 kHz; cualquier
+        # otra frecuencia produce transcripciones incorrectas.
+        from ipa_core.audio.files import ensure_wav
+        import os
+        clean_path, is_tmp = ensure_wav(str(audio_path), target_sample_rate=16000, target_channels=1)
+        try:
+            raw_output = await self._run_recognize(clean_path, resolved_lang)
+        finally:
+            if is_tmp:
+                try:
+                    os.unlink(clean_path)
+                except OSError:
+                    pass
+
         # Parsear salida
         tokens, timestamps = self._parse_output(raw_output)
-        
+
         return {
             "tokens": tokens,
             "raw_text": raw_output if isinstance(raw_output, str) else " ".join(tokens),
@@ -366,6 +370,24 @@ class AllosaurusBackend(BasePlugin):
                 "confidence_available": False,
             },
         }
+
+    async def _run_recognize(self, audio_path: str, resolved_lang: Optional[str]) -> Any:
+        """Ejecutar reconocimiento en thread separado (no bloquea el event loop)."""
+        def recognize():
+            if resolved_lang:
+                return self._model.recognize(
+                    audio_path,
+                    lang_id=resolved_lang,
+                    timestamp=self._emit_timestamps,
+                )
+            else:
+                return self._model.recognize(
+                    audio_path,
+                    timestamp=self._emit_timestamps,
+                )
+
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, recognize)
     
     def _parse_output(
         self,
