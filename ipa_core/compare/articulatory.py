@@ -2,6 +2,12 @@
 
 Proporciona una matriz de distancia basada en rasgos articulatorios
 para calcular costos de sustitución más precisos en el comparador.
+
+La función principal ``articulatory_distance()`` usa rasgos SPE
+(FeatureBundle de phonology/features.py) cuando ambos fonemas están
+en la base de datos SPE, y cae de respaldo a índices de Enum cuando
+alguno no está cubierto.  Esto elimina el artefacto de tratar
+ordinales como escala métrica lineal.
 """
 from __future__ import annotations
 
@@ -191,74 +197,131 @@ VOWEL_FEATURES: Dict[str, VowelFeatures] = {
 }
 
 
+def _spe_distance(phone_a: str, phone_b: str) -> Optional[float]:
+    """Calcular distancia usando FeatureBundle SPE (phonology/features.py).
+
+    Trata los rasgos no especificados como ausentes (False).
+    Retorna None si alguno de los fonemas no está en la base de datos SPE.
+
+    Parámetros
+    ----------
+    phone_a, phone_b : str
+        Símbolos IPA a comparar.
+
+    Retorna
+    -------
+    float | None
+        Distancia normalizada en [0, 1], o None si no hay cobertura SPE.
+    """
+    try:
+        from ipa_core.phonology.features import get_features
+    except ImportError:
+        return None
+
+    feat_a = get_features(phone_a)
+    feat_b = get_features(phone_b)
+    if feat_a is None or feat_b is None:
+        return None
+
+    # Unión de todos los rasgos explícitamente especificados en alguno de los dos
+    all_features = feat_a.positive | feat_a.negative | feat_b.positive | feat_b.negative
+    if not all_features:
+        return 0.0
+
+    diffs = 0
+    for f in all_features:
+        # No especificado = ausente (False) para medir distancia
+        val_a = feat_a.has(f)
+        val_b = feat_b.has(f)
+        a = val_a if val_a is not None else False
+        b = val_b if val_b is not None else False
+        if a != b:
+            diffs += 1
+
+    dist = diffs / len(all_features)
+    # Si SPE no distingue dos fonemas distintos (bundles idénticos), retornar
+    # None para activar el respaldo ordinal.  Ocurre con pares como /e/-/ə/
+    # cuya diferencia de altura no está codificada en el subconjunto SPE de
+    # phonology/features.py (ambos son [-high, -low, -back, -round]).
+    if dist == 0.0:
+        return None
+    return dist
+
+
 def consonant_distance(phone_a: str, phone_b: str) -> float:
     """Calcular distancia articulatoria entre dos consonantes.
-    
-    La distancia se basa en:
-    - Diferencia de lugar (0-10 posiciones)
-    - Diferencia de modo (0-7 posiciones)
-    - Diferencia de sonoridad (0-1)
-    
+
+    Intenta primero con rasgos SPE (FeatureBundle), que son fonológicamente
+    más precisos que comparar ordinales de Enum.  Si algún fonema no está
+    en la base SPE, cae de respaldo al cálculo por Enum.
+
     Parámetros
     ----------
     phone_a : str
         Primera consonante.
     phone_b : str
         Segunda consonante.
-        
+
     Retorna
     -------
     float
         Distancia normalizada en [0, 1].
     """
+    # Intentar con rasgos SPE (más preciso)
+    spe = _spe_distance(phone_a, phone_b)
+    if spe is not None:
+        return spe
+
+    # Respaldo: índices de Enum (cobertura más amplia)
     feat_a = CONSONANT_FEATURES.get(phone_a)
     feat_b = CONSONANT_FEATURES.get(phone_b)
-    
+
     if feat_a is None or feat_b is None:
         return 1.0  # Máxima distancia si no tenemos datos
-    
-    # Calcular diferencias
+
     place_diff = abs(feat_a.place.value - feat_b.place.value) / 10.0
     manner_diff = abs(feat_a.manner.value - feat_b.manner.value) / 7.0
     voicing_diff = abs(feat_a.voicing.value - feat_b.voicing.value)
-    
-    # Ponderar: modo > lugar > sonoridad
+
     distance = (0.4 * manner_diff + 0.4 * place_diff + 0.2 * voicing_diff)
     return min(1.0, distance)
 
 
 def vowel_distance(phone_a: str, phone_b: str) -> float:
     """Calcular distancia articulatoria entre dos vocales.
-    
-    La distancia se basa en:
-    - Diferencia de altura (0-6 posiciones)
-    - Diferencia de anterioridad (0-4 posiciones)
-    - Diferencia de redondeo (0-1)
-    
+
+    Intenta primero con rasgos SPE (FeatureBundle), que son fonológicamente
+    más precisos que comparar ordinales de Enum.  Si algún fonema no está
+    en la base SPE, cae de respaldo al cálculo por Enum.
+
     Parámetros
     ----------
     phone_a : str
         Primera vocal.
     phone_b : str
         Segunda vocal.
-        
+
     Retorna
     -------
     float
         Distancia normalizada en [0, 1].
     """
+    # Intentar con rasgos SPE (más preciso)
+    spe = _spe_distance(phone_a, phone_b)
+    if spe is not None:
+        return spe
+
+    # Respaldo: índices de Enum
     feat_a = VOWEL_FEATURES.get(phone_a)
     feat_b = VOWEL_FEATURES.get(phone_b)
-    
+
     if feat_a is None or feat_b is None:
         return 1.0  # Máxima distancia si no tenemos datos
-    
-    # Calcular diferencias
+
     height_diff = abs(feat_a.height.value - feat_b.height.value) / 6.0
     backness_diff = abs(feat_a.backness.value - feat_b.backness.value) / 4.0
     round_diff = abs(feat_a.roundedness.value - feat_b.roundedness.value)
-    
-    # Ponderar: altura > anterioridad > redondeo
+
     distance = (0.5 * height_diff + 0.3 * backness_diff + 0.2 * round_diff)
     return min(1.0, distance)
 

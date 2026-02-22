@@ -16,7 +16,7 @@ Valores por defecto
 -------------------
 - preprocessor: "basic" (normalización mínima)
 - backend: "stub" (ASR de testing)
-- textref: "grapheme" (conversión trivial)
+- textref: "auto" (cascada: espeak → epitran → grapheme)
 - comparator: "levenshtein" (distancia de edición estándar)
 - tts: "default" (selector automático)
 - llm: "auto" (detecta runtime disponible)
@@ -70,7 +70,7 @@ class AppConfig(BaseModel):
     strict_mode: bool = False  # Si True, falla en errores; si False, usa fallbacks automáticos
     preprocessor: PluginCfg = Field(default_factory=lambda: PluginCfg(name="basic"))
     backend: PluginCfg = Field(default_factory=lambda: PluginCfg(name="stub"))
-    textref: PluginCfg = Field(default_factory=lambda: PluginCfg(name="grapheme"))
+    textref: PluginCfg = Field(default_factory=lambda: PluginCfg(name="auto"))
     comparator: PluginCfg = Field(default_factory=lambda: PluginCfg(name="levenshtein"))
     tts: PluginCfg = Field(default_factory=lambda: PluginCfg(name="default"))
     llm: PluginCfg = Field(default_factory=lambda: PluginCfg(name="auto"))

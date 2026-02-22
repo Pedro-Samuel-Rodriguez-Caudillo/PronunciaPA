@@ -17,6 +17,7 @@ from ipa_core.phonology.representation import (
 if TYPE_CHECKING:
     from ipa_core.plugins.language_pack import ScoringProfile
     from ipa_core.packs.schema import ErrorWeights
+    from ipa_core.ports.compare import Comparator
 
 
 async def compare_representations(
@@ -28,6 +29,7 @@ async def compare_representations(
     profile: Optional["ScoringProfile"] = None,
     use_articulatory: bool = True,
     error_weights: Optional["ErrorWeights"] = None,
+    comparator: Optional["Comparator"] = None,
 ) -> ComparisonResult:
     """Comparar dos representaciones fonológicas.
     
@@ -61,7 +63,7 @@ async def compare_representations(
         raise ValueError(
             f"Cannot compare different levels: {target.level} vs {observed.level}"
         )
-    
+
     # Determinar costo mínimo según modo/perfil
     if profile is not None:
         tol = profile.tolerance
@@ -78,20 +80,27 @@ async def compare_representations(
             min_cost = 0.5  # Estricto
         else:
             min_cost = 0.3  # Balance
-    
+
     # Aplicar escalar articulatorio del pack (si está disponible)
     art_scalar: float = 1.0
     if error_weights is not None:
         art_scalar = error_weights.articulatory
 
-    # Crear comparador
-    comparator = LevenshteinComparator(
-        use_articulatory=use_articulatory,
-        articulatory_min_cost=min_cost,
-    )
-    
+    # Usar el comparador inyectado si se proporcionó, de lo contrario crear
+    # un LevenshteinComparator con los parámetros calculados arriba.
+    # Esto permite que plugins custom (port Comparator) funcionen incluso
+    # cuando se usa un LanguagePack con ScoringProfile.
+    _comparator: "Comparator"
+    if comparator is not None:
+        _comparator = comparator
+    else:
+        _comparator = LevenshteinComparator(
+            use_articulatory=use_articulatory,
+            articulatory_min_cost=min_cost,
+        )
+
     # Comparar segmentos
-    result = await comparator.compare(target.segments, observed.segments)
+    result = await _comparator.compare(target.segments, observed.segments)
     
     # Calcular score ajustado por perfil
     per = result.get("per", 0.0)

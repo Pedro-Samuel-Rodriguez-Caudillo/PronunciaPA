@@ -189,6 +189,8 @@ async def execute_pipeline(
             error_weights = None
             if hasattr(pack, 'manifest') and hasattr(pack.manifest, 'error_weights'):
                 error_weights = pack.manifest.error_weights
+            # Pasar el comparador inyectado para respetar el port Comparator
+            # incluso cuando hay LanguagePack activo (antes era ignorado).
             return await compare_representations(
                 target_repr,
                 observed_repr,
@@ -196,6 +198,7 @@ async def execute_pipeline(
                 evaluation_level=evaluation_level,
                 profile=profile,
                 error_weights=error_weights,
+                comparator=comp,
             )
         
         # Path sin pack: usar comparador inyectado si existe
