@@ -135,14 +135,18 @@ class TestFeedbackEndpointValidation:
 class TestFeedbackEndpointErrors:
     """Tests for /v1/feedback error handling."""
 
-    def test_feedback_without_llm_config_returns_503(self, monkeypatch) -> None:
-        """Test that /v1/feedback returns 503 when LLM is not configured."""
+    def test_feedback_without_explicit_llm_uses_rule_based(self, monkeypatch) -> None:
+        """Cuando no hay LLM explícito, el kernel usa rule_based como fallback
+        para que /v1/feedback siempre genere consejos sin necesidad de un modelo
+        descargado.  El endpoint debe llegar hasta el ASR (que con audio inválido
+        devuelve 422 o 503/400 del quality gate) — nunca un 503 de 'LLM not ready'.
+        """
         cfg = AppConfig(
             backend=PluginCfg(name="test_ipa"),
             textref=PluginCfg(name="grapheme"),
             comparator=PluginCfg(name="levenshtein"),
             preprocessor=PluginCfg(name="basic"),
-            # No LLM configured
+            # LLM no especificado → kernel auto-selecciona rule_based
         )
 
         monkeypatch.setattr(pipeline_router.loader, "load_config", lambda: cfg)
@@ -153,8 +157,8 @@ class TestFeedbackEndpointErrors:
             data={"text": "hola", "lang": "es"},
         )
 
-        assert response.status_code == 503
-        assert "not_ready" in response.json().get("type", "")
+        # El error puede ser de calidad de audio o de ASR, pero NO de LLM no configurado
+        assert response.status_code != 503 or "not_ready" not in response.json().get("type", "llm")
 
 
 def test_feedback_rejects_stub_backend(monkeypatch) -> None:

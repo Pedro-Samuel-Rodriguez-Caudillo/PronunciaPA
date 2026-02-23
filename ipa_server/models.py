@@ -11,8 +11,8 @@ class IPADisplayToken(BaseModel):
 
     ipa: str = Field(..., description="Símbolo IPA canónico (modo técnico)")
     casual: str = Field(..., description="Transliteración coloquial (modo casual)")
-    color: Literal["green", "yellow", "red", "gray"] = Field(
-        ..., description="Color semántico: green=correcto, yellow=cercano, red=error, gray=OOV"
+    color: Literal["green", "yellow", "red", "gray", "purple"] = Field(
+        ..., description="Color semántico: green=correcto, yellow=cercano, red=error, gray=OOV, purple=alófono"
     )
     op: str = Field(..., description="Operación de edición: eq, sub, ins, del")
     ref: Optional[str] = Field(None, description="Token de referencia (IPA objetivo)")
@@ -22,6 +22,10 @@ class IPADisplayToken(BaseModel):
     )
     level: Literal["phonemic", "phonetic"] = Field(
         default="phonemic", description="Nivel de representación"
+    )
+    is_allophone: bool = Field(
+        default=False,
+        description="True cuando la sustitución es una variante alofónica en modo fonético (b~β, d~ð, g~ɣ, …)",
     )
 
 

@@ -238,3 +238,106 @@ async def install_asr_engine(engine_id: str):
         "errors": errors,
         "ready": len(errors) == 0,
     }
+
+
+# ============ TEXTREF BACKEND MANAGEMENT ============
+
+
+def _check_espeak_available() -> bool:
+    import shutil
+    return shutil.which("espeak-ng") is not None or shutil.which("espeak") is not None
+
+
+def _check_nltk_cmudict() -> bool:
+    try:
+        import nltk
+        nltk.data.find("corpora/cmudict")
+        return True
+    except Exception:
+        return False
+
+
+def _check_epitran_available() -> bool:
+    try:
+        import epitran  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
+@router.get("/textref/backends")
+async def list_textref_backends():
+    """Lista los backends TextRef disponibles y su estado.
+
+    Cada backend convierte texto en IPA de referencia para la comparación.
+    """
+    espeak_ok = _check_espeak_available()
+    cmudict_ok = _check_nltk_cmudict()
+    epitran_ok = _check_epitran_available()
+
+    try:
+        cfg = loader.load_config()
+        current = cfg.textref.name
+    except Exception:
+        current = "auto"
+
+    backends = [
+        {
+            "id": "grapheme",
+            "name": "Grapheme (fallback)",
+            "description": "Retorna los grafemas del texto como tokens. Sin dependencias externas.",
+            "ready": True,
+            "languages": ["*"],
+            "install": None,
+            "notes": "Solo útil para pruebas o idiomas sin soporte fonético.",
+        },
+        {
+            "id": "espeak",
+            "name": "eSpeak-NG",
+            "description": "Convierte texto a IPA usando reglas fonológicas. Soporta 100+ idiomas.",
+            "ready": espeak_ok,
+            "languages": ["es", "en", "fr", "de", "it", "pt", "ru", "zh", "ja", "ar", "…"],
+            "install": "sudo apt install espeak-ng  # Ubuntu/Debian\nbrew install espeak-ng  # macOS",
+            "notes": "Recomendado para uso general.",
+        },
+        {
+            "id": "cmudict",
+            "name": "CMU Pronouncing Dictionary",
+            "description": "Diccionario fonético para inglés americano (109K entradas). "
+                           "OOV → fallback eSpeak.",
+            "ready": cmudict_ok,
+            "languages": ["en", "en-us", "en-gb", "en-au"],
+            "install": "pip install nltk && python -c \"import nltk; nltk.download('cmudict')\"",
+            "notes": "Pronunciaciones basadas en inglés americano (GA). "
+                     "Para en-GB las palabras OOV usan eSpeak con voz en-gb.",
+        },
+        {
+            "id": "epitran",
+            "name": "Epitran",
+            "description": "G2P basado en reglas para 30+ idiomas. Alta cobertura morfológica.",
+            "ready": epitran_ok,
+            "languages": ["es", "en", "fr", "de", "ar", "ru", "zh", "…"],
+            "install": "pip install epitran",
+            "notes": "Alternativa a eSpeak con distinto enfoque de reglas G2P.",
+        },
+        {
+            "id": "auto",
+            "name": "Auto (cascada)",
+            "description": "Prueba: eSpeak → Epitran → Grapheme. Usa el primero disponible.",
+            "ready": True,
+            "languages": ["*"],
+            "install": None,
+            "notes": "Recomendado cuando no se sabe qué backends están instalados.",
+        },
+    ]
+
+    ready_count = sum(1 for b in backends if b["ready"])
+    return {
+        "current": current,
+        "backends": backends,
+        "summary": {
+            "total": len(backends),
+            "ready": ready_count,
+        },
+        "recommendation": "espeak" if espeak_ok else "grapheme",
+    }

@@ -16,6 +16,8 @@ se mapea a un color:
 | Estado   | Color  | Significado                                          |
 +==========+========+======================================================+
 | correct  | green  | Token correcto (``op == "eq"``)                     |
+| allophone| purple | Alófono — variante fonética contextual (modo        |
+|          |        | fonético): b~β, d~ð, g~ɣ, r~ɾ, etc.              |
 | close    | yellow | Sustitución con distancia articulatoria < 0.3        |
 | error    | red    | Error fonémico significativo (dist ≥ 0.3) o ins/del |
 | unknown  | gray   | Token OOV / desconocido                             |
@@ -25,11 +27,19 @@ Nivel fonémico vs. fonético
 ----------------------------
 El sistema soporta ambos niveles sin cambiar la interfaz. El nivel se
 indica como metadato en ``IPADisplayToken.level``.
+
+En modo **fonémico**, los alófonos se colapsan antes de la comparación
+(β→b, ð→d, ɣ→g), por lo que no aparecen como sustituciones.
+
+En modo **fonético**, los alófonos se preservan. Cuando el aprendiz
+pronuncia [β] donde se esperaba /b/, se marca como ``purple`` (alófono)
+en lugar de amarillo o rojo, indicando que es una variante contextual
+válida, no un error.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import List, Literal, Optional, Sequence
+from typing import FrozenSet, List, Literal, Optional, Sequence, Tuple
 
 from ipa_core.compare.articulatory import articulatory_distance
 from ipa_core.types import EditOp, Token
@@ -39,12 +49,37 @@ from ipa_core.types import EditOp, Token
 # Constantes y tipos
 # ---------------------------------------------------------------------------
 
-TokenColor = Literal["green", "yellow", "red", "gray"]
+TokenColor = Literal["green", "yellow", "red", "gray", "purple"]
 DisplayMode = Literal["technical", "casual"]
 RepLevel = Literal["phonemic", "phonetic"]
 
 # Umbral articulatorio para distinguir "close" de "error"
 COLOR_CLOSE_THRESHOLD: float = 0.3
+
+# Pares de alófonos conocidos (frozensets para lookup O(1) independiente de orden).
+# Cuando en modo fonético se detecta una sustitución dentro de este conjunto,
+# se clasifica como "purple" (alófono) en lugar de amarillo/rojo.
+_ALLOPHONE_PAIRS: FrozenSet[FrozenSet[str]] = frozenset({
+    # Spanish stop~fricative allophones (intervocalic lenition)
+    frozenset(("b", "β")),  # /b/ ~ [β]
+    frozenset(("d", "ð")),  # /d/ ~ [ð]
+    frozenset(("g", "ɣ")),  # /g/ ~ [ɣ]
+    # Spanish rhotics
+    frozenset(("r", "ɾ")),  # /r/ (trill) ~ [ɾ] (tap)
+    # Nasal assimilation
+    frozenset(("n", "ŋ")),  # /n/ ~ [ŋ] before velars
+    frozenset(("n", "m")),  # /n/ ~ [m] before bilabials
+    # Voicing assimilation (cross-linguistic)
+    frozenset(("s", "z")),  # /s/ ~ [z] before voiced consonants
+    # Palatal glide variants
+    frozenset(("j", "ʝ")),  # /j/ ~ [ʝ] in stressed position
+})
+
+
+def _is_allophone_pair(ref: str, hyp: str) -> bool:
+    """Verificar si ref e hyp son alófonos entre sí."""
+    return frozenset((ref, hyp)) in _ALLOPHONE_PAIRS
+
 
 # Transliteración coloquial: IPA → aproximación latina
 # Para Español Mexicano y vocales universales
@@ -93,7 +128,8 @@ class IPADisplayToken:
     casual:
         Transliteración coloquial (modo casual).
     color:
-        Color semántico: ``"green"``, ``"yellow"``, ``"red"``, ``"gray"``.
+        Color semántico: ``"green"``, ``"yellow"``, ``"red"``, ``"gray"``,
+        ``"purple"`` (alófono en modo fonético).
     op:
         Operación de edición original (``"eq"``, ``"sub"``, ``"ins"``, ``"del"``).
     ref:
@@ -104,6 +140,10 @@ class IPADisplayToken:
         Distancia articulatoria en [0, 1].  None si no aplica.
     level:
         Nivel de representación: ``"phonemic"`` o ``"phonetic"``.
+    is_allophone:
+        True cuando la sustitución es una variante alofónica conocida
+        (solo posible en modo fonético). Permite a la UI mostrar un
+        indicador visual adicional (e.g., tilde ~).
     """
 
     ipa: str
@@ -114,6 +154,7 @@ class IPADisplayToken:
     hyp: Optional[str] = None
     articulatory_distance: Optional[float] = None
     level: RepLevel = "phonemic"
+    is_allophone: bool = False
 
 
 @dataclass
@@ -165,7 +206,7 @@ class IPADisplayResult:
             "hyp_technical": self.hyp_technical,
             "hyp_casual": self.hyp_casual,
             "score_color": self.score_color,
-            "legend": self.legend or _build_legend(),
+            "legend": self.legend or _build_legend(level=self.level),
             "tokens": [
                 {
                     "ipa": t.ipa,
@@ -176,6 +217,7 @@ class IPADisplayResult:
                     "hyp": t.hyp,
                     "articulatory_distance": t.articulatory_distance,
                     "level": t.level,
+                    "is_allophone": t.is_allophone,
                 }
                 for t in self.tokens
             ],
@@ -201,7 +243,7 @@ def _compute_color(
     hyp: Optional[str],
     *,
     close_threshold: float = COLOR_CLOSE_THRESHOLD,
-) -> tuple[TokenColor, Optional[float]]:
+) -> Tuple[TokenColor, Optional[float]]:
     """Calcular el color y la distancia articulatoria de un EditOp."""
     if op == "eq":
         return "green", 0.0
@@ -223,13 +265,16 @@ def _compute_color(
     return "red", dist
 
 
-def _build_legend() -> dict:
-    return {
+def _build_legend(*, level: str = "phonemic") -> dict:
+    legend = {
         "green": "Correcto — fonema pronunciado bien",
         "yellow": "Cercano — sustitución articulatoriamente próxima (dist < 0.3)",
         "red": "Error — fonema incorrecto o ausente",
         "gray": "Desconocido — fuera del inventario del pack",
     }
+    if level == "phonetic":
+        legend["purple"] = "Alófono — variante fonética contextual (b~β, d~ð, g~ɣ, …)"
+    return legend
 
 
 def _score_to_color(score: float) -> TokenColor:
@@ -267,6 +312,8 @@ def build_display(
         Modo de display por defecto: ``"technical"`` o ``"casual"``.
     level:
         Nivel de representación: ``"phonemic"`` o ``"phonetic"``.
+        En modo fonético, las sustituciones de pares alofónicos conocidos
+        (b~β, d~ð, g~ɣ, r~ɾ, etc.) se colorean como ``purple``.
     score:
         Puntuación numérica (0–100) para calcular ``score_color``.
     close_threshold:
@@ -288,6 +335,17 @@ def build_display(
 
         color, dist = _compute_color(op, ref, hyp, close_threshold=close_threshold)
 
+        # En modo fonético, detectar si la sustitución es un par alofónico conocido
+        is_allophone = (
+            level == "phonetic"
+            and op == "sub"
+            and ref is not None
+            and hyp is not None
+            and _is_allophone_pair(ref, hyp)
+        )
+        if is_allophone:
+            color = "purple"
+
         # Token principal a mostrar (ref para del, hyp para ins, ref para sub/eq)
         display_ipa = ref if op in ("eq", "sub", "del") else hyp
         if display_ipa is None:
@@ -305,6 +363,7 @@ def build_display(
                 hyp=hyp,
                 articulatory_distance=dist,
                 level=level,
+                is_allophone=is_allophone,
             )
         )
 
@@ -324,7 +383,7 @@ def build_display(
         hyp_technical=_ipa_str(hyp_ipa_list),
         hyp_casual=" ".join(_to_casual(t) for t in hyp_ipa_list),
         score_color=_score_to_color(score),
-        legend=_build_legend(),
+        legend=_build_legend(level=level),
     )
 
 

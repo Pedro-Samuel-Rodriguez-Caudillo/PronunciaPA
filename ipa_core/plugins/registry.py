@@ -179,6 +179,21 @@ def _register_defaults() -> None:
     register("textref", "auto", _create_auto_textref)
     register("textref", "default", _create_auto_textref)
 
+    # CMUDictTextRef — CMU Pronouncing Dictionary para inglés
+    try:
+        from ipa_core.textref.cmu_dict import CMUDictTextRef
+    except Exception as exc:
+        logger.warning("CMUDictTextRef unavailable: %s", exc)
+    else:
+        register(
+            "textref",
+            "cmudict",
+            lambda p: CMUDictTextRef(
+                oov_fallback=p.get("oov_fallback", "espeak"),
+                default_lang=p.get("default_lang", "en"),
+            ),
+        )
+
     # LexiconTextRef — léxico inline del pack + fallback a eSpeak
     try:
         from ipa_core.textref.lexicon import LexiconTextRef
@@ -234,13 +249,18 @@ def _register_defaults() -> None:
         from ipa_core.llm.llama_cpp import LlamaCppAdapter
         from ipa_core.llm.onnx import OnnxLLMAdapter
         from ipa_core.llm.ollama import OllamaAdapter
+        from ipa_core.llm.ollama_feedback import OllamaFeedbackAdapter
     except Exception as exc:
         logger.warning("LLM adapters unavailable: %s", exc)
     else:
         register("llm", "llama_cpp", lambda p: LlamaCppAdapter(p))
         register("llm", "onnx", lambda p: OnnxLLMAdapter(p))
-        register("llm", "ollama", lambda p: OllamaAdapter(p))
-        register("llm", "default", lambda p: OllamaAdapter(p))  # Ollama as default
+        # "ollama" → OllamaFeedbackAdapter: maneja el prompt de pronunciación
+        # internamente y hace fallback a rule_based si Ollama no está disponible.
+        register("llm", "ollama", lambda p: OllamaFeedbackAdapter(p))
+        register("llm", "ollama_feedback", lambda p: OllamaFeedbackAdapter(p))
+        # "ollama_raw" → OllamaAdapter sin lógica de feedback (para uso genérico)
+        register("llm", "ollama_raw", lambda p: OllamaAdapter(p))
 
     # También ejecutar descubrimiento inicial
     register_discovered_plugins()

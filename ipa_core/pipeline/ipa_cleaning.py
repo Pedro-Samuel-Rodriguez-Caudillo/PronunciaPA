@@ -51,14 +51,25 @@ def clean_textref_tokens(
     tokens: List[Token],
     *,
     lang: Optional[str] = None,
+    preserve_allophones: bool = False,
 ) -> List[Token]:
     """Limpiar tokens provenientes de TextRef.
 
     TextRef (espeak, epitran) produce IPA **fonético** que incluye alófonos
-    (β, ð, ɣ) y marcadores de acento (ˈ). Para que la comparación sea
-    justa contra el ASR (que puede producir las formas stop: b, d, ɡ),
-    se normalizan los alófonos al fonema canónico mediante ``apply_lang_fixes=True``.
+    (β, ð, ɣ) y marcadores de acento (ˈ). Por defecto se normalizan los
+    alófonos al fonema canónico para que la comparación sea justa (modo fonémico).
     Las marcas de acento se eliminan en ``filter_silence_tokens``.
+
+    Modo fonémico (``preserve_allophones=False``, defecto):
+      - ASR (Allosaurus/spa):  ``"b"``  (fonema)
+      - TextRef (eSpeak/es):   ``"β"``  → normalizado a ``"b"``
+      - Resultado:             IGUAL, pronunciación correcta puntúa 100 %
+
+    Modo fonético (``preserve_allophones=True``):
+      - ASR (Allosaurus/spa):  ``"b"``
+      - TextRef (eSpeak/es):   ``"β"``  → se preserva como ``"β"``
+      - Resultado:             DIFERENTE — detecta variación alofónica real,
+        útil para adopción de dialectos específicos.
 
     A diferencia de ``clean_asr_tokens``, **no** se colapsan duplicados
     (p. ej. /ll/ geminada en español es legítima).
@@ -69,11 +80,14 @@ def clean_textref_tokens(
         Tokens del proveedor TextRef.
     lang : str, optional
         Código de idioma (para normalización de alófonos y strip de diacríticos).
+    preserve_allophones : bool
+        Si True, no normaliza alófonos (modo fonético).
+        Si False (defecto), normaliza β→b, ð→d, ɣ→ɡ, etc. (modo fonémico).
 
     Returns
     -------
     list[Token]
-        Tokens IPA limpios en forma fonémica.
+        Tokens IPA limpios.
     """
     if not tokens:
         return []
@@ -83,9 +97,7 @@ def clean_textref_tokens(
         lang=lang,
         collapse_duplicates=False,
         strip_artifacts=True,
-        apply_lang_fixes=False,  # espeak produce IPA fonético puro (\u03b2, \u00f0, \u0263, w)
-        # Las equivalencias fonémicas (b↔\u03b2, d↔\u00f0, u↔w) se resuelven en
-        # acceptable_variants del scoring profile, no aquí.
+        apply_lang_fixes=not preserve_allophones,
     )
 
 

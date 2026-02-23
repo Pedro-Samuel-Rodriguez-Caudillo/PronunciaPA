@@ -241,6 +241,13 @@ def _resolve_llm(
         return registry.resolve_llm("rule_based", {}, strict_mode=strict_mode)
 
     if not model_pack:
+        if name == "auto":
+            # Sin model_pack y sin LLM explícito → usar rule_based para que
+            # /v1/feedback genere consejos offline sin necesidad de un modelo
+            # descargado.  El usuario puede sobreescribir con PRONUNCIAPA_LLM=ollama
+            # (o llama_cpp/onnx) cuando tenga un model_pack configurado.
+            logger.info("LLM 'auto' sin model_pack → usando rule_based como fallback")
+            return registry.resolve_llm("rule_based", {}, strict_mode=False)
         return None
 
     runtime_kind = (model_pack.runtime.kind or "").lower()

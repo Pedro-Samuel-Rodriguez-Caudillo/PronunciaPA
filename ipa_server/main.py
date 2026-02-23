@@ -25,6 +25,7 @@ from ipa_core.errors import (
     ValidationError,
 )
 from ipa_server.realtime import realtime_router
+from ipa_server.routers.debug import router as debug_router
 from ipa_server.routers.drills import router as drills_router
 from ipa_server.routers.health import router as health_router
 from ipa_server.routers.history import router as history_router
@@ -142,6 +143,7 @@ def get_app() -> FastAPI:
 
     # Routers
     app.include_router(health_router)
+    app.include_router(debug_router)
     app.include_router(pipeline_router)
     app.include_router(drills_router)
     app.include_router(history_router)

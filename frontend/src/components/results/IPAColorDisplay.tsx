@@ -6,6 +6,8 @@
  *   amarillo → sustitución cercana (distancia articulatoria < 0.3)
  *   rojo     → error (sub lejana, ins, del)
  *   gris     → token OOV (fuera del inventario del pack)
+ *   morado   → alófono (variante fonética contextual, solo en modo fonético)
+ *              Ej: el aprendiz dijo [β] donde se esperaba /b/ → correcto en contexto
  *
  * Toggle técnico (IPA puro) ↔ casual (transliteración coloquial).
  * Soporta nivel fonémico y fonético de forma transparente.
@@ -22,6 +24,7 @@ const COLOR_CLASSES: Record<TokenColor, { bg: string; text: string; border: stri
   yellow: { bg: 'bg-yellow-100', text: 'text-yellow-700', border: 'border-yellow-300' },
   red:    { bg: 'bg-red-100',    text: 'text-red-700',    border: 'border-red-300' },
   gray:   { bg: 'bg-gray-100',   text: 'text-gray-500',   border: 'border-gray-300' },
+  purple: { bg: 'bg-purple-100', text: 'text-purple-700', border: 'border-purple-300' },
 };
 
 const SCORE_COLOR_CLASSES: Record<TokenColor, string> = {
@@ -29,6 +32,7 @@ const SCORE_COLOR_CLASSES: Record<TokenColor, string> = {
   yellow: 'text-yellow-600',
   red:    'text-red-600',
   gray:   'text-gray-500',
+  purple: 'text-purple-600',
 };
 
 // ---------------------------------------------------------------------------
@@ -66,11 +70,15 @@ function TokenChip({ token, mode, showDistance }: TokenChipProps) {
     : null;
 
   const cls = COLOR_CLASSES[token.color] ?? COLOR_CLASSES.gray;
-  const title = showDistance && token.articulatory_distance != null
-    ? `Distancia articulatoria: ${token.articulatory_distance.toFixed(2)}`
-    : token.op === 'sub'
-      ? `${token.ref ?? '—'} → ${token.hyp ?? '—'}`
-      : undefined;
+
+  let title: string | undefined;
+  if (token.is_allophone) {
+    title = `Alófono: ${token.ref ?? '—'} ~ ${token.hyp ?? '—'} (variante contextual)`;
+  } else if (showDistance && token.articulatory_distance != null) {
+    title = `Distancia articulatoria: ${token.articulatory_distance.toFixed(2)}`;
+  } else if (token.op === 'sub') {
+    title = `${token.ref ?? '—'} → ${token.hyp ?? '—'}`;
+  }
 
   return (
     <span
@@ -84,7 +92,13 @@ function TokenChip({ token, mode, showDistance }: TokenChipProps) {
       `}
     >
       {displayText || '∅'}
-      {refText && token.op === 'sub' && (
+      {/* Allophone indicator: small tilde beneath the symbol */}
+      {token.is_allophone && (
+        <span className="text-[9px] text-purple-400 leading-none mt-0.5" aria-label="alófono">
+          ~
+        </span>
+      )}
+      {!token.is_allophone && refText && token.op === 'sub' && (
         <span className="text-[10px] text-gray-400 line-through leading-none mt-0.5">
           {refText}
         </span>
@@ -134,13 +148,18 @@ function ModeToggle({ mode, onToggle }: ModeToggleProps) {
 // Sub-componente: leyenda
 // ---------------------------------------------------------------------------
 
-function Legend({ legend }: { legend: Record<string, string> }) {
+function Legend({ legend, level }: { legend: Record<string, string>; level?: string }) {
+  // Order: green, purple (only phonetic), yellow, red, gray
   const entries: Array<[TokenColor, string]> = [
     ['green',  legend['green']  ?? 'Correcto'],
     ['yellow', legend['yellow'] ?? 'Cercano'],
     ['red',    legend['red']    ?? 'Error'],
     ['gray',   legend['gray']   ?? 'Fuera de inventario'],
   ];
+  if (level === 'phonetic' && legend['purple']) {
+    // Insert purple after green
+    entries.splice(1, 0, ['purple', legend['purple'] ?? 'Alófono']);
+  }
   return (
     <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3">
       {entries.map(([color, label]) => {
@@ -227,7 +246,7 @@ export function IPAColorDisplay({
       </div>
 
       {/* Leyenda */}
-      {showLegend && <Legend legend={display.legend} />}
+      {showLegend && <Legend legend={display.legend} level={display.level} />}
     </div>
   );
 }

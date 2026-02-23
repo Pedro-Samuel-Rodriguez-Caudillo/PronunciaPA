@@ -6,8 +6,11 @@ que produce transcripciones IPA directamente desde audio.
 from __future__ import annotations
 
 import asyncio
+import logging
 from pathlib import Path
 from typing import Any, Optional, TYPE_CHECKING
+
+logger = logging.getLogger(__name__)
 
 from ipa_core.errors import NotReadyError, ValidationError
 from ipa_core.plugins.base import BasePlugin
@@ -312,14 +315,20 @@ class AllosaurusBackend(BasePlugin):
         **kw: Any,
     ) -> ASRResult:
         """Transcribir audio a tokens IPA.
-        
+
+        Garantiza WAV PCM 16 kHz mono antes de pasarlo a Allosaurus.
+        El AudioProcessingChain del pipeline ya hace esta conversión, pero
+        si falla silenciosamente o el backend se usa directamente, sin esta
+        garantía Allosaurus recibe audio mal formateado y produce tokens
+        basura o un string vacío.
+
         Parámetros
         ----------
         audio : AudioInput
             Diccionario con path, sample_rate y channels.
         lang : str | None
             Código de idioma para restringir inventario.
-            
+
         Retorna
         -------
         ASRResult
@@ -327,33 +336,38 @@ class AllosaurusBackend(BasePlugin):
         """
         if not self._ready or self._model is None:
             raise NotReadyError("AllosaurusBackend no inicializado. Llama setup() primero.")
-        
+
         audio_path = Path(audio["path"])
         if not audio_path.exists():
             raise ValidationError(f"Archivo de audio no existe: {audio_path}")
-        
+
         resolved_lang = self._resolve_lang(lang)
-        
-        # Ejecutar reconocimiento en thread separado
-        def recognize():
-            if resolved_lang:
-                return self._model.recognize(
-                    str(audio_path),
-                    lang_id=resolved_lang,
-                    timestamp=self._emit_timestamps,
-                )
-            else:
-                return self._model.recognize(
-                    str(audio_path),
-                    timestamp=self._emit_timestamps,
-                )
-        
-        loop = asyncio.get_running_loop()
-        raw_output = await loop.run_in_executor(None, recognize)
-        
+
+        # Garantizar WAV PCM 16 kHz mono antes de invocar Allosaurus.
+        # Allosaurus internamente usa wave.open() y asume 16 kHz; cualquier
+        # otra frecuencia produce transcripciones incorrectas.
+        from ipa_core.audio.files import ensure_wav
+        import os
+        clean_path, is_tmp = ensure_wav(str(audio_path), target_sample_rate=16000, target_channels=1)
+
+        # Rellenar con silencio si el audio es demasiado corto.
+        # Allosaurus usa ventanas de contexto de ~250 ms; clips < 700 ms producen
+        # tokens "alucinados" porque el modelo no tiene suficiente contexto temporal.
+        # Se añaden 150 ms de silencio al inicio Y al final (= +300 ms total).
+        clean_path, is_tmp = self._pad_audio_if_short(clean_path, is_tmp, min_ms=700, pad_ms=150)
+
+        try:
+            raw_output = await self._run_recognize(clean_path, resolved_lang)
+        finally:
+            if is_tmp:
+                try:
+                    os.unlink(clean_path)
+                except OSError:
+                    pass
+
         # Parsear salida
         tokens, timestamps = self._parse_output(raw_output)
-        
+
         return {
             "tokens": tokens,
             "raw_text": raw_output if isinstance(raw_output, str) else " ".join(tokens),
@@ -366,6 +380,102 @@ class AllosaurusBackend(BasePlugin):
                 "confidence_available": False,
             },
         }
+
+    @staticmethod
+    def _pad_audio_if_short(
+        path: str,
+        is_tmp: bool,
+        *,
+        min_ms: int = 700,
+        pad_ms: int = 150,
+    ) -> tuple[str, bool]:
+        """Añadir silencio al inicio y final si el audio es más corto que ``min_ms``.
+
+        Parámetros
+        ----------
+        path : str
+            Ruta al archivo WAV 16-bit PCM.
+        is_tmp : bool
+            True si ``path`` es un temporal (se puede eliminar después de padear).
+        min_ms : int
+            Umbral mínimo en ms. Si la duración >= min_ms, no se hace nada.
+        pad_ms : int
+            Milisegundos de silencio a añadir ANTES y DESPUÉS del audio.
+
+        Retorna
+        -------
+        (new_path, new_is_tmp) : tuple[str, bool]
+        """
+        import os
+        import struct
+        import tempfile
+        import wave
+
+        try:
+            with wave.open(path, "rb") as wf:
+                sr = wf.getframerate()
+                sw = wf.getsampwidth()
+                nc = wf.getnchannels()
+                n_frames = wf.getnframes()
+                data = wf.readframes(n_frames)
+
+            duration_ms = int(n_frames * 1000 / sr) if sr > 0 else 0
+            if duration_ms >= min_ms:
+                return path, is_tmp  # ya es suficientemente largo
+
+            # Crear bloque de silencio (ceros)
+            pad_frames = int(pad_ms * sr / 1000)
+            bytes_per_frame = sw * nc
+            silence = bytes(pad_frames * bytes_per_frame)
+            padded_data = silence + data + silence
+
+            with tempfile.NamedTemporaryFile(
+                prefix="pronunciapa_pad_", suffix=".wav", delete=False
+            ) as tmp:
+                tmp_path = tmp.name
+
+            with wave.open(tmp_path, "wb") as out_wf:
+                out_wf.setnchannels(nc)
+                out_wf.setsampwidth(sw)
+                out_wf.setframerate(sr)
+                out_wf.writeframes(padded_data)
+
+            # Eliminar el temporal anterior si ya no se necesita
+            if is_tmp:
+                try:
+                    os.unlink(path)
+                except OSError:
+                    pass
+
+            logger.debug(
+                "AllosaurusBackend: audio padded %d ms → %d ms (pad=%d ms cada lado)",
+                duration_ms,
+                duration_ms + 2 * pad_ms,
+                pad_ms,
+            )
+            return tmp_path, True
+
+        except Exception as exc:
+            logger.warning("_pad_audio_if_short falló, continuando sin padding: %s", exc)
+            return path, is_tmp
+
+    async def _run_recognize(self, audio_path: str, resolved_lang: Optional[str]) -> Any:
+        """Ejecutar reconocimiento en thread separado (no bloquea el event loop)."""
+        def recognize():
+            if resolved_lang:
+                return self._model.recognize(
+                    audio_path,
+                    lang_id=resolved_lang,
+                    timestamp=self._emit_timestamps,
+                )
+            else:
+                return self._model.recognize(
+                    audio_path,
+                    timestamp=self._emit_timestamps,
+                )
+
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, recognize)
     
     def _parse_output(
         self,
