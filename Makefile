@@ -1,5 +1,6 @@
 .PHONY: test-unit test-int sync-types dev dev-web server flutter \
-        install install-full install-espeak install-nltk setup test-bench bench
+        install install-full install-espeak install-nltk setup test-bench bench \
+        debug debug-json
 
 PYTHON := python
 ifeq ($(OS),Windows_NT)
@@ -108,3 +109,22 @@ bench:
 	PYTHONPATH=. $(PYTHON) scripts/benchmark_tts_roundtrip.py \
 		--lang $(LANG) --words $(or $(WORDS),30) --verbose \
 		$(if $(OUTPUT),--output $(OUTPUT),)
+
+## Debug rápido del pipeline — tabla concisa por etapa
+## Uso: make debug TEXT="hola mundo" LANG=es
+##      make debug TEXT="hello" LANG=en TEXTREF=cmudict ASR=stub
+debug:
+	PYTHONPATH=. $(PYTHON) scripts/debug_pipeline.py \
+		"$(or $(TEXT),hola mundo)" \
+		--lang $(or $(LANG),es) \
+		--asr $(or $(ASR),stub) \
+		--textref $(or $(TEXTREF),espeak)
+
+## Igual que debug pero salida JSON
+debug-json:
+	PYTHONPATH=. $(PYTHON) scripts/debug_pipeline.py \
+		"$(or $(TEXT),hola mundo)" \
+		--lang $(or $(LANG),es) \
+		--asr $(or $(ASR),stub) \
+		--textref $(or $(TEXTREF),espeak) \
+		--json
