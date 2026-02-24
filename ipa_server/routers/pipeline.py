@@ -356,15 +356,57 @@ async def compare(
         )
 
         # Pipeline unificado — soporta pack y sin pack
-        comp_res = await execute_pipeline(
-            kernel.pre, kernel.asr, kernel.textref, kernel.comp,
-            audio={"path": str(tmp_path), "sample_rate": 16000, "channels": 1},
-            text=text,
-            lang=lang_resolved,
-            pack=language_pack,
-            mode=cast(EvaluationMode, effective_mode),
-            evaluation_level=cast(RepresentationLevel, effective_level),
-        )
+        try:
+            comp_res = await execute_pipeline(
+                kernel.pre, kernel.asr, kernel.textref, kernel.comp,
+                audio={"path": str(tmp_path), "sample_rate": 16000, "channels": 1},
+                text=text,
+                lang=lang_resolved,
+                pack=language_pack,
+                mode=cast(EvaluationMode, effective_mode),
+                evaluation_level=cast(RepresentationLevel, effective_level),
+            )
+        except ValidationError as _pipeline_exc:
+            _msg = str(_pipeline_exc)
+            # Distinguish audio/ASR failures (no speech, too short, quality gate)
+            # from TextRef/config failures.  The former return a zero-score result
+            # so the user sees usable feedback; the latter are re-raised as 400.
+            _msg_lower = _msg.lower()
+            _asr_related = any(
+                kw in _msg_lower
+                for kw in ("asr", "voz", "silencio", "audio", "corta", "grabación", "tokens ipa")
+            )
+            if not _asr_related:
+                raise  # TextRef / config error → keep 400
+            logger.warning("compare: pipeline audio error — respuesta no-speech: %s", _msg)
+            try:
+                _tr = await kernel.textref.to_ipa(text, lang=lang_resolved)
+                _ref_tokens = clean_textref_tokens(
+                    _tr.get("tokens", []), lang=lang_resolved
+                )
+            except Exception:
+                _ref_tokens = []
+            _no_speech_meta: dict[str, Any] = {
+                "no_speech": True,
+                "no_speech_hint": _msg,
+                "adaptive": adaptive_meta,
+            }
+            if quality_res:
+                _no_speech_meta["audio_quality"] = quality_res.to_dict()
+            if quality_warnings:
+                _no_speech_meta["warnings"] = quality_warnings
+            return {
+                "per": 1.0,
+                "score": 0.0,
+                "mode": effective_mode,
+                "evaluation_level": effective_level,
+                "ipa": "",
+                "tokens": [],
+                "target_ipa": " ".join(_ref_tokens),
+                "ops": [],
+                "alignment": [],
+                "meta": _no_speech_meta,
+            }
 
         payload = comp_res.to_dict()
         payload["score"] = comp_res.score
@@ -449,18 +491,66 @@ async def quick_compare(
         hyp_tokens = asr_result.get("tokens", [])
         if not hyp_tokens:
             raw_text = asr_result.get("raw_text", "")
-            msg = "ASR no devolvió tokens IPA."
+            no_speech_hint = "ASR no devolvió tokens IPA."
             if raw_text:
-                msg += (
+                no_speech_hint += (
                     f" Texto detectado: '{raw_text}'. "
                     "Verifique language pack/configuración del backend."
                 )
             else:
-                msg += " El audio podría estar vacío, ser demasiado corto o no tener voz."
-            raise ValidationError(msg)
+                no_speech_hint += (
+                    " El audio podría estar vacío, ser demasiado corto o no tener voz."
+                )
+            logger.warning("quick_compare: ASR sin tokens — respuesta no-speech")
+            try:
+                tr_fallback = await kernel.textref.to_ipa(text, lang=lang_resolved)
+                ref_tokens_fb = clean_textref_tokens(
+                    tr_fallback.get("tokens", []), lang=lang_resolved
+                )
+            except Exception:
+                ref_tokens_fb = []
+            return {
+                "per": 1.0,
+                "score": 0.0,
+                "mode": mode,
+                "evaluation_level": evaluation_level,
+                "ipa": "",
+                "tokens": [],
+                "target_ipa": " ".join(ref_tokens_fb),
+                "ops": [],
+                "alignment": [],
+                "meta": {
+                    "no_speech": True,
+                    "no_speech_hint": no_speech_hint,
+                    "quick": True,
+                },
+            }
 
         # Limpieza IPA unificada para quick-compare
         hyp_tokens = clean_asr_tokens(hyp_tokens, lang=lang_resolved)
+        if not hyp_tokens:
+            # All tokens were noise/silence markers — return no-speech result.
+            tr_fallback2 = await kernel.textref.to_ipa(text, lang=lang_resolved)
+            ref_fb2 = clean_textref_tokens(tr_fallback2.get("tokens", []), lang=lang_resolved)
+            return {
+                "per": 1.0,
+                "score": 0.0,
+                "mode": mode,
+                "evaluation_level": evaluation_level,
+                "ipa": "",
+                "tokens": [],
+                "target_ipa": " ".join(ref_fb2),
+                "ops": [],
+                "alignment": [],
+                "meta": {
+                    "no_speech": True,
+                    "no_speech_hint": (
+                        "ASR no devolvió tokens IPA válidos tras limpieza. "
+                        "El audio podría ser muy corto o contener sólo ruido."
+                    ),
+                    "quick": True,
+                },
+            }
 
         tr_result = await kernel.textref.to_ipa(text, lang=lang_resolved)
         ref_tokens = clean_textref_tokens(tr_result.get("tokens", []), lang=lang_resolved)
