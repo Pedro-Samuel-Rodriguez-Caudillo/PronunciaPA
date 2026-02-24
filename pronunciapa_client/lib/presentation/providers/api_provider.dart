@@ -520,9 +520,15 @@ class ApiNotifier extends StateNotifier<ApiState> {
         result = await _service.transcribe(path, lang: lang ?? 'es');
       }
       _logAudioChainToOverlay(result.meta);
+      // Detect server "no speech" signal (ASR returned no tokens but 200 OK).
+      final noSpeechWarning = result.meta?['no_speech'] == true
+          ? 'No se detectó voz en la grabación. '
+            'Habla más cerca del micrófono e intenta de nuevo.'
+          : null;
       state = state.copyWith(
         isLoading: false,
         result: result,
+        error: noSpeechWarning,
         lastAudioPath: path,
         lastReferenceText: trimmedReference,
         isQuickResult: quick && trimmedReference != null && trimmedReference.isNotEmpty,
