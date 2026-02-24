@@ -7,8 +7,7 @@ import 'presentation/theme/app_theme.dart';
 import 'core/debug/debug.dart';
 
 void main() {
-  WidgetsFlutterBinding.ensureInitialized();
-
+  // Error handlers that don't require the binding can be set before runZonedGuarded.
   // Catch all Flutter framework errors.
   FlutterError.onError = (FlutterErrorDetails details) {
     AppLogger.e(
@@ -29,14 +28,20 @@ void main() {
   };
 
   // Catch all remaining async errors in the Flutter zone.
+  // IMPORTANT: ensureInitialized() must be called inside runZonedGuarded so
+  // that the binding and runApp share the same zone — prevents the zone-mismatch
+  // warning ("Flutter bindings were initialized in a different zone").
   runZonedGuarded(
-    () => runApp(
-      // ignore: prefer_const_constructors
-      ProviderScope(
-        observers: kDebugMode ? const [DebugProviderObserver()] : const [],
-        child: const MyApp(),
-      ),
-    ),
+    () {
+      WidgetsFlutterBinding.ensureInitialized();
+      runApp(
+        // ignore: prefer_const_constructors
+        ProviderScope(
+          observers: kDebugMode ? const [DebugProviderObserver()] : const [],
+          child: const MyApp(),
+        ),
+      );
+    },
     (error, stack) {
       AppLogger.e('Zone', error.toString(), error: error, stackTrace: stack);
     },
