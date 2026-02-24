@@ -183,6 +183,21 @@ class PronunciaApiService {
       return 'ASR IPA no disponible (backend: $backend). '
           'Configura un modelo ASR real en el servidor y desactiva PRONUNCIAPA_ASR=stub.';
     }
+    // Empty ASR tokens: audio was too short, silent or unclear
+    if (detail.contains('ASR no devolvió tokens IPA') ||
+        detail.contains('tokens IPA válidos tras limpieza')) {
+      return 'No se detectó voz en el audio. '
+          'Habla más claro y cerca del micrófono, luego vuelve a intentar.';
+    }
+    // Quality gate issues
+    if (status == 400 &&
+        (detail.contains('demasiado corto') ||
+            detail.contains('too_short') ||
+            detail.contains('no_speech') ||
+            detail.contains('sin voz'))) {
+      return 'Grabación demasiado corta o sin voz detectada. '
+          'Mantén el botón pulsado mientras hablas.';
+    }
     return 'Error $status: $detail';
   }
 

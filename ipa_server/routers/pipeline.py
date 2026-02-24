@@ -334,10 +334,6 @@ async def compare(
             except Exception as e:
                 logger.warning(f"No se pudo cargar language pack '{pack_id}': {e}")
 
-        # Validate output_type BEFORE setup() — see note in /v1/transcribe.
-        asr_guard = _assert_real_ipa_asr(kernel.asr)
-        if asr_guard:
-            return asr_guard
         await kernel.setup()
 
         # Quality assessment + adaptive settings (una sola vez)
@@ -431,9 +427,6 @@ async def quick_compare(
     """
     kernel = await _get_or_create_kernel()
     lang_resolved = _resolve_request_lang(lang)
-    asr_guard = _assert_real_ipa_asr(kernel.asr)
-    if asr_guard:
-        return asr_guard
     tmp_path = await _process_upload(audio)
     wav_tmp = False
     wav_path = str(tmp_path)

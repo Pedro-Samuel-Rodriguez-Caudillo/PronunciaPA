@@ -7,36 +7,39 @@ import 'presentation/theme/app_theme.dart';
 import 'core/debug/debug.dart';
 
 void main() {
-  WidgetsFlutterBinding.ensureInitialized();
-
-  // Catch all Flutter framework errors.
-  FlutterError.onError = (FlutterErrorDetails details) {
-    AppLogger.e(
-      'Flutter',
-      details.exceptionAsString(),
-      error: details.exception,
-      stackTrace: details.stack,
-    );
-    // Still call default handler so the red-screen shows in debug mode.
-    FlutterError.presentError(details);
-  };
-
-  // Catch uncaught errors on the platform thread (Dart isolate root zone).
-  PlatformDispatcher.instance.onError = (error, stack) {
-    AppLogger.e('PlatformDispatcher', error.toString(),
-        error: error, stackTrace: stack);
-    return false; // let the error propagate normally
-  };
-
-  // Catch all remaining async errors in the Flutter zone.
+  // IMPORTANT: ensureInitialized() must be called in the SAME zone as runApp().
+  // Wrapping both inside runZonedGuarded prevents the "Zone mismatch" warning
+  // that occurs when bindings are initialized in the root zone but runApp is
+  // called from a different (guarded) zone.
   runZonedGuarded(
-    () => runApp(
+    () {
+      WidgetsFlutterBinding.ensureInitialized();
+
+      // Catch all Flutter framework errors.
+      FlutterError.onError = (FlutterErrorDetails details) {
+        AppLogger.e(
+          'Flutter',
+          details.exceptionAsString(),
+          error: details.exception,
+          stackTrace: details.stack,
+        );
+        // Still call default handler so the red-screen shows in debug mode.
+        FlutterError.presentError(details);
+      };
+
+      // Catch uncaught errors on the platform thread (Dart isolate root zone).
+      PlatformDispatcher.instance.onError = (error, stack) {
+        AppLogger.e('PlatformDispatcher', error.toString(),
+            error: error, stackTrace: stack);
+        return false; // let the error propagate normally
+      };
+
       // ignore: prefer_const_constructors
-      ProviderScope(
+      runApp(ProviderScope(
         observers: kDebugMode ? const [DebugProviderObserver()] : const [],
         child: const MyApp(),
-      ),
-    ),
+      ));
+    },
     (error, stack) {
       AppLogger.e('Zone', error.toString(), error: error, stackTrace: stack);
     },
