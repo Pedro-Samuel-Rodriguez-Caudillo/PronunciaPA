@@ -37,9 +37,13 @@ from ipa_core.ports.oov import OOVHandlerPort
 
 
 # Issues que impiden llamar al ASR — el audio no tiene información fonética útil.
-# LOW_SNR solo es una advertencia: el ASR puede intentarlo de todas formas,
-# pero si luego devuelve tokens vacíos usaremos el feedback de calidad.
-_BLOCKING_QUALITY_ISSUES = {"no_speech", "too_quiet", "too_short", "clipping"}
+# Eliminados "too_short" y "clipping" de la lista de bloqueantes:
+# - too_short: Allosaurus + padding interno maneja clips cortos; bloquear aquí
+#   rechazaba grabaciones válidas de sílabas aisladas.
+# - clipping: ffmpeg convierte a s16 con normalización; el clipping en el WAV
+#   original ya no llega al ASR tras la conversión.
+# LOW_SNR solo es una advertencia: el ASR puede intentarlo de todas formas.
+_BLOCKING_QUALITY_ISSUES = {"no_speech", "too_quiet"}
 
 
 def _check_quality_gate(pre_res: dict[str, Any]) -> None:
