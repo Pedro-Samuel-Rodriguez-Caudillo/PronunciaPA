@@ -41,7 +41,7 @@ def clean_asr_tokens(
     return postprocess_tokens(
         cleaned,
         lang=lang,
-        collapse_duplicates=True,
+        collapse_duplicates=False,  # No colapsar: /rr/, /ll/ son geminadas legítimas
         strip_artifacts=True,
         apply_lang_fixes=True,
     )
