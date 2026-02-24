@@ -152,8 +152,13 @@ def create_kernel(cfg: AppConfig) -> Kernel:
     # Inyectar la cadena de audio si el preprocessor es BasicPreprocessor y no tiene una
     if isinstance(pre, BasicPreprocessor) and pre._audio_chain is None:
         vad_backend = cfg.preprocessor.params.get("vad_backend", "auto")
+        # AGC y VAD desactivados: ffmpeg ya normaliza el audio a 16kHz/mono/s16,
+        # y el VAD de energía corta consonantes sordas iniciales (/p/, /t/, /k/)
+        # que Allosaurus necesita para contextualizar el inicio de la frase.
+        # Mantener solo EnsureWavStep (conversión mediante ffmpeg) y QualityCheck.
         pre._audio_chain = AudioProcessingChain.default(
-            vad_enabled=True,
+            vad_enabled=False,
+            agc_enabled=False,
             vad_backend=vad_backend,
         )
     asr = registry.resolve_asr(cfg.backend.name, cfg.backend.params, strict_mode=strict)
