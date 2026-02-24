@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import logging
 import wave
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 import threading
 from typing import Any, List, Optional, Tuple
@@ -47,13 +47,9 @@ class VADResult:
     trim_suggestion: Optional[Tuple[int, int]] = None
     
     # Silencios internos detectados (pausas)
-    internal_pauses: List[Tuple[int, int]] = None
+    internal_pauses: List[Tuple[int, int]] = field(default_factory=list)
+
     
-    def __post_init__(self):
-        if self.internal_pauses is None:
-            self.internal_pauses = []
-
-
 def analyze_vad(
     audio_path: str,
     *,
@@ -211,6 +207,48 @@ def _extract_segments(
 # Silero VAD backend (opcional, requiere `pip install silero-vad`)
 # ──────────────────────────────────────────────────────────────────────────────
 
+def _read_audio_wav(audio_path: str, sampling_rate: int = 16000) -> Any:
+    """Leer WAV como tensor float32 sin depender de torchaudio.backend.
+
+    Reemplaza ``silero_vad.read_audio`` para evitar la dependencia de
+    torchaudio >= 2.9 en ``torchcodec``.  Usa ``wave`` + ``numpy`` para
+    la lectura y ``scipy.signal.resample_poly`` (opcional) si la tasa de
+    muestreo difiere del objetivo.
+    """
+    import numpy as np
+    import torch
+
+    with wave.open(audio_path, "rb") as wf:
+        sr = wf.getframerate()
+        sw = wf.getsampwidth()
+        nc = wf.getnchannels()
+        raw = wf.readframes(wf.getnframes())
+
+    if sw == 2:
+        samples = np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
+    elif sw == 4:
+        samples = np.frombuffer(raw, dtype=np.int32).astype(np.float32) / 2_147_483_648.0
+    else:
+        raise ValueError(f"Sample width {sw * 8}-bit no soportado por _read_audio_wav")
+
+    if nc > 1:
+        samples = samples.reshape(-1, nc).mean(axis=1).astype(np.float32)
+
+    if sr != sampling_rate:
+        try:
+            from math import gcd
+            from scipy.signal import resample_poly
+            g = gcd(sampling_rate, sr)
+            samples = resample_poly(samples, sampling_rate // g, sr // g).astype(np.float32)
+        except ImportError:
+            logger.warning(
+                "_read_audio_wav: scipy no disponible para resamplear %d→%d Hz; "
+                "el audio puede tener tasa incorrecta",
+                sr, sampling_rate,
+            )
+
+    return torch.from_numpy(samples)
+
 _SILERO_MODEL_LOCK = threading.Lock()
 _SILERO_MODEL: Optional[Any] = None
 _SILERO_AVAILABLE: Optional[bool] = None  # None = no comprobado aún
@@ -274,10 +312,10 @@ def analyze_vad_silero(
     if not p.exists():
         raise FileNotFoundError(f"Audio no encontrado: {audio_path}")
 
-    from silero_vad import get_speech_timestamps, read_audio
+    from silero_vad import get_speech_timestamps
 
     model = _get_silero_model()
-    wav = read_audio(str(p), sampling_rate=sampling_rate)
+    wav = _read_audio_wav(str(p), sampling_rate=sampling_rate)
     duration_samples = len(wav)
     duration_ms = int(duration_samples * 1000 / sampling_rate)
 
