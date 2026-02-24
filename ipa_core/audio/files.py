@@ -86,45 +86,6 @@ def _fix_wav_data_chunk(path: str) -> None:
             f.seek(data_header_offset + 4)
             f.write(struct.pack("<I", actual_data_size))
 
-def _rebuild_clean_wav(src_path: str, dst_path: str) -> None:
-    """Extrae PCM raw de un WAV no estándar y escribe un WAV limpio de 44 bytes.
-
-    Funciona aunque ``wave.open()`` y ffmpeg fallen por sub-chunks extra
-    (LIST/INFO/JUNK/bext) antes del chunk ``data``.
-
-    Raises:
-        ValueError: Si no se encuentran los chunks ``fmt`` y ``data``.
-    """
-    with open(src_path, "rb") as f:
-        raw = f.read()
-
-    chunks = _scan_wav_chunks(raw)
-    fmt_info = chunks.get("fmt")
-    data_info = chunks.get("data")
-
-    if fmt_info is None or data_info is None:
-        raise ValueError(
-            f"No se encontraron chunks fmt/data en '{src_path}' "
-            f"(chunks encontrados: {list(k for k, v in chunks.items() if v)})"
-        )
-
-    fmt_bytes = raw[fmt_info["offset"] : fmt_info["offset"] + fmt_info["size"]]
-    pcm_bytes = raw[data_info["offset"] : data_info["offset"] + data_info["size"]]
-
-    if len(fmt_bytes) < 16:
-        raise ValueError(f"Chunk fmt demasiado pequeño: {len(fmt_bytes)} bytes")
-
-    channels = struct.unpack_from("<H", fmt_bytes, 2)[0]
-    sample_rate = struct.unpack_from("<I", fmt_bytes, 4)[0]
-    bits_per_sample = struct.unpack_from("<H", fmt_bytes, 14)[0]
-    sample_width = bits_per_sample // 8
-
-    with wave.open(dst_path, "wb") as wf:
-        wf.setnchannels(channels)
-        wf.setsampwidth(sample_width)
-        wf.setframerate(sample_rate)
-        wf.writeframes(pcm_bytes)
-
 
 try:  # Carga perezosa para evitar dependencia obligatoria en tests unitarios.
     from pydub import AudioSegment
