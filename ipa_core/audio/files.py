@@ -132,137 +132,123 @@ except ImportError:  # pragma: no cover - ejecutado solo cuando falta la depende
     AudioSegment = None  # type: ignore[assignment]
 
 
+def _convert_with_ffmpeg(
+    input_path: str,
+    output_path: str,
+    target_sample_rate: int,
+    target_channels: int,
+) -> bool:
+    """Convierte cualquier audio a WAV PCM 16-bit usando ffmpeg.
+
+    Usa exactamente los mismos parámetros que el proyecto de referencia pruebaASR
+    para garantizar máxima compatibilidad con Allosaurus:
+        -ar {sample_rate} -ac {channels} -sample_fmt s16
+
+    Retorna True si la conversión fue exitosa.
+    """
+    import subprocess
+    try:
+        result = subprocess.run(
+            [
+                "ffmpeg", "-y",
+                "-i", input_path,
+                "-ar", str(target_sample_rate),
+                "-ac", str(target_channels),
+                "-sample_fmt", "s16",
+                output_path,
+            ],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            logger.debug("ffmpeg stderr: %s", result.stderr[-500:] if result.stderr else "")
+        return result.returncode == 0
+    except FileNotFoundError:
+        logger.debug("ffmpeg no encontrado en PATH")
+        return False
+
+
 def ensure_wav(
     path: str,
     *,
     target_sample_rate: int = 16000,
     target_channels: int = 1,
 ) -> Tuple[str, bool]:
-    """Garantiza que `path` apunte a un WAV PCM compatible con Allosaurus.
+    """Garantiza que ``path`` apunte a un WAV PCM 16-bit compatible con Allosaurus.
 
-    Retorna la ruta final y un flag indicando si es temporal.
+    Siempre convierte con ffmpeg (igual que pruebaASR) para evitar el bug de
+    Flutter/record que escribe el data chunk size incorrecto en el header WAV:
+    si se devolviera el archivo original, Allosaurus leería solo los frames
+    indicados en el header, cortando el inicio del audio.
+
+    Estrategia:
+    1. **ffmpeg** (primera opción): convierte con ``-sample_fmt s16``.
+       Lee hasta EOF real ignorando el tamaño del header.
+    2. pydub (fallback si ffmpeg no está en PATH).
+
+    Retorna ``(ruta_final, es_temporal)``.
     """
     p = Path(path)
     if not p.exists():
         raise FileNotFound(f"Audio no encontrado: {path}")
+
     ext = p.suffix.lower()
-    if ext == ".wav":
-        # Corregir header antes de cualquier operación: el paquete record de
-        # Flutter a veces genera ChunkSize/Subchunk2Size incorrectos.
-        _fix_wav_data_chunk(str(p))
-        # Verificar que wave.open() puede leer el fichero.  Algunos WAV grabados
-        # en Windows incluyen sub-chunks extra (LIST/INFO) entre «fmt » y «data»;
-        # Python's chunk.py no puede hacer seek sobre Chunk anidados y lanza
-        # RuntimeError.  En ese caso forzamos reescritura limpia vía pydub.
-        wav_readable = False
-        try:
-            with wave.open(str(p), "rb") as w:
-                sr = w.getframerate()
-                ch = w.getnchannels()
-            wav_readable = True
-        except (wave.Error, EOFError, RuntimeError):
-            pass  # fall through to pydub rewrite
 
-        if wav_readable and sr == target_sample_rate and ch == target_channels:
-            return path, False
-
-        if not wav_readable:
-            # WAV no legible por wave (sub-chunks extra: LIST/INFO/JUNK/bext…).
-            # Primero intentamos extracción pura en Python (sin ffmpeg): escaneamos
-            # los chunks RIFF manualmente, extraemos el PCM raw y escribimos un WAV
-            # limpio de 44 bytes.  Solo si eso falla recurrimos a pydub/ffmpeg.
-            tmp = tempfile.NamedTemporaryFile(prefix="pronunciapa_clean_", suffix=".wav", delete=False)
-            tmp.close()
-            try:
-                _rebuild_clean_wav(str(p), tmp.name)
-                rebuilt_ok = True
-            except Exception as rebuild_exc:
-                logger.warning("_rebuild_clean_wav falló (%s), recurriendo a pydub", rebuild_exc)
-                rebuilt_ok = False
-                try:
-                    os.unlink(tmp.name)
-                except OSError:
-                    pass
-
-            if rebuilt_ok:
-                # Verificar si el WAV reconstruido ya tiene el SR/CH deseados
-                try:
-                    with wave.open(tmp.name, "rb") as wc:
-                        rebuilt_sr = wc.getframerate()
-                        rebuilt_ch = wc.getnchannels()
-                    if rebuilt_sr == target_sample_rate and rebuilt_ch == target_channels:
-                        return tmp.name, True
-                    # Necesita resampling — usar pydub si disponible
-                    if AudioSegment is not None:
-                        try:
-                            audio = AudioSegment.from_file(tmp.name, format="wav")
-                        except Exception as pydub_exc:
-                            raise UnsupportedFormat(
-                                f"WAV reconstruido no decodificable por pydub: {path}"
-                            ) from pydub_exc
-                        audio = (
-                            audio.set_frame_rate(target_sample_rate)
-                            .set_channels(target_channels)
-                            .set_sample_width(2)
-                        )
-                        tmp2 = tempfile.NamedTemporaryFile(prefix="pronunciapa_", suffix=".wav", delete=False)
-                        tmp2.close()
-                        audio.export(tmp2.name, format="wav")
-                        try:
-                            os.unlink(tmp.name)
-                        except OSError:
-                            pass
-                        return tmp2.name, True
-                    # Sin pydub: devolver el WAV limpio tal cual (allosaurus resamplea)
-                    return tmp.name, True
-                except Exception as wave_exc:
-                    logger.warning("wave.open falló en WAV reconstruido (%s)", wave_exc)
-
-            # Último recurso: pydub/ffmpeg
-            if AudioSegment is None:
-                raise UnsupportedFormat("pydub/ffmpeg necesarios para convertir WAV con chunks extra")
-            try:
-                audio = AudioSegment.from_file(str(p), format="wav")
-            except Exception as pydub_exc:
-                raise UnsupportedFormat(
-                    f"Formato no soportado o WAV inválido (pydub no puede decodificar): {path}"
-                ) from pydub_exc
-            audio = audio.set_frame_rate(target_sample_rate).set_channels(target_channels).set_sample_width(2)
-            tmp3 = tempfile.NamedTemporaryFile(prefix="pronunciapa_", suffix=".wav", delete=False)
-            tmp3.close()
-            audio.export(tmp3.name, format="wav")
-            return tmp3.name, True
-
-        if AudioSegment is None:
-            raise UnsupportedFormat("pydub/ffmpeg necesarios para resamplear WAV")
-
-        try:
-            audio = AudioSegment.from_file(path)
-        except Exception as pydub_exc:
-            raise UnsupportedFormat(
-                f"Formato WAV no decodificable por pydub: {path}"
-            ) from pydub_exc
-        audio = audio.set_frame_rate(target_sample_rate).set_channels(target_channels).set_sample_width(2)
-        tmp = tempfile.NamedTemporaryFile(prefix="pronunciapa_", suffix=".wav", delete=False)
-        audio.export(tmp.name, format="wav")
-        return tmp.name, True
-
-    if ext not in {".mp3", ".ogg", ".m4a", ".webm", ".opus", ".flac"}:
+    # No hay fast-path para WAV: Flutter/record frecuentemente escribe el campo
+    # data chunk size incorrecto (0 o valor obsoleto). Si devolviéramos el archivo
+    # tal cual, Allosaurus leería internamente con wave.open() y solo procesaría
+    # los frames indicados en el header — causando que se recorte el inicio del audio.
+    # ffmpeg también respeta el tamaño del chunk; corregir el header antes asegura
+    # que lee todo el audio real hasta EOF.
+    if ext not in {".wav", ".mp3", ".ogg", ".m4a", ".webm", ".opus", ".flac"}:
         raise UnsupportedFormat(f"Formato de audio no soportado: {ext}")
 
+    # Para WAV: corregir header in-place antes de pasar a ffmpeg.
+    # Flutter/record escribe ChunkSize/Subchunk2Size stale cuando la grabación
+    # finaliza de forma abrupta o sin flush explícito.
+    if ext == ".wav":
+        _fix_wav_data_chunk(str(p))
+
+    # ── ffmpeg (camino principal, igual que pruebaASR) ──────────────────────
+    tmp = tempfile.NamedTemporaryFile(
+        prefix="pronunciapa_", suffix=".wav", delete=False
+    )
+    tmp.close()
+
+    if _convert_with_ffmpeg(path, tmp.name, target_sample_rate, target_channels):
+        logger.debug("ensure_wav: convertido con ffmpeg → %s", tmp.name)
+        return tmp.name, True
+
+    # Limpiar temporal fallido
+    try:
+        os.unlink(tmp.name)
+    except OSError:
+        pass
+
+    # ── pydub (fallback si ffmpeg no disponible) ────────────────────────────
     if AudioSegment is None:
-        raise UnsupportedFormat("pydub/ffmpeg necesarios para convertir audio a WAV")
+        raise UnsupportedFormat(
+            "ffmpeg no encontrado y pydub no instalado. "
+            "Instala ffmpeg (recomendado) o pydub: pip install pydub"
+        )
 
     try:
         audio = AudioSegment.from_file(path)
     except Exception as pydub_exc:
         raise UnsupportedFormat(
-            f"Formato de audio no decodificable por pydub: {path}"
+            f"Formato de audio no decodificable: {path}"
         ) from pydub_exc
-    audio = audio.set_frame_rate(target_sample_rate).set_channels(target_channels).set_sample_width(2)
-    tmp = tempfile.NamedTemporaryFile(prefix="pronunciapa_", suffix=".wav", delete=False)
-    audio.export(tmp.name, format="wav")
-    return tmp.name, True
+
+    audio = (
+        audio.set_frame_rate(target_sample_rate)
+        .set_channels(target_channels)
+        .set_sample_width(2)
+    )
+    tmp2 = tempfile.NamedTemporaryFile(prefix="pronunciapa_", suffix=".wav", delete=False)
+    tmp2.close()
+    audio.export(tmp2.name, format="wav")
+    logger.debug("ensure_wav: convertido con pydub → %s", tmp2.name)
+    return tmp2.name, True
 
 
 def persist_bytes(data: bytes, *, suffix: str) -> str:
