@@ -37,27 +37,21 @@ def test_load_config_from_yaml(sample_yaml_file) -> None:
     assert config.preprocessor.params["threshold"] == 0.5
     assert config.options.lang == "es"
 
-def test_load_config_with_env_overrides(sample_yaml_file) -> None:
+def test_load_config_with_env_overrides(sample_yaml_file, monkeypatch) -> None:
     """Verifica que las variables de entorno sobrescriben la config."""
-    os.environ["PRONUNCIAPA_OPTIONS_LANG"] = "en"
-    try:
-        config = loader.load_config(sample_yaml_file)
-        assert config.options.lang == "en"
-    finally:
-        del os.environ["PRONUNCIAPA_OPTIONS_LANG"]
+    monkeypatch.setenv("PRONUNCIAPA_OPTIONS__LANG", "en")
+    config = loader.load_config(sample_yaml_file)
+    assert config.options.lang == "en"
 
-def test_load_config_with_env_new_section(tmp_path) -> None:
+def test_load_config_with_env_new_section(tmp_path, monkeypatch) -> None:
     """Verifica que las variables de entorno pueden crear secciones."""
     content = "version: 1\nbackend: {name: 'mock'}\ntextref: {name: 'mock'}\ncomparator: {name: 'mock'}\npreprocessor: {name: 'mock'}"
     f = tmp_path / "min_config.yaml"
     f.write_text(content)
-    
-    os.environ["PRONUNCIAPA_OPTIONS_LANG"] = "fr"
-    try:
-        config = loader.load_config(str(f))
-        assert config.options.lang == "fr"
-    finally:
-        del os.environ["PRONUNCIAPA_OPTIONS_LANG"]
+
+    monkeypatch.setenv("PRONUNCIAPA_OPTIONS__LANG", "fr")
+    config = loader.load_config(str(f))
+    assert config.options.lang == "fr"
 
 def test_load_config_file_not_found_explicit_path() -> None:
     """Verifica error si se pasa una ruta explícita que no existe."""
@@ -79,9 +73,12 @@ def test_load_config_env_path_priority(tmp_path, monkeypatch) -> None:
     """Verifica que PRONUNCIAPA_CONFIG tiene prioridad."""
     f = tmp_path / "env_config.yaml"
     f.write_text("version: 1\nbackend: {name: 'env-backend'}\ntextref: {name: 'mock'}\ncomparator: {name: 'mock'}\npreprocessor: {name: 'mock'}")
-    
+
     monkeypatch.setenv("PRONUNCIAPA_CONFIG", str(f))
-    
+    # pydantic-settings lee PRONUNCIAPA_ASR automáticamente — limpiarlo
+    monkeypatch.delenv("PRONUNCIAPA_ASR", raising=False)
+    monkeypatch.delenv("PRONUNCIAPA_BACKEND__NAME", raising=False)
+
     config = loader.load_config()
     assert config.backend.name == "env-backend"
 
@@ -89,10 +86,12 @@ def test_load_config_cwd_fallback(tmp_path, monkeypatch) -> None:
     """Verifica que busca config.yaml en el CWD."""
     f = tmp_path / "config.yaml"
     f.write_text("version: 1\nbackend: {name: 'cwd-backend'}\ntextref: {name: 'mock'}\ncomparator: {name: 'mock'}\npreprocessor: {name: 'mock'}")
-    
+
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("PRONUNCIAPA_CONFIG", raising=False)
-    
+    monkeypatch.delenv("PRONUNCIAPA_ASR", raising=False)
+    monkeypatch.delenv("PRONUNCIAPA_BACKEND__NAME", raising=False)
+
     config = loader.load_config()
     assert config.backend.name == "cwd-backend"
 
@@ -115,11 +114,12 @@ def test_load_config_maps_del_weight(tmp_path) -> None:
     assert "del" not in config.comparator.params
 
 def test_load_config_env_coercion(tmp_path, monkeypatch) -> None:
-    """Verifica que las variables de entorno convierten números."""
+    """Verifica que las variables de entorno pydantic-settings coercion."""
     content = "version: 1\nbackend: {name: 'stub'}\ntextref: {name: 'mock'}\ncomparator: {name: 'mock'}\npreprocessor: {name: 'mock'}"
     f = tmp_path / "env_types.yaml"
     f.write_text(content)
-    monkeypatch.setenv("PRONUNCIAPA_BACKEND_PARAMS_CHUNK_SEC", "30.5")
+    # pydantic-settings usa __ como nested delimiter y parsea JSON para dicts
+    monkeypatch.setenv("PRONUNCIAPA_BACKEND__PARAMS", '{"chunk_sec": 30.5}')
     config = loader.load_config(str(f))
     assert config.backend.params["chunk_sec"] == 30.5
 
@@ -128,6 +128,7 @@ def test_load_config_env_aliases(tmp_path, monkeypatch) -> None:
     content = "version: 1\nbackend: {name: 'stub'}\ntextref: {name: 'mock'}\ncomparator: {name: 'mock'}\npreprocessor: {name: 'mock'}"
     f = tmp_path / "alias_config.yaml"
     f.write_text(content)
+    monkeypatch.delenv("PRONUNCIAPA_BACKEND__NAME", raising=False)
     monkeypatch.setenv("PRONUNCIAPA_ASR", "onnx")
     config = loader.load_config(str(f))
     assert config.backend.name == "onnx"

@@ -10,13 +10,13 @@ def fail(msg, exc):
     print(f" FAIL {msg}: {exc}")
     errors.append(msg)
 
-# 1. PLACE_DISTANCE_TABLE + Tenseness
+# 1. articulatory_distance via panphon
 try:
-    from ipa_core.compare.articulatory import PLACE_DISTANCE_TABLE, Tenseness, VOWEL_FEATURES
-    assert len(PLACE_DISTANCE_TABLE) > 50
-    assert VOWEL_FEATURES["i"].tenseness == Tenseness.TENSE
-    assert VOWEL_FEATURES["\u026a"].tenseness == Tenseness.LAX
-    ok("articulatory PLACE_DISTANCE_TABLE + Tenseness")
+    from ipa_core.compare.articulatory import articulatory_distance, articulatory_substitution_cost
+    assert articulatory_distance("p", "p") == 0.0
+    assert 0 < articulatory_distance("p", "b") < 0.5
+    assert articulatory_distance("p", "xyz") == 1.0  # OOV -> max distance
+    ok("articulatory panphon backend")
 except Exception as e:
     fail("articulatory", e)
 

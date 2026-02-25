@@ -1,36 +1,70 @@
 """Carga/validación de configuración.
 
-Este módulo carga la configuración desde un archivo YAML y permite
-sobrescribir valores mediante variables de entorno con el prefijo
-PRONUNCIAPA_.
+Este módulo carga la configuración desde un archivo YAML y delega la
+sobrescritura de variables de entorno a ``pydantic-settings`` (prefijo
+``PRONUNCIAPA_``, delimitador ``__`` para nested).
+
+Las únicas responsabilidades que quedan en este loader:
+1. Resolver qué archivo YAML cargar (path explícito → env → CWD).
+2. Aplicar aliases legacy (``PRONUNCIAPA_ASR`` → ``PRONUNCIAPA_BACKEND__NAME``).
+3. Normalizar ``del`` → ``del_`` en params del comparador.
+4. Construir ``AppConfig`` (que hereda ``BaseSettings`` y auto-lee env vars).
 """
 from __future__ import annotations
+
 import os
 from pathlib import Path
 from typing import Any
+
 import yaml
 from pydantic import ValidationError
+
 from ipa_core.config.schema import AppConfig
 
+# ── Aliases legacy ───────────────────────────────────────────────────
+# Mapean env vars "cortas" (README / CLI) a la forma que
+# pydantic-settings entiende (PREFIX + nested delimiter).
+_ENV_ALIASES: dict[str, str] = {
+    "PRONUNCIAPA_ASR": "PRONUNCIAPA_BACKEND__NAME",
+    "PRONUNCIAPA_TEXTREF": "PRONUNCIAPA_TEXTREF__NAME",
+    "PRONUNCIAPA_COMPARATOR": "PRONUNCIAPA_COMPARATOR__NAME",
+    "PRONUNCIAPA_PREPROCESSOR": "PRONUNCIAPA_PREPROCESSOR__NAME",
+    # Single-underscore legacy format (pre pydantic-settings migration)
+    "PRONUNCIAPA_BACKEND_NAME": "PRONUNCIAPA_BACKEND__NAME",
+}
 
-def _coerce_env_value(value: str) -> Any:
-    """Convierte strings simples a bool/int/float cuando aplica."""
-    raw = value.strip()
-    lowered = raw.lower()
-    if lowered in {"true", "false"}:
-        return lowered == "true"
-    try:
-        return int(raw)
-    except ValueError:
-        pass
-    try:
-        return float(raw)
-    except ValueError:
-        return value
+
+def _apply_env_aliases() -> dict[str, tuple[str, str]]:
+    """Copiar aliases legacy al formato nativo de pydantic-settings.
+
+    Además, *elimina* temporalmente los alias originales del entorno
+    para evitar que pydantic-settings intente parsear, p. ej.,
+    ``PRONUNCIAPA_TEXTREF=grapheme`` como un ``PluginCfg`` completo.
+
+    Retorna dict  alias → (target_var, valor_original)  para revertir.
+    """
+    applied: dict[str, tuple[str, str]] = {}
+    for alias, target in _ENV_ALIASES.items():
+        val = os.environ.get(alias)
+        if val is not None:
+            if target not in os.environ:
+                os.environ[target] = val
+            # Eliminar alias para que pydantic-settings no lo interprete
+            # como el campo anidado completo (ej. textref → PluginCfg).
+            applied[alias] = (target, val)
+            del os.environ[alias]
+    return applied
+
+
+def _revert_env_aliases(applied: dict[str, tuple[str, str]]) -> None:
+    """Restaurar env vars originales y limpiar targets temporales."""
+    for alias, (target, original_val) in applied.items():
+        os.environ.pop(target, None)
+        os.environ[alias] = original_val
 
 
 def _normalize_compare_weights(data: dict[str, Any]) -> None:
-    """Mapea `del` -> `del_` en params del comparador si aplica."""
+    """Mapea ``del`` → ``del_`` en params del comparador (YAML keyword)."""
     comparator = data.get("comparator")
     if not isinstance(comparator, dict):
         return
@@ -42,7 +76,7 @@ def _normalize_compare_weights(data: dict[str, Any]) -> None:
 
 
 def format_validation_error(exc: ValidationError) -> str:
-    """Transforma un ValidationError de Pydantic en un mensaje amigable.
+    """Transforma un ``ValidationError`` de Pydantic en un mensaje amigable.
 
     Parámetros
     ----------
@@ -56,7 +90,6 @@ def format_validation_error(exc: ValidationError) -> str:
     """
     lines = ["Error en la configuración:"]
     for error in exc.errors():
-        # loc suele ser una tupla ('seccion', 'campo')
         loc = " -> ".join(str(p) for p in error["loc"])
         msg = error["msg"]
         lines.append(f"  - [{loc}]: {msg}")
@@ -64,15 +97,19 @@ def format_validation_error(exc: ValidationError) -> str:
 
 
 def load_config(path: str | None = None) -> AppConfig:
+    """Carga YAML y construye ``AppConfig``.
 
-    """Carga YAML desde un path o busca en rutas por defecto.
+    Prioridad de valores (mayor gana):
+    1. Variables de entorno ``PRONUNCIAPA_*`` (auto-leídas por pydantic-settings).
+    2. Datos del archivo YAML.
+    3. Defaults de ``AppConfig``.
 
-    Prioridad:
-    1. `path` (explícito)
-    2. Variable de entorno `PRONUNCIAPA_CONFIG`
-    3. `./config.yaml`
-    4. `./configs/local.yaml`
-    5. Valores por defecto (si no hay archivos)
+    Resolución del archivo YAML:
+    1. ``path`` (argumento explícito).
+    2. Variable de entorno ``PRONUNCIAPA_CONFIG``.
+    3. ``./config.yaml``.
+    4. ``./configs/local.yaml``.
+    5. Sin archivo → solo defaults + env vars.
 
     Parámetros
     ----------
@@ -84,74 +121,45 @@ def load_config(path: str | None = None) -> AppConfig:
     AppConfig
         Configuración validada.
     """
+    # ── 1. Resolver archivo YAML ─────────────────────────────────
     p: Path | None = None
-
-    # 1. Path explícito
     if path:
         p = Path(path)
         if not p.exists():
-            raise FileNotFoundError(f"Archivo de configuración no encontrado: {path}")
+            raise FileNotFoundError(
+                f"Archivo de configuración no encontrado: {path}"
+            )
     else:
-        # 2. Variable de entorno
         env_path = os.environ.get("PRONUNCIAPA_CONFIG")
         if env_path:
             p = Path(env_path)
             if not p.exists():
-                # Si se especifica por entorno y no existe, fallamos
-                raise FileNotFoundError(f"Archivo PRONUNCIAPA_CONFIG no encontrado: {env_path}")
+                raise FileNotFoundError(
+                    f"Archivo PRONUNCIAPA_CONFIG no encontrado: {env_path}"
+                )
         else:
-            # 3 & 4. Candidatos locales
             for candidate in ["config.yaml", "configs/local.yaml"]:
                 cp = Path(candidate)
                 if cp.exists():
                     p = cp
                     break
 
-    # Cargar datos
+    # ── 2. Leer YAML ─────────────────────────────────────────────
     data: dict[str, Any] = {}
     if p:
         with p.open("r", encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
 
-    # Alias de variables cortas (compatibilidad con CLI/README).
-    aliases = {
-        "PRONUNCIAPA_ASR": ("backend", "name"),
-        "PRONUNCIAPA_TEXTREF": ("textref", "name"),
-        "PRONUNCIAPA_COMPARATOR": ("comparator", "name"),
-        "PRONUNCIAPA_PREPROCESSOR": ("preprocessor", "name"),
-    }
-    # strict_mode es nivel raíz, no una subsección
-    if "PRONUNCIAPA_STRICT_MODE" in os.environ:
-        data["strict_mode"] = _coerce_env_value(os.environ["PRONUNCIAPA_STRICT_MODE"])
-    for env_var, (section, key) in aliases.items():
-        if env_var in os.environ:
-            data.setdefault(section, {})
-            data[section][key] = _coerce_env_value(os.environ[env_var])
-
-    # Aplicar sobrescrituras de variables de entorno (Simplificado)
-    # PRONUNCIAPA_BACKEND_NAME -> data['backend']['name']
-    _handled_vars = set(aliases.keys()) | {"PRONUNCIAPA_CONFIG", "PRONUNCIAPA_STRICT_MODE"}
-    for env_var, value in os.environ.items():
-        if env_var.startswith("PRONUNCIAPA_") and env_var not in _handled_vars:
-            parts = env_var[len("PRONUNCIAPA_") :].lower().split("_")
-            # Manejo básico: SECTION_KEY o SECTION_SUB_KEY
-            if len(parts) >= 2:
-                if parts[1] == "params":
-                    section = parts[0]
-                    key = "_".join(parts[2:]) if len(parts) > 2 else parts[-1]
-                    path_parts = [section, "params"]
-                else:
-                    section = parts[0]
-                    key = parts[-1]
-                    path_parts = parts[:-1]
-                target = data
-                # Navegar por secciones
-                for part in path_parts:
-                    if part not in target or not isinstance(target[part], dict):
-                        target[part] = {}
-                    target = target[part]
-                target[key] = _coerce_env_value(value)
-
     _normalize_compare_weights(data)
 
-    return AppConfig(**data)
+    # ── 3. Aliases legacy → pydantic-settings format ─────────────
+    applied = _apply_env_aliases()
+
+    try:
+        # pydantic-settings auto-lee PRONUNCIAPA_* env vars y las
+        # fusiona con los ``data`` del YAML (env tiene prioridad).
+        cfg = AppConfig(**data)
+    finally:
+        _revert_env_aliases(applied)
+
+    return cfg

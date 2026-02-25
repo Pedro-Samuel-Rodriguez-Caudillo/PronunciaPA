@@ -6,32 +6,12 @@ import time
 import pytest
 
 from ipa_core.textref.cache import (
-    CacheEntry,
     CacheStats,
     TextRefCache,
     get_global_cache,
     reset_global_cache,
 )
 from ipa_core.types import TextRefResult
-
-
-class TestCacheEntry:
-    """Tests para CacheEntry."""
-    
-    def test_creation(self) -> None:
-        """Verifica creación de entrada."""
-        result: TextRefResult = {"tokens": ["a", "b"], "meta": {}}
-        entry = CacheEntry(result=result)
-        assert entry.result == result
-        assert entry.hits == 0
-    
-    def test_access_increments_hits(self) -> None:
-        """Verifica que access incrementa hits."""
-        result: TextRefResult = {"tokens": ["a"], "meta": {}}
-        entry = CacheEntry(result=result)
-        entry.access()
-        entry.access()
-        assert entry.hits == 2
 
 
 class TestCacheStats:

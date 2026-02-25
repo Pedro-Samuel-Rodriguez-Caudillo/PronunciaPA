@@ -34,45 +34,114 @@ Uso
 """
 from __future__ import annotations
 
+import logging
+import os
 from dataclasses import dataclass, field
+from functools import lru_cache
 from typing import Optional, Sequence
 
 from ipa_core.types import Token
 
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Jerarquía de sonoridad (Sonority Hierarchy)
+# Jerarquía de sonoridad (Sonority Hierarchy) — derivada de panphon
 # ---------------------------------------------------------------------------
 # Valor más alto = más sonoro.  Vocales = 6 (pico silábico).
-_SONORITY: dict[str, int] = {
-    # Vocales (pico)
-    "a": 6, "e": 6, "i": 6, "o": 6, "u": 6,
-    "ɑ": 6, "æ": 6, "ɛ": 6, "ɪ": 6, "ɔ": 6, "ʊ": 6,
-    "ø": 6, "œ": 6, "ɜ": 6, "ə": 6, "ɐ": 6, "ʌ": 6,
-    "y": 6, "ɨ": 6, "ʉ": 6, "ɯ": 6, "ɒ": 6,
-    "ɚ": 6, "ɝ": 6,
-    # Glides / aproximantes
-    "j": 5, "w": 5, "ɥ": 5,
-    # Líquidas
-    "l": 4, "r": 4, "ɹ": 4, "ɾ": 4, "ʁ": 4, "ɫ": 4, "ʎ": 4, "ʟ": 4,
-    "ɽ": 4, "ɻ": 4,
-    # Nasales
-    "m": 3, "n": 3, "ɲ": 3, "ŋ": 3, "ɴ": 3,
-    # Fricativas
-    "f": 2, "v": 2, "s": 2, "z": 2, "ʃ": 2, "ʒ": 2,
-    "θ": 2, "ð": 2, "x": 2, "ɣ": 2, "χ": 2, "ʁ": 2,
-    "h": 2, "ħ": 2, "ʕ": 2, "ç": 2, "β": 2, "ʝ": 2,
-    # Africadas
+#
+# ANTES: diccionario estático con ~80 fonemas hardcodeados.
+#        Fonemas nuevos (hindi, árabe…) requerían entradas manuales.
+# AHORA: se derivan automáticamente de los rasgos SPE de panphon (~6 000
+#        segmentos IPA) usando la escala clásica de sonoridad:
+#
+#   6 — vocales          [+syllabic]
+#   5 — glides           [+sonorant, +continuant, −consonantal]
+#   4 — líquidas         [+sonorant, +consonantal, −nasal]
+#   3 — nasales          [+sonorant, +nasal]
+#   2 — fricativas       [−sonorant, +continuant]
+#   1 — oclusivas        [−sonorant, −continuant]
+#
+# Un pequeño diccionario de sobreescrituras (_SONORITY_OVERRIDES) cubre
+# casos límite: laringales (panphon las marca [+sonorant] pero para el
+# SSP se comportan como fricativas/oclusivas) y africadas multi-carácter
+# que panphon puede no parsear como unidad.
+# ---------------------------------------------------------------------------
+
+os.environ.setdefault("PYTHONUTF8", "1")
+
+try:
+    import panphon as _panphon
+
+    _FT = _panphon.FeatureTable()
+    _PANPHON_OK = True
+    logger.debug("panphon disponible para sonoridad (%s segmentos)", len(_FT.segments))
+except Exception as _exc:  # pragma: no cover
+    _FT = None
+    _PANPHON_OK = False
+    logger.warning("panphon no disponible — sonoridad limitada a overrides: %s", _exc)
+
+# Sobreescrituras manuales para fonemas cuya clasificación SPE
+# de panphon no se mapea bien al SSP, o que panphon no reconoce como
+# segmentos únicos (africadas tokenizadas sin tie-bar).
+_SONORITY_OVERRIDES: dict[str, int] = {
+    # Laringales: panphon → [+sonorant] pero el SSP las trata como fric./ocl.
+    "h": 2, "ɦ": 2, "ʔ": 1,
+    # Africadas comunes (tokens multi-char que panphon puede no parsear)
     "tʃ": 2, "dʒ": 2, "ts": 2, "dz": 2,
-    # Oclusivas
-    "p": 1, "b": 1, "t": 1, "d": 1, "k": 1, "g": 1, "ʔ": 1,
-    "q": 1, "ɢ": 1,
+    "t͡ʃ": 2, "d͡ʒ": 2, "t͡s": 2, "d͡z": 2,
+    "pf": 2,  # alemán
+    # ASCII 'g' (U+0067) — panphon espera IPA ɡ (U+0261)
+    "g": 1,
 }
 
 
+def _derive_sonority_panphon(phone: str) -> int | None:
+    """Derivar sonoridad a partir de los rasgos SPE de panphon.
+
+    Retorna ``None`` si panphon no reconoce el fonema.
+    """
+    if not _PANPHON_OK or _FT is None:
+        return None
+    fts = _FT.word_fts(phone)
+    if not fts:
+        return None
+    seg = fts[0]
+    syl = seg["syl"]
+    son = seg["son"]
+    cont = seg["cont"]
+    nas = seg["nas"]
+    cons = seg["cons"]
+
+    # 6: vocales [+syllabic]
+    if syl == 1:
+        return 6
+    # 5: glides [+sonorant, +continuant, −consonantal]
+    if son == 1 and cont == 1 and cons == -1:
+        return 5
+    # 4: líquidas [+sonorant, +consonantal, −nasal]
+    if son == 1 and cons == 1 and nas != 1:
+        return 4
+    # 3: nasales [+sonorant, +nasal]
+    if son == 1 and nas == 1:
+        return 3
+    # 2: fricativas [−sonorant, +continuant]
+    if son != 1 and cont == 1:
+        return 2
+    # 1: oclusivas [−sonorant, −continuant]
+    if son != 1 and cont != 1:
+        return 1
+    return None
+
+
+@lru_cache(maxsize=512)
 def _sonority(token: Token) -> int:
-    """Obtener nivel de sonoridad de un token (0 si desconocido)."""
-    return _SONORITY.get(token, 0)
+    """Obtener nivel de sonoridad: overrides → panphon → 0."""
+    if token in _SONORITY_OVERRIDES:
+        return _SONORITY_OVERRIDES[token]
+    derived = _derive_sonority_panphon(token)
+    if derived is not None:
+        return derived
+    return 0
 
 
 def _is_vowel(token: Token) -> bool:

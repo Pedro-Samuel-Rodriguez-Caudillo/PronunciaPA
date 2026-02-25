@@ -15,6 +15,10 @@ dependencies = [
     "typer>=0.9.0,<1",
     "rich>=13.0.0,<14",
     "numpy>=1.26,<3",
+    "rapidfuzz>=3.0,<4",   # Levenshtein DP en C (~100x vs Python puro)
+    "panphon>=0.20",       # Distancias articulatorias IPA via Hayes 2009 (~6000 segmentos)
+    "cachetools>=5.3,<6",  # LRU+TTL cache (textref)
+    "pydantic-settings>=2.0,<3",  # Config env-var loading (prefijo PRONUNCIAPA_)
 ]
 
 [project.optional-dependencies]
@@ -35,6 +39,10 @@ speech = [
     "sounddevice>=0.4.6,<1",
     "pydub>=0.25.1,<1",
     "epitran>=1.24,<2",
+    "librosa>=0.10,<1",      # SNR / calidad de audio (numpy vectorizado)
+    "soundfile>=0.12,<1",   # Backend de lectura para librosa
+    "silero-vad>=1.0",      # VAD neural (preferred default sobre VAD de energía)
+    "torch>=2.0,<3",        # Requerido por silero-vad
 ]
 onnx = [
     "onnxruntime>=1.16,<2",

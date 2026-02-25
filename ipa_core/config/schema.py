@@ -1,4 +1,4 @@
-"""Esquema de configuración (Pydantic models).
+"""Esquema de configuración (pydantic-settings + Pydantic v2).
 
 Versionado del esquema
 ----------------------
@@ -22,16 +22,29 @@ Valores por defecto
 - llm: "rule_based" (genera consejos sin modelos externos; usa "ollama" o
                     "llama_cpp" cuando tengas un model_pack configurado)
 
-Coerción de tipos
------------------
-- version: int (lanza error si es string)
-- params: dict (acepta mapping y se convierte a dict)
-- lang: str | None (acepta string o null/None)
+Variables de entorno
+--------------------
+Todas las claves se pueden sobrescribir con variables de entorno usando el
+prefijo ``PRONUNCIAPA_`` y el delimitador ``__`` para anidamiento::
+
+    PRONUNCIAPA_STRICT_MODE=true
+    PRONUNCIAPA_BACKEND__NAME=allosaurus
+    PRONUNCIAPA_BACKEND__PARAMS={"emit_timestamps": true}
+    PRONUNCIAPA_OPTIONS__LANG=es
+
+Aliases de conveniencia (se normalizan en ``load_config``)::
+
+    PRONUNCIAPA_ASR=allosaurus       →  backend.name
+    PRONUNCIAPA_TEXTREF=espeak       →  textref.name
+    PRONUNCIAPA_COMPARATOR=articulatory → comparator.name
+    PRONUNCIAPA_PREPROCESSOR=basic   →  preprocessor.name
 """
 from __future__ import annotations
 
 from typing import Any, Optional
 from pydantic import BaseModel, Field, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import PydanticBaseSettingsSource
 
 # Versión actual del esquema
 CURRENT_SCHEMA_VERSION = 1
@@ -61,11 +74,23 @@ class OptionsCfg(BaseModel):
     output: str = "json"  # json|table
 
 
-class AppConfig(BaseModel):
+class AppConfig(BaseSettings):
     """Estructura principal de configuración de la aplicación.
-    
+
+    Hereda de ``BaseSettings`` (pydantic-settings) para leer variables
+    de entorno con prefijo ``PRONUNCIAPA_`` automáticamente.
+
     Versión actual del esquema: 1
     """
+
+    model_config = SettingsConfigDict(
+        env_prefix="PRONUNCIAPA_",
+        env_nested_delimiter="__",
+        # No leer .env automáticamente — YAML maneja eso.
+        env_file=None,
+        # Campos extra son ignorados (forward-compatible).
+        extra="ignore",
+    )
 
     version: int = CURRENT_SCHEMA_VERSION
     strict_mode: bool = False  # Si True, falla en errores; si False, usa fallbacks automáticos
@@ -94,4 +119,21 @@ class AppConfig(BaseModel):
                 f"Versiones soportadas: {SUPPORTED_VERSIONS}"
             )
         return v
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        """Prioridad: env vars > init kwargs (YAML) > defaults.
+
+        Por defecto pydantic-settings pone ``init_settings`` primero,
+        pero nosotros queremos que las variables de entorno ganen sobre
+        los valores del archivo YAML (que se pasan como kwargs).
+        """
+        return (env_settings, init_settings, dotenv_settings, file_secret_settings)
 
