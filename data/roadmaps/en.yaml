@@ -1,0 +1,59 @@
+# Roadmap de pronunciación — English (en)
+# Pedagogical order: phonemes introduced from most-common/easiest to most difficult.
+# phonemes: IPA symbols belonging to each topic (used to compute mastery from phoneme_stats).
+
+topics:
+  - id: core_vowels
+    name: Core Vowels
+    description: The most frequent English vowel sounds — /ɪ/, /ɛ/, /æ/, /ɑ/, /ʌ/, /ʊ/, /iː/, /uː/
+    phonemes: [ɪ, ɛ, æ, ɑ, ʌ, ʊ, iː, uː]
+    order: 1
+
+  - id: diphthongs
+    name: Diphthongs
+    description: Gliding vowels — /eɪ/, /aɪ/, /ɔɪ/, /oʊ/, /aʊ/
+    phonemes: [eɪ, aɪ, ɔɪ, oʊ, aʊ]
+    order: 2
+
+  - id: stops_nasals
+    name: Stops & Nasals
+    description: Basic plosives and nasal consonants — /p/, /b/, /t/, /d/, /k/, /ɡ/, /m/, /n/, /ŋ/
+    phonemes: [p, b, t, d, k, ɡ, m, n, ŋ]
+    order: 3
+
+  - id: fricatives
+    name: Fricatives
+    description: "Sibilants and labiodentals — /f/, /v/, /s/, /z/, /ʃ/, /ʒ/, /h/"
+    phonemes: [f, v, s, z, ʃ, ʒ, h]
+    order: 4
+
+  - id: th_sounds
+    name: TH Sounds
+    description: Dental fricatives — the voiced /ð/ (this) and voiceless /θ/ (think)
+    phonemes: [θ, ð]
+    order: 5
+
+  - id: affricates_liquids
+    name: Affricates & Liquids
+    description: "/tʃ/ (church), /dʒ/ (judge), /l/, /r/ — common difficulty areas for learners"
+    phonemes: [tʃ, dʒ, l, r]
+    order: 6
+
+  - id: schwa_reduced
+    name: Schwa & Reduced Vowels
+    description: "/ə/ (schwa) and /ɚ/ (r-colored schwa) — the most frequent vowel in English"
+    phonemes: [ə, ɚ]
+    order: 7
+
+  - id: clusters
+    name: Consonant Clusters
+    description: "Word-initial and word-final clusters: /str/, /spl/, /kts/, /ndz/ and similar"
+    phonemes: [s, t, r, p, l, k, n, d, z]   # approximate — evaluated by co-occurrence context
+    order: 8
+
+# Thresholds for automatic level promotion (based on mastery_level from phoneme_stats).
+# A topic advances when the percentage of its phonemes at that level exceeds the threshold.
+thresholds:
+  in_progress:   0.30   # ≥30% of topic phonemes have attempts > 0
+  proficient:    0.60   # ≥60% of topic phonemes are "proficient" or "mastered"
+  completed:     0.80   # ≥80% of topic phonemes are "mastered"

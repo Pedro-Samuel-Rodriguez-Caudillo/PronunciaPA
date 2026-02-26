@@ -146,6 +146,53 @@ async def update_roadmap(
 
 
 # ---------------------------------------------------------------------------
+# Adaptive hints based on phoneme_stats
+# ---------------------------------------------------------------------------
+
+def _compute_adaptation(
+    phoneme_stats: list[dict[str, Any]],
+    topic: dict[str, Any],
+) -> dict[str, str]:
+    """Derive suggested pace and lesson length from the user's phoneme history.
+
+    Returns
+    -------
+    dict with keys ``pace`` ('slow'|'normal'|'fast') and
+    ``length`` ('short'|'medium'|'long').
+    """
+    topic_phonemes: set[str] = set(topic.get("phonemes", []))
+    relevant = [
+        s for s in phoneme_stats
+        if s.get("phoneme") in topic_phonemes and s.get("attempts", 0) > 0
+    ]
+
+    if not relevant:
+        # No history yet — use defaults
+        return {"pace": "normal", "length": "medium"}
+
+    avg_error = sum(s.get("error_rate", 0.5) for s in relevant) / len(relevant)
+    total_attempts = sum(s.get("attempts", 0) for s in relevant)
+
+    # Pace: slower when error rate is high, faster when mastery is high
+    if avg_error >= 0.65:
+        pace = "slow"
+    elif avg_error <= 0.25:
+        pace = "fast"
+    else:
+        pace = "normal"
+
+    # Length: shorter for beginners (few attempts), medium/long as they advance
+    if total_attempts < 5:
+        length = "short"
+    elif total_attempts < 20 or avg_error >= 0.5:
+        length = "medium"
+    else:
+        length = "long"
+
+    return {"pace": pace, "length": length}
+
+
+# ---------------------------------------------------------------------------
 # Selección de siguiente tema
 # ---------------------------------------------------------------------------
 
@@ -181,6 +228,7 @@ def _build_lesson_prompt(
     phoneme_stats: list[dict[str, Any]],
     roadmap_progress: dict[str, str],
     roadmap: dict[str, Any],
+    adaptation: dict[str, str],
 ) -> str:
     """Construir el prompt LLM para planificación de lección."""
     roadmap_state = [
@@ -212,6 +260,7 @@ def _build_lesson_prompt(
         },
         "roadmap_state": roadmap_state,
         "weak_phonemes": weak_phonemes,
+        "adaptation": adaptation,
     }
 
     return "\n".join([
@@ -224,11 +273,14 @@ def _build_lesson_prompt(
         '- "intro": string — 1-2 sentences acknowledging the learner\'s progress and introducing the lesson',
         '- "tips": array of 2-3 short, actionable articulation tips for the focus phonemes',
         '- "drills": array of 2-3 objects, each {"type": "minimal_pair"|"syllable"|"phrase", "text": "plain string"}',
+        f'- "pace": must equal "{adaptation["pace"]}" — controls TTS/playback speed hint',
+        f'- "length": must equal "{adaptation["length"]}" — short (2 drills) / medium (3) / long (5)',
         "",
         "Rules:",
         "- Respond in the same language as the 'lang' field (es = Spanish, en = English).",
         "- Return ONLY the JSON object. No markdown, no extra text.",
         f"- If lang=es, write all tips and intro in Spanish.",
+        f"- Adjust amount of content to match length='{adaptation['length']}' and tone to pace='{adaptation['pace']}' (slow → more detail).",
         "",
         f"CONTEXT:\n{json.dumps(context, ensure_ascii=False)}",
         "OUTPUT_JSON:",
@@ -290,12 +342,15 @@ async def plan_lesson(
     if not topic:
         return dict(_STUB_LESSON)
 
+    adaptation = _compute_adaptation(phoneme_stats, topic)
+
     prompt = _build_lesson_prompt(
         lang=lang,
         topic=topic,
         phoneme_stats=phoneme_stats,
         roadmap_progress=roadmap_progress,
         roadmap=roadmap,
+        adaptation=adaptation,
     )
 
     params: dict[str, Any] = kernel.model_pack.params if kernel.model_pack else {}
@@ -322,6 +377,8 @@ async def plan_lesson(
             "intro": str(payload.get("intro", "")),
             "tips": list(payload.get("tips", [])),
             "drills": list(payload.get("drills", [])),
+            "pace": str(payload.get("pace", adaptation["pace"])),
+            "length": str(payload.get("length", adaptation["length"])),
         }
     except Exception as exc:
         logger.warning("Error parseando respuesta LLM de lección: %s", exc)
@@ -336,6 +393,8 @@ async def plan_lesson(
             "drills": [
                 {"type": "phrase", "text": " / ".join(str(p) for p in phonemes_list[:3])}
             ],
+            "pace": adaptation["pace"],
+            "length": adaptation["length"],
         }
 
 

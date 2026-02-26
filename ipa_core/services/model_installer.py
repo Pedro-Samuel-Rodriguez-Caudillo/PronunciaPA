@@ -7,6 +7,7 @@ interfaz: CLI, API REST (Desktop/Android), o programáticamente.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import os
@@ -59,6 +60,7 @@ class ModelInfo:
     is_required: bool = False
     is_recommended: bool = False
     dependencies: List[str] = field(default_factory=list)
+    sha256: Optional[str] = None  # expected SHA-256 hex digest of the downloaded file
     
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -578,6 +580,9 @@ class ModelInstaller:
                         if total > 0:
                             progress = 20 + (downloaded / total) * 70
                             self._report_progress(model.id, progress, f"Descargando... {downloaded // 1024 // 1024}MB")
+
+        self._report_progress(model.id, 92, "Verificando integridad...")
+        self._verify_checksum(model, output_path)
     
     async def _download_urllib(self, model: ModelInfo) -> None:
         """Descargar usando urllib (fallback)."""
@@ -598,6 +603,11 @@ class ModelInstaller:
                 urllib.request.urlretrieve(model.download_url, str(output_path))
         
         await asyncio.get_event_loop().run_in_executor(None, download)
+
+        self._report_progress(model.id, 92, "Verificando integridad...")
+        url_path2 = urlparse(model.download_url).path
+        output_path2 = self._models_dir / model.id / Path(str(url_path2)).name
+        self._verify_checksum(model, output_path2)
     
     async def _download_binary(self, model: ModelInfo) -> None:
         """Instrucciones para descargar binario."""
@@ -607,6 +617,38 @@ class ModelInstaller:
             f"Descarga desde: {model.download_url}\n"
             f"O ejecuta: {model.install_command or 'ver documentación'}"
         )
+
+    def _verify_checksum(self, model: ModelInfo, path: Path) -> None:
+        """Verify the SHA-256 checksum of a downloaded file.
+
+        If ``model.sha256`` is set and the file's actual digest does not match,
+        the downloaded file is deleted and a :class:`RuntimeError` is raised.
+        If ``model.sha256`` is *not* set the check is skipped silently.
+        """
+        if not model.sha256:
+            return
+        if not path.exists():
+            return
+
+        expected = model.sha256.lower().strip()
+        sha = hashlib.sha256()
+        with open(path, "rb") as fh:
+            for block in iter(lambda: fh.read(65536), b""):
+                sha.update(block)
+        actual = sha.hexdigest()
+
+        if actual != expected:
+            try:
+                path.unlink(missing_ok=True)
+            except OSError:
+                pass
+            raise RuntimeError(
+                f"Checksum mismatch for '{model.id}':\n"
+                f"  expected: {expected}\n"
+                f"  actual:   {actual}\n"
+                "The downloaded file has been removed. Please retry the installation."
+            )
+        logger.debug("Checksum OK for '%s': %s", model.id, actual)
     
     async def install_recommended(self) -> List[ModelInfo]:
         """Instalar todos los modelos recomendados."""

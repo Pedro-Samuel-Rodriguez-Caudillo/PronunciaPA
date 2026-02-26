@@ -331,6 +331,14 @@ class LessonPlanResponse(BaseModel):
     drills: List[LessonDrillItem] = Field(
         default_factory=list, description="Ejercicios recomendados (2-3)"
     )
+    pace: str = Field(
+        default="normal",
+        description="Ritmo sugerido para la sesión: slow | normal | fast",
+    )
+    length: str = Field(
+        default="medium",
+        description="Extensión sugerida: short | medium | long",
+    )
 
 
 class RoadmapTopicProgress(BaseModel):

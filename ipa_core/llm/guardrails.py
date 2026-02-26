@@ -150,7 +150,16 @@ class LLMGuardrails:
         if missing:
             raise ValueError(f"Missing required keys: {missing}")
 
-        # TODO: Validar contra schema completo si se proporciona
+        # Validar contra schema completo si se proporciona
+        if schema:
+            try:
+                import jsonschema  # type: ignore[import]
+                jsonschema.validate(instance=result, schema=schema)
+            except ImportError:
+                logger.debug("jsonschema no instalado; se omite validación estructural completa")
+            except jsonschema.ValidationError as exc:
+                raise ValueError(f"LLM response does not conform to schema: {exc.message}") from exc
+
         return result
 
     def _get_fallback(self, lang: str) -> dict[str, Any]:
