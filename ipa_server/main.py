@@ -33,6 +33,7 @@ from ipa_server.routers.ipa_catalog import router as ipa_catalog_router
 from ipa_server.routers.lesson_plan import router as lesson_plan_router
 from ipa_server.routers.models import router as models_router
 from ipa_server.routers.pipeline import router as pipeline_router, teardown_kernel_singleton
+from ipa_server.routers.prosody import router as prosody_router
 from ipa_server.routers.record import router as record_router
 from ipa_server.routers.tts import router as tts_router
 
@@ -151,6 +152,7 @@ def get_app() -> FastAPI:
     app.include_router(history_router)
     app.include_router(lesson_plan_router)
     app.include_router(tts_router)
+    app.include_router(prosody_router)
     app.include_router(record_router)
     app.include_router(ipa_catalog_router)
     app.include_router(models_router)

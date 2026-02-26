@@ -61,6 +61,12 @@ vad = [
     "silero-vad>=1.0",
     "torch>=2.0,<3",
 ]
+llm = [
+    "jsonschema>=4.0,<5",   # Guardrails: validación estructural de respuestas LLM
+]
+bench = [
+    "psutil>=5.9,<7",       # Medición de RSS para bench de adaptadores LLM
+]
 
 [project.scripts]
 pronunciapa = "ipa_core.interfaces.cli:main"
