@@ -149,7 +149,9 @@ def test_bench_report_best():
     r1 = _make_result("a", json_valid_pct=80.0, latency_p95=500.0)
     r2 = _make_result("b", json_valid_pct=100.0, latency_p95=100.0)
     report = BenchReport(results=[r1, r2])
-    assert report.best().adapter_name == "b"
+    best = report.best()
+    assert best is not None
+    assert best.adapter_name == "b"
 
 
 def test_bench_report_best_empty():

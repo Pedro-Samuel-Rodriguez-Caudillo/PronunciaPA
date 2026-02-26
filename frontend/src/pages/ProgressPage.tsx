@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, Spinner } from '@/components/common';
+import { Card, CardHeader, Spinner } from '@/components/common';
 import api from '@/services/api';
 import type { LessonPlanResponse, RoadmapProgressResponse, RoadmapTopicProgress } from '@/types';
 
@@ -203,10 +203,10 @@ export const ProgressPage: React.FC = () => {
       {/* Next lesson recommendation */}
       {(loadingLesson || lessonPlan) && (
         <Card>
-          <CardHeader title="📖 Próxima lección recomendada" />
+          <CardHeader>📖 Próxima lección recomendada</CardHeader>
           {loadingLesson ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.75rem 0' }}>
-              <Spinner size="sm" />
+              <Spinner size={16} />
               <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
                 Generando lección personalizada…
               </span>
@@ -269,14 +269,14 @@ export const ProgressPage: React.FC = () => {
 
       {/* Roadmap */}
       <Card>
-        <CardHeader title="🗺️ Roadmap de pronunciación" />
+        <CardHeader>🗺️ Roadmap de pronunciación</CardHeader>
         {error ? (
           <p style={{ color: 'var(--color-error, #ef4444)', fontSize: '0.85rem' }}>
             {error}
           </p>
         ) : loadingRoadmap ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.75rem 0' }}>
-            <Spinner size="sm" />
+            <Spinner size={16} />
             <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Cargando progreso…</span>
           </div>
         ) : !roadmap || roadmap.topics.length === 0 ? (

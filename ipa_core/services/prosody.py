@@ -252,8 +252,8 @@ def _extract_f0(path: Path) -> Tuple[Optional[float], Optional[float]]:
         # pyin es más robusto que yin para voces humanas
         f0, voiced_flag, _ = librosa.pyin(
             y,
-            fmin=librosa.note_to_hz("C2"),   # ≈65 Hz
-            fmax=librosa.note_to_hz("C7"),   # ≈2093 Hz
+            fmin=float(librosa.note_to_hz("C2")),   # ≈65 Hz
+            fmax=float(librosa.note_to_hz("C7")),   # ≈2093 Hz
             sr=sr,
         )
         voiced_f0 = f0[voiced_flag]

@@ -316,9 +316,10 @@ def _load_adapter(name: str, params: Dict[str, Any]):
 
     # Attempt dynamic import from registry
     try:
-        from ipa_core.plugins.registry import get_plugin
+        from ipa_core.plugins.registry import PluginRegistry  # type: ignore[attr-defined]
 
-        cls = get_plugin("llm", name)
+        registry = PluginRegistry.get_instance()
+        cls = registry.get("llm", name)
         return cls(params)
     except Exception:
         pass
