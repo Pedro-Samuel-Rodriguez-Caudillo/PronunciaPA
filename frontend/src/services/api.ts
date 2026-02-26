@@ -11,6 +11,8 @@ import type {
   FeedbackLevel,
   LearningOverview,
   SoundLesson,
+  LessonPlanResponse,
+  RoadmapProgressResponse,
 } from '@/types';
 
 const getBaseUrl = (): string => {
@@ -157,6 +159,31 @@ export const api = {
       method: 'POST',
       body: fd,
     });
+  },
+
+  async getLessonPlan(
+    userId: string,
+    lang: string,
+    soundId?: string,
+  ): Promise<LessonPlanResponse> {
+    return request<LessonPlanResponse>('/v1/lessons/plan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId, lang, sound_id: soundId ?? null }),
+    });
+  },
+
+  async generateLesson(lang: string, soundId: string): Promise<LessonPlanResponse> {
+    return request<LessonPlanResponse>(
+      `/v1/lessons/generate/${encodeURIComponent(lang)}/${encodeURIComponent(soundId)}`,
+      { method: 'POST' },
+    );
+  },
+
+  async getRoadmapProgress(userId: string, lang: string): Promise<RoadmapProgressResponse> {
+    return request<RoadmapProgressResponse>(
+      `/v1/lessons/roadmap/${encodeURIComponent(userId)}/${encodeURIComponent(lang)}`,
+    );
   },
 };
 

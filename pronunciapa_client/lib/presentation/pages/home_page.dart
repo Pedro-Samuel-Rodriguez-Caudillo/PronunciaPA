@@ -12,6 +12,7 @@ import 'results_page.dart';
 import 'ipa_practice_page.dart';
 import 'ipa_learn_page.dart';
 import 'models_page.dart';
+import 'progress_roadmap_page.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_background.dart';
 
@@ -59,6 +60,15 @@ class _HomePageState extends ConsumerState<HomePage> {
                );
             },
             tooltip: 'Práctica IPA',
+          ),
+          IconButton(
+            icon: const Icon(Icons.show_chart),
+            onPressed: () {
+               Navigator.of(context).push(
+                 MaterialPageRoute(builder: (_) => const ProgressRoadmapPage()),
+               );
+            },
+            tooltip: 'Mi progreso',
           ),
           IconButton(
             icon: const Icon(Icons.extension),

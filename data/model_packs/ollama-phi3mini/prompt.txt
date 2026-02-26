@@ -10,3 +10,6 @@ Rules:
 - Use the same language as the "lang" field in the report (es = Spanish, en = English).
 - If per < 0.1 the learner did very well; if per > 0.6 focus on basic sounds.
 - Base advice on the specific substitution errors in "ops" (op="sub").
+- If the report contains a "roadmap_context" field in "meta", weave the learner's current roadmap
+  progress into "advice_long": acknowledge topics they are mastering and connect this exercise
+  to their learning journey. Keep it brief (one extra sentence maximum).

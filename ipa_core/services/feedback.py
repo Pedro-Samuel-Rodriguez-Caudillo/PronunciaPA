@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from typing import Any, Optional
 
@@ -16,6 +17,8 @@ from ipa_core.packs.schema import ModelPack
 from ipa_core.types import AudioInput, CompareResult, Token
 from ipa_core.normalization.resolve import load_inventory_for
 from ipa_core.services.user_profile import UserAudioProfile
+
+logger = logging.getLogger(__name__)
 
 
 def build_error_report(
@@ -146,6 +149,14 @@ class FeedbackService:
         ):
             raise NotReadyError("LLM/model pack not configured.")
 
+        # Obtener contexto de roadmap si hay historial configurado
+        roadmap_progress: dict[str, Any] = {}
+        if user_id and self._kernel.history:
+            try:
+                roadmap_progress = await self._kernel.history.get_roadmap_progress(user_id, lang)
+            except Exception:
+                logger.debug("No se pudo obtener roadmap_progress para user=%s", user_id)
+
         quality_res, quality_warnings, profile_meta = assess_audio_quality(
             audio.get("path"),
             user_id=user_id,
@@ -243,6 +254,7 @@ class FeedbackService:
                 } if inventory else {},
                 "adaptive": adaptive_meta,
                 "user_profile": profile_meta or {},
+                "roadmap_context": roadmap_progress or {},
             },
         )
         feedback = await generate_feedback(
@@ -257,6 +269,32 @@ class FeedbackService:
         compare_payload.setdefault("evaluation_level", effective_level)
         compare_payload.setdefault("score", report.get("metrics", {}).get("score"))
         feedback_payload = _apply_feedback_context(feedback, context=context)
+
+        # Auto-persistencia: guardar intento y actualizar roadmap
+        if user_id and self._kernel.history:
+            try:
+                score_val = float(compare_payload.get("score") or 0.0)
+                per_val = float(compare_res.get("per", 1.0))
+                ops_val: list[dict[str, Any]] = list(compare_res.get("ops", []))
+                await self._kernel.history.record_attempt(
+                    user_id=user_id,
+                    lang=lang,
+                    text=text,
+                    score=score_val,
+                    per=per_val,
+                    ops=ops_val,
+                    meta={
+                        "mode": effective_mode,
+                        "evaluation_level": effective_level,
+                        "feedback_level": context["feedback_level"],
+                    },
+                )
+                # Recalcular roadmap basado en los nuevos stats
+                from ipa_core.services.lesson import update_roadmap  # noqa: PLC0415
+                await update_roadmap(user_id, lang, self._kernel)
+            except Exception as exc:
+                logger.warning("Error en auto-persistencia de historial: %s", exc)
+
         return {
             "report": report,
             "compare": compare_payload,

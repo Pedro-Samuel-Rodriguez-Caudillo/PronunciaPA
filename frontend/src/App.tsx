@@ -4,6 +4,7 @@ import { Header } from './components/layout';
 import { LandingPage } from './pages/LandingPage';
 import { PracticePage } from './pages/PracticePage';
 import { LearnPage } from './pages/LearnPage';
+import { ProgressPage } from './pages/ProgressPage';
 
 const App: React.FC = () => (
   <BrowserRouter>
@@ -14,6 +15,7 @@ const App: React.FC = () => (
           <Route path="/" element={<LandingPage />} />
           <Route path="/learn" element={<LearnPage />} />
           <Route path="/practice" element={<PracticePage />} />
+          <Route path="/progress" element={<ProgressPage />} />
         </Routes>
       </main>
     </div>

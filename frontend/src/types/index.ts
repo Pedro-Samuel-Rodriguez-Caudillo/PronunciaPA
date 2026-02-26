@@ -172,6 +172,36 @@ export interface SoundLesson {
   generated_drills: boolean;
 }
 
+// ---------------------------------------------------------------------------
+// Lesson Plan — planificación de lecciones con LLM
+// ---------------------------------------------------------------------------
+
+export interface LessonDrillItem {
+  type: string;
+  text: string;
+}
+
+export interface LessonPlanResponse {
+  recommended_sound_id: string;
+  topic_id: string;
+  intro: string;
+  tips: string[];
+  drills: LessonDrillItem[];
+}
+
+export interface RoadmapTopicProgress {
+  topic_id: string;
+  name: string;
+  level: 'not_started' | 'in_progress' | 'proficient' | 'completed';
+  order: number;
+}
+
+export interface RoadmapProgressResponse {
+  user_id: string;
+  lang: string;
+  topics: RoadmapTopicProgress[];
+}
+
 // Session/practice types
 export type TranscriptionMode = 'phonemic' | 'phonetic' | 'auto';
 export type CompareMode = 'casual' | 'objective' | 'phonetic' | 'auto';

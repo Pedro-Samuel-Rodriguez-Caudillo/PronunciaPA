@@ -34,6 +34,8 @@ class InMemoryHistory:
     def __init__(self) -> None:
         # user_id → lista de AttemptRecord (más reciente al final)
         self._attempts: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        # (user_id, lang) → {topic_id: level}
+        self._roadmap: dict[tuple[str, str], dict[str, str]] = defaultdict(dict)
 
     async def setup(self) -> None:
         pass
@@ -158,6 +160,24 @@ class InMemoryHistory:
             "languages": languages,
             "top_errors": top_errors,
         }
+
+
+    async def record_roadmap_progress(
+        self,
+        *,
+        user_id: str,
+        lang: str,
+        topic_id: str,
+        level: str,
+    ) -> None:
+        self._roadmap[(user_id, lang)][topic_id] = level
+
+    async def get_roadmap_progress(
+        self,
+        user_id: str,
+        lang: str,
+    ) -> dict[str, str]:
+        return dict(self._roadmap.get((user_id, lang), {}))
 
 
 __all__ = ["InMemoryHistory"]

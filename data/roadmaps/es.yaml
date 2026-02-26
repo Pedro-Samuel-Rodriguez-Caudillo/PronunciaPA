@@ -1,0 +1,48 @@
+# Roadmap de pronunciación — Español (es)
+# Orden pedagógico: de lo más sencillo/frecuente a lo más complejo.
+# topic_id must be unique within this file.
+# phonemes: IPA symbols that belong to this topic (used to calculate mastery from phoneme_stats).
+
+topics:
+  - id: vowels
+    name: Vocales
+    description: Las cinco vocales puras del español — a, e, i, o, u
+    phonemes: [a, e, i, o, u]
+    order: 1
+
+  - id: simple_consonants
+    name: Consonantes simples
+    description: Consonantes nasales, laterales y oclusivas básicas — m, n, ɲ, l, p, t, k, b, d, g
+    phonemes: [m, n, ɲ, l, p, t, k, b, d, ɡ]
+    order: 2
+
+  - id: fricatives
+    name: Fricativas y africadas
+    description: "s, f, x, tʃ y sus variantes regionales — s, f, x, tʃ, θ"
+    phonemes: [s, f, x, tʃ, θ]
+    order: 3
+
+  - id: rhotics
+    name: Róticas (r, rr)
+    description: La vibrante simple /ɾ/ y la vibrante múltiple /r/ — contraste mínimo
+    phonemes: [ɾ, r]
+    order: 4
+
+  - id: allophones
+    name: Alófonos fricativos
+    description: Realizaciones fricativas de las sonoras — β, ð, ɣ en posición intervocálica
+    phonemes: [β, ð, ɣ]
+    order: 5
+
+  - id: clusters
+    name: Grupos consonánticos
+    description: Grupos como /bl/, /pr/, /tr/, /gr/ en sílabas complejas
+    phonemes: [b, l, p, r, t, ɡ]   # approximate — evaluated by co-occurrence context
+    order: 6
+
+# Umbrales de avance automático (basados en mastery_level de phoneme_stats)
+# Un tema avanza de nivel cuando el porcentaje de sus fonemas con ese nivel supera el threshold.
+thresholds:
+  in_progress:   0.30   # ≥30% de fonemas del tema con attempts > 0
+  proficient:    0.60   # ≥60% de fonemas "proficient" o "mastered"
+  completed:     0.80   # ≥80% de fonemas "mastered"

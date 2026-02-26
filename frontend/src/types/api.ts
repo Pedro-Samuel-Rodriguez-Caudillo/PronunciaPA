@@ -274,3 +274,45 @@ export interface SoundLesson {
   has_learning_content: boolean;
   generated_drills: boolean;
 }
+
+// ---------------------------------------------------------------------------
+// Lesson Plan — planificación de lecciones con LLM
+// ---------------------------------------------------------------------------
+
+/** Ejercicio sugerido dentro de un plan de lección. */
+export interface LessonDrillItem {
+  /** Tipo de ejercicio: minimal_pair, syllable, phrase. */
+  type: string;
+  /** Contenido del ejercicio como texto plano. */
+  text: string;
+}
+
+/** Plan de lección personalizado generado por el LLM. */
+export interface LessonPlanResponse {
+  /** Fonema IPA recomendado para practicar en esta sesión. */
+  recommended_sound_id: string;
+  /** ID del tema del roadmap al que pertenece. */
+  topic_id: string;
+  /** Introducción personalizada de la lección (1-2 frases). */
+  intro: string;
+  /** Consejos de articulación (2-3 elementos). */
+  tips: string[];
+  /** Ejercicios recomendados (2-3 elementos). */
+  drills: LessonDrillItem[];
+}
+
+/** Estado de avance de un tema del roadmap. */
+export interface RoadmapTopicProgress {
+  topic_id: string;
+  name: string;
+  /** Nivel: not_started | in_progress | proficient | completed */
+  level: 'not_started' | 'in_progress' | 'proficient' | 'completed';
+  order: number;
+}
+
+/** Estado completo del roadmap de un usuario para un idioma. */
+export interface RoadmapProgressResponse {
+  user_id: string;
+  lang: string;
+  topics: RoadmapTopicProgress[];
+}

@@ -298,3 +298,54 @@ class SoundLesson(BaseModel):
     total_drills: int = 0
     has_learning_content: bool = False
     generated_drills: bool = False
+
+
+# ---------------------------------------------------------------------------
+# Lesson Plan — planificación de lecciones con LLM
+# ---------------------------------------------------------------------------
+
+class LessonDrillItem(BaseModel):
+    """Ejercicio sugerido dentro de un plan de lección."""
+    type: str = Field(..., description="Tipo de ejercicio: minimal_pair, syllable, phrase")
+    text: str = Field(..., description="Contenido del ejercicio como texto plano")
+
+
+class LessonPlanRequest(BaseModel):
+    """Parámetros para solicitar un plan de lección personalizado."""
+    user_id: str = Field(..., description="Identificador del usuario")
+    lang: str = Field(default="es", description="Código de idioma (es, en, …)")
+    sound_id: Optional[str] = Field(
+        None,
+        description="Si se especifica, forzar foco en este fonema IPA concreto",
+    )
+
+
+class LessonPlanResponse(BaseModel):
+    """Plan de lección personalizado generado por el LLM."""
+    recommended_sound_id: str = Field(
+        ..., description="Fonema IPA recomendado para practicar en esta sesión"
+    )
+    topic_id: str = Field(..., description="ID del tema del roadmap al que pertenece")
+    intro: str = Field(..., description="Introducción personalizada de la lección (1-2 frases)")
+    tips: List[str] = Field(default_factory=list, description="Consejos de articulación (2-3)")
+    drills: List[LessonDrillItem] = Field(
+        default_factory=list, description="Ejercicios recomendados (2-3)"
+    )
+
+
+class RoadmapTopicProgress(BaseModel):
+    """Estado de avance de un tema del roadmap."""
+    topic_id: str
+    name: str
+    level: str = Field(
+        ...,
+        description="Nivel: not_started | in_progress | proficient | completed",
+    )
+    order: int = Field(default=0, description="Orden pedagógico del tema")
+
+
+class RoadmapProgressResponse(BaseModel):
+    """Estado completo del roadmap de un usuario para un idioma."""
+    user_id: str
+    lang: str
+    topics: List[RoadmapTopicProgress] = Field(default_factory=list)

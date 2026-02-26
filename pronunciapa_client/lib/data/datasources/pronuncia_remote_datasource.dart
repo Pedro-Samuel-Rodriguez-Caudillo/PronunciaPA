@@ -207,6 +207,66 @@ class PronunciaRemoteDataSource {
     }
   }
 
+  // ── Lesson plan & roadmap ──────────────────────────────────────────────────
+
+  /// Get a personalized lesson plan for a user.
+  /// [soundId] is optional; if omitted the server picks the next weakest topic.
+  Future<Map<String, dynamic>> getLessonPlan(
+    String userId,
+    String lang, {
+    String? soundId,
+  }) async {
+    final uri = Uri.parse('$baseUrl/v1/lessons/plan');
+    final body = <String, dynamic>{'user_id': userId, 'lang': lang};
+    if (soundId != null) body['sound_id'] = soundId;
+
+    final response = await _client
+        .post(
+          uri,
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode(body),
+        )
+        .timeout(requestTimeout);
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } else {
+      throw _parseError(response.statusCode, response.body);
+    }
+  }
+
+  /// Get roadmap progress for a user and language.
+  Future<Map<String, dynamic>> getRoadmapProgress(
+    String userId,
+    String lang,
+  ) async {
+    final uri = Uri.parse('$baseUrl/v1/lessons/roadmap/$userId/$lang');
+    final response = await _client.get(uri).timeout(requestTimeout);
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } else {
+      throw _parseError(response.statusCode, response.body);
+    }
+  }
+
+  /// Generate a preview lesson for a sound (no user history needed).
+  Future<Map<String, dynamic>> generateLesson(
+    String lang,
+    String soundId,
+  ) async {
+    final uri = Uri.parse('$baseUrl/v1/lessons/generate/$lang/$soundId');
+    final response = await _client
+        .post(uri, headers: {'Content-Type': 'application/json'})
+        .timeout(requestTimeout);
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } else {
+      throw _parseError(response.statusCode, response.body);
+    }
+  }
+
   Exception _parseError(int statusCode, String body) {
     try {
       final data = jsonDecode(body);

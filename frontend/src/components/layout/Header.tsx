@@ -82,6 +82,17 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate }) => {
         >
           Practicar
         </a>
+        <a
+          href="/progress"
+          onClick={(e) => {
+            e.preventDefault();
+            handleNavigate('/progress');
+          }}
+          className="btn btn-ghost btn-sm"
+          style={{ textDecoration: 'none' }}
+        >
+          Mi progreso
+        </a>
         <button
           className="btn btn-ghost btn-icon"
           onClick={toggleTheme}

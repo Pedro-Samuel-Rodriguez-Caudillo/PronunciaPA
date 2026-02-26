@@ -141,5 +141,39 @@ class HistoryPort(Protocol):
         """
         ...
 
+    async def record_roadmap_progress(
+        self,
+        *,
+        user_id: str,
+        lang: str,
+        topic_id: str,
+        level: str,
+    ) -> None:
+        """Actualizar el nivel de avance de un tema del roadmap.
+
+        Parámetros
+        ----------
+        user_id : str
+        lang    : str   — idioma del roadmap ("es", "en", …)
+        topic_id: str   — identificador del tema (ej: "vowels", "fricatives")
+        level   : str   — nivel: "not_started" | "in_progress" | "proficient" | "completed"
+        """
+        ...
+
+    async def get_roadmap_progress(
+        self,
+        user_id: str,
+        lang: str,
+    ) -> dict[str, str]:
+        """Obtener el estado actual del roadmap para un usuario e idioma.
+
+        Retorna
+        -------
+        dict[str, str]
+            Mapeo ``{topic_id: level}`` con el nivel de avance de cada tema.
+            Los temas no registrados aún no aparecen en el dict.
+        """
+        ...
+
 
 __all__ = ["HistoryPort"]

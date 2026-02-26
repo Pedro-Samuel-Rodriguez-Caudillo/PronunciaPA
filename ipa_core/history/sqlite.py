@@ -83,6 +83,17 @@ CREATE TABLE IF NOT EXISTS phoneme_stats (
 );
 """
 
+_CREATE_ROADMAP = """
+CREATE TABLE IF NOT EXISTS roadmap_progress (
+    user_id    TEXT NOT NULL,
+    lang       TEXT NOT NULL,
+    topic_id   TEXT NOT NULL,
+    level      TEXT NOT NULL DEFAULT 'not_started',
+    updated_at REAL NOT NULL,
+    PRIMARY KEY (user_id, lang, topic_id)
+);
+"""
+
 
 def _mastery_level(error_rate: float) -> str:
     if error_rate < 0.05:
@@ -132,6 +143,7 @@ class SQLiteHistory:
         self._conn.row_factory = _aio.Row
         await self._conn.executescript(_CREATE_ATTEMPTS)
         await self._conn.executescript(_CREATE_PHONEME)
+        await self._conn.executescript(_CREATE_ROADMAP)
         await self._conn.commit()
 
     async def teardown(self) -> None:
@@ -287,6 +299,43 @@ class SQLiteHistory:
         )
         rows = await cursor.fetchall()
         return [dict(row) for row in reversed(rows)]  # cronológico
+
+    async def record_roadmap_progress(
+        self,
+        *,
+        user_id: str,
+        lang: str,
+        topic_id: str,
+        level: str,
+    ) -> None:
+        """Insertar o actualizar el nivel de avance de un tema del roadmap."""
+        conn = self._require_conn()
+        await conn.execute(
+            """
+            INSERT INTO roadmap_progress (user_id, lang, topic_id, level, updated_at)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(user_id, lang, topic_id) DO UPDATE SET
+                level      = excluded.level,
+                updated_at = excluded.updated_at
+            """,
+            (user_id, lang, topic_id, level, time.time()),
+        )
+        await conn.commit()
+
+    async def get_roadmap_progress(
+        self,
+        user_id: str,
+        lang: str,
+    ) -> dict[str, str]:
+        """Devuelve {topic_id: level} del roadmap para el usuario e idioma."""
+        conn = self._require_conn()
+        cursor = await conn.execute(
+            "SELECT topic_id, level FROM roadmap_progress "
+            "WHERE user_id=? AND lang=? ORDER BY updated_at ASC",
+            (user_id, lang),
+        )
+        rows = await cursor.fetchall()
+        return {row["topic_id"]: row["level"] for row in rows}
 
 
 __all__ = ["SQLiteHistory"]
