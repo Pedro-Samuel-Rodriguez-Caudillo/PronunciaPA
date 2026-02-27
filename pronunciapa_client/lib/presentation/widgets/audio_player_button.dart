@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
 
@@ -27,15 +28,16 @@ class AudioPlayerButton extends StatefulWidget {
 
 class _AudioPlayerButtonState extends State<AudioPlayerButton> {
   final AudioPlayer _audioPlayer = AudioPlayer();
+  StreamSubscription? _stateSubscription;
   bool _isPlaying = false;
   bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
-    
-    // Listen to player state changes
-    _audioPlayer.onPlayerStateChanged.listen((state) {
+
+    // Listen to player state changes; store subscription to cancel on dispose.
+    _stateSubscription = _audioPlayer.onPlayerStateChanged.listen((state) {
       if (mounted) {
         setState(() {
           _isPlaying = state == PlayerState.playing;
@@ -47,6 +49,7 @@ class _AudioPlayerButtonState extends State<AudioPlayerButton> {
 
   @override
   void dispose() {
+    _stateSubscription?.cancel();
     _audioPlayer.dispose();
     super.dispose();
   }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/ipa_practice_provider.dart';
 import '../providers/preferences_provider.dart';
+import '../providers/repository_provider.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_background.dart';
 import '../widgets/audio_player_button.dart';
@@ -24,6 +25,8 @@ class IpaPracticePage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final practiceState = ref.watch(ipaPracticeProvider);
+    final baseUrl = ref.watch(baseUrlProvider);
+    final ttsVoice = ref.watch(preferencesProvider.select((p) => p.selectedTtsVoice));
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -89,7 +92,7 @@ class IpaPracticePage extends ConsumerWidget {
 
                 // Content area
                 Expanded(
-                  child: _buildContent(context, ref, practiceState),
+                  child: _buildContent(context, ref, practiceState, baseUrl: baseUrl, ttsVoice: ttsVoice),
                 ),
               ],
             ),
@@ -99,7 +102,7 @@ class IpaPracticePage extends ConsumerWidget {
     );
   }
 
-  Widget _buildContent(BuildContext context, WidgetRef ref, IpaPracticeState state) {
+  Widget _buildContent(BuildContext context, WidgetRef ref, IpaPracticeState state, {required String baseUrl, String? ttsVoice}) {
     if (state.isLoading) {
       return const Center(
         child: Column(
@@ -201,6 +204,8 @@ class IpaPracticePage extends ConsumerWidget {
                 children: [
                   AudioPlayerButton(
                     audioUrl: sound.audioUrl,
+                    baseUrl: baseUrl,
+                    voice: ttsVoice,
                     iconSize: 20,
                   ),
                   const SizedBox(width: 8),
