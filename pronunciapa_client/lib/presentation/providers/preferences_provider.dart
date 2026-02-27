@@ -12,6 +12,8 @@ class UserPreferences {
   final bool darkMode;
   final bool hapticFeedback;
   final bool audioFeedback;
+  /// Model ID to pass as ?voice= to /api/tts/speak. null = server default.
+  final String? selectedTtsVoice;
 
   const UserPreferences({
     this.lang = 'en',
@@ -21,6 +23,7 @@ class UserPreferences {
     this.darkMode = false,
     this.hapticFeedback = true,
     this.audioFeedback = true,
+    this.selectedTtsVoice,
   });
 
   UserPreferences copyWith({
@@ -31,6 +34,8 @@ class UserPreferences {
     bool? darkMode,
     bool? hapticFeedback,
     bool? audioFeedback,
+    String? selectedTtsVoice,
+    bool clearTtsVoice = false,
   }) {
     return UserPreferences(
       lang: lang ?? this.lang,
@@ -40,6 +45,7 @@ class UserPreferences {
       darkMode: darkMode ?? this.darkMode,
       hapticFeedback: hapticFeedback ?? this.hapticFeedback,
       audioFeedback: audioFeedback ?? this.audioFeedback,
+      selectedTtsVoice: clearTtsVoice ? null : (selectedTtsVoice ?? this.selectedTtsVoice),
     );
   }
 
@@ -51,6 +57,7 @@ class UserPreferences {
         'darkMode': darkMode,
         'hapticFeedback': hapticFeedback,
         'audioFeedback': audioFeedback,
+        if (selectedTtsVoice != null) 'selectedTtsVoice': selectedTtsVoice,
       };
 
   factory UserPreferences.fromJson(Map<String, dynamic> json) {
@@ -65,6 +72,7 @@ class UserPreferences {
       darkMode: json['darkMode'] ?? false,
       hapticFeedback: json['hapticFeedback'] ?? true,
       audioFeedback: json['audioFeedback'] ?? true,
+      selectedTtsVoice: json['selectedTtsVoice'] as String?,
     );
   }
 
@@ -172,6 +180,13 @@ class PreferencesNotifier extends StateNotifier<UserPreferences> {
   void toggleFeedbackLevel() {
     final newLevel = state.feedbackLevel == 'casual' ? 'precise' : 'casual';
     setFeedbackLevel(newLevel);
+  }
+
+  void setTtsVoice(String? voiceId) {
+    state = voiceId == null
+        ? state.copyWith(clearTtsVoice: true)
+        : state.copyWith(selectedTtsVoice: voiceId);
+    _save();
   }
 }
 

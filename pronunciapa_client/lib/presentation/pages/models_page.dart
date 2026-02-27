@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/model_installer_provider.dart';
+import '../providers/preferences_provider.dart';
 import '../widgets/app_background.dart';
 
 /// Página de gestión de modelos
@@ -240,13 +241,13 @@ class _ModelsPageState extends ConsumerState<ModelsPage> {
                 ),
           ),
         ),
-        ...models.map((model) => _buildModelCard(model)),
+        ...models.map((model) => _buildModelCard(model, category: category)),
         const SizedBox(height: 8),
       ],
     );
   }
 
-  Widget _buildModelCard(ModelInfo model) {
+  Widget _buildModelCard(ModelInfo model, {String? category}) {
     final isInstalling = _installingModelId == model.id;
 
     return Card(
@@ -298,7 +299,7 @@ class _ModelsPageState extends ConsumerState<ModelsPage> {
               ),
           ],
         ),
-        trailing: _buildActionButton(model, isInstalling),
+        trailing: _buildActionButton(model, isInstalling, category: category),
         isThreeLine: true,
       ),
     );
@@ -331,8 +332,34 @@ class _ModelsPageState extends ConsumerState<ModelsPage> {
     }
   }
 
-  Widget? _buildActionButton(ModelInfo model, bool isInstalling) {
+  Widget? _buildActionButton(ModelInfo model, bool isInstalling, {String? category}) {
     if (model.isInstalled) {
+      // For TTS models, also show a "Use as voice" button
+      if (category == 'tts') {
+        final selectedVoice = ref.watch(preferencesProvider).selectedTtsVoice;
+        final isActive = selectedVoice == model.id;
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.check, color: Colors.green),
+            const SizedBox(width: 4),
+            Tooltip(
+              message: isActive ? 'Voz activa' : 'Usar esta voz',
+              child: IconButton(
+                icon: Icon(
+                  isActive ? Icons.star : Icons.star_border,
+                  color: isActive ? Colors.amber : Colors.grey,
+                ),
+                onPressed: () {
+                  ref.read(preferencesProvider.notifier).setTtsVoice(
+                    isActive ? null : model.id,
+                  );
+                },
+              ),
+            ),
+          ],
+        );
+      }
       return const Icon(Icons.check, color: Colors.green);
     }
 

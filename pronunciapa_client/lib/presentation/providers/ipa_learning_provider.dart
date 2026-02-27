@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'repository_provider.dart';
 
 /// Model for IPA learning module
 class IpaModule {
@@ -157,9 +158,9 @@ class IpaLearningState {
 
 /// Provider for IPA learning content
 class IpaLearningNotifier extends StateNotifier<IpaLearningState> {
-  static const String _baseUrl = 'http://127.0.0.1:8000';
+  final String _baseUrl;
 
-  IpaLearningNotifier() : super(IpaLearningState()) {
+  IpaLearningNotifier(this._baseUrl) : super(IpaLearningState()) {
     loadContent('en'); // Default to English
   }
 
@@ -230,5 +231,6 @@ class IpaLearningNotifier extends StateNotifier<IpaLearningState> {
 
 final ipaLearningProvider =
     StateNotifierProvider<IpaLearningNotifier, IpaLearningState>((ref) {
-  return IpaLearningNotifier();
+  final baseUrl = ref.watch(baseUrlProvider);
+  return IpaLearningNotifier(baseUrl);
 });

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../providers/api_provider.dart' show FeedbackPayload;
 import '../theme/app_theme.dart';
 import '../widgets/app_background.dart';
+import 'drills_page.dart';
 
 /// Pantalla de resultados con diseño premium
 class ResultsPage extends ConsumerWidget {
@@ -10,15 +12,15 @@ class ResultsPage extends ConsumerWidget {
   final String targetIpa;
   final String observedIpa;
   final List<PhonemeResult> phonemes;
-  final String? feedback;
-  
+  final FeedbackPayload? feedbackPayload;
+
   const ResultsPage({
     super.key,
     required this.score,
     required this.targetIpa,
     required this.observedIpa,
     required this.phonemes,
-    this.feedback,
+    this.feedbackPayload,
   });
   
   @override
@@ -89,30 +91,56 @@ class ResultsPage extends ConsumerWidget {
                   ),
                   const SizedBox(height: 24),
 
-                  // Feedback Card
-                  if (feedback != null) ...[
+                  // Feedback Card — LLM summary + advice
+                  if (feedbackPayload != null) ...[
                     GlassCard(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
                             children: [
-                              Icon(
-                                Icons.lightbulb_outline,
-                                color: AppTheme.warning,
-                              ),
+                              Icon(Icons.lightbulb_outline, color: AppTheme.warning),
                               const SizedBox(width: 8),
-                              Text(
-                                'Sugerencias',
-                                style: theme.textTheme.titleLarge,
-                              ),
+                              Text('Sugerencias IA', style: theme.textTheme.titleLarge),
                             ],
                           ),
                           const SizedBox(height: 12),
-                          Text(
-                            feedback!,
-                            style: theme.textTheme.bodyLarge,
-                          ),
+                          Text(feedbackPayload!.summary, style: theme.textTheme.bodyLarge),
+                          if (feedbackPayload!.adviceShort.isNotEmpty) ...[
+                            const SizedBox(height: 12),
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.primaryContainer.withOpacity(0.3),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                feedbackPayload!.adviceShort,
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
+                            ),
+                          ],
+                          if (feedbackPayload!.warnings != null &&
+                              feedbackPayload!.warnings!.isNotEmpty) ...[
+                            const SizedBox(height: 12),
+                            ...feedbackPayload!.warnings!.map(
+                              (w) => Row(
+                                children: [
+                                  Icon(Icons.warning_amber_outlined,
+                                      size: 16, color: AppTheme.warning),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(w,
+                                        style: theme.textTheme.bodySmall?.copyWith(
+                                          color: AppTheme.warning,
+                                        )),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -132,23 +160,36 @@ class ResultsPage extends ConsumerWidget {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: GradientButton(
-                          onPressed: () {
-                            Navigator.pop(context);
-                            // TODO: Navigate to next exercise
-                          },
-                          child: const Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text('Siguiente', style: TextStyle(color: Colors.white)),
-                              SizedBox(width: 8),
-                              Icon(Icons.arrow_forward, color: Colors.white),
-                            ],
+                      if (feedbackPayload != null) ...[
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: GradientButton(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => DrillsPage(
+                                    drills: feedbackPayload!.drills,
+                                    targetIpa: targetIpa,
+                                    observedIpa: observedIpa,
+                                    summary: feedbackPayload!.adviceLong.isNotEmpty
+                                        ? feedbackPayload!.adviceLong
+                                        : feedbackPayload!.summary,
+                                  ),
+                                ),
+                              );
+                            },
+                            child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text('Ejercicios', style: TextStyle(color: Colors.white)),
+                                SizedBox(width: 8),
+                                Icon(Icons.arrow_forward, color: Colors.white),
+                              ],
+                            ),
                           ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 ],

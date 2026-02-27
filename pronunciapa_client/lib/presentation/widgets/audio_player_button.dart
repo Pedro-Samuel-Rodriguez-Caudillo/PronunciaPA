@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
 
-/// Button widget that plays audio from a URL
+/// Button widget that plays audio from a URL.
+/// Pass [voice] to append `?voice=<id>` to TTS endpoint URLs.
 class AudioPlayerButton extends StatefulWidget {
   final String? audioUrl;
   final String baseUrl;
+  final String? voice;
   final IconData playIcon;
   final IconData loadingIcon;
   final double iconSize;
@@ -13,6 +15,7 @@ class AudioPlayerButton extends StatefulWidget {
     super.key,
     this.audioUrl,
     this.baseUrl = 'http://127.0.0.1:8000',
+    this.voice,
     this.playIcon = Icons.volume_up,
     this.loadingIcon = Icons.hourglass_empty,
     this.iconSize = 24.0,
@@ -66,10 +69,14 @@ class _AudioPlayerButtonState extends State<AudioPlayerButton> {
         return;
       }
 
-      // Build full URL
-      final fullUrl = widget.audioUrl!.startsWith('http')
+      // Build full URL, appending voice param for TTS endpoints if selected.
+      String fullUrl = widget.audioUrl!.startsWith('http')
           ? widget.audioUrl!
           : '${widget.baseUrl}${widget.audioUrl}';
+      if (widget.voice != null && fullUrl.contains('/api/tts/speak')) {
+        final separator = fullUrl.contains('?') ? '&' : '?';
+        fullUrl = '$fullUrl${separator}voice=${Uri.encodeQueryComponent(widget.voice!)}';
+      }
 
       // Play audio from URL
       await _audioPlayer.play(UrlSource(fullUrl));
