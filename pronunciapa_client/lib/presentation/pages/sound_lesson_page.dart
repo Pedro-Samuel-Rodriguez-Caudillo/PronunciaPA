@@ -1,7 +1,9 @@
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/ipa_learning_provider.dart';
 import '../providers/progress_provider.dart';
+import '../providers/repository_provider.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_background.dart';
 import '../widgets/audio_player_button.dart';
@@ -30,6 +32,8 @@ class _SoundLessonPageState extends ConsumerState<SoundLessonPage>
   List<Drill> _drills = [];
   bool _isLoading = true;
   int _sessionPracticeCount = 0;
+  // Single player for minimal-pair audio so old playback stops on new tap.
+  final AudioPlayer _pairPlayer = AudioPlayer();
 
   @override
   void initState() {
@@ -74,9 +78,18 @@ class _SoundLessonPageState extends ConsumerState<SoundLessonPage>
     );
   }
 
+  Future<void> _playPairAudio(String? audioUrl) async {
+    if (audioUrl == null) return;
+    final baseUrl = ref.read(baseUrlProvider);
+    final fullUrl = audioUrl.startsWith('http') ? audioUrl : '$baseUrl$audioUrl';
+    await _pairPlayer.stop();
+    await _pairPlayer.play(UrlSource(fullUrl));
+  }
+
   @override
   void dispose() {
     _tabController.dispose();
+    _pairPlayer.dispose();
     // Record practice time
     if (_sessionPracticeCount > 0) {
       ref.read(progressProvider.notifier).addPracticeTime(1);
@@ -522,12 +535,9 @@ class _SoundLessonPageState extends ConsumerState<SoundLessonPage>
         children: [
           Expanded(
             child: OutlinedButton.icon(
-              icon: AudioPlayerButton(
-                audioUrl: pair.audio1Url,
-                iconSize: 18,
-              ),
+              icon: const Icon(Icons.volume_up, size: 18),
               label: Text(pair.word1),
-              onPressed: () {},
+              onPressed: () => _playPairAudio(pair.audio1Url),
             ),
           ),
           const Padding(
@@ -536,12 +546,9 @@ class _SoundLessonPageState extends ConsumerState<SoundLessonPage>
           ),
           Expanded(
             child: OutlinedButton.icon(
-              icon: AudioPlayerButton(
-                audioUrl: pair.audio2Url,
-                iconSize: 18,
-              ),
+              icon: const Icon(Icons.volume_up, size: 18),
               label: Text(pair.word2),
-              onPressed: () {},
+              onPressed: () => _playPairAudio(pair.audio2Url),
             ),
           ),
         ],

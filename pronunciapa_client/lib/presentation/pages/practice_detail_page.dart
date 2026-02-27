@@ -7,6 +7,7 @@ import '../theme/app_theme.dart';
 import '../widgets/app_background.dart';
 import '../widgets/diff_viewer_widget.dart';
 import '../widgets/feedback_level_selector.dart';
+import '../../domain/entities/feedback_result.dart';
 
 /// Practice detail page for a specific IPA sound
 class PracticeDetailPage extends ConsumerStatefulWidget {
@@ -96,13 +97,18 @@ class _PracticeDetailPageState extends ConsumerState<PracticeDetailPage> {
 
     try {
       final repository = ref.read(pronunciationRepositoryProvider);
-      final result = await repository.compare(
+      // Use getFeedback so LLM advice is always available, respecting the
+      // feedback level the user selected with FeedbackLevelSelector.
+      final feedbackResult = await repository.getFeedback(
         _recordedFilePath!,
         _selectedExample,
-        evaluationLevel: 'phonemic', // Default to phonemic for practice
-        mode: 'objective', // Default to objective mode
+        evaluationLevel: 'phonemic',
+        mode: 'objective',
         lang: widget.lang,
+        feedbackLevel: _feedbackLevel.name,
       );
+      final result = feedbackResult.compare;
+      final feedbackPayload = feedbackResult.feedback;
 
       if (mounted) {
         showDialog(
@@ -249,6 +255,38 @@ class _PracticeDetailPageState extends ConsumerState<PracticeDetailPage> {
                     ),
                   ],
                   const SizedBox(height: 8),
+                  // LLM Feedback — summary + advice
+                  const Divider(),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      const Icon(Icons.lightbulb_outline, size: 16, color: Colors.amber),
+                      const SizedBox(width: 6),
+                      const Text(
+                        'Retroalimentación IA',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    feedbackPayload.summary,
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                  if (feedbackPayload.adviceShort.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.3),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        feedbackPayload.adviceShort,
+                        style: const TextStyle(fontSize: 13, fontStyle: FontStyle.italic),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
