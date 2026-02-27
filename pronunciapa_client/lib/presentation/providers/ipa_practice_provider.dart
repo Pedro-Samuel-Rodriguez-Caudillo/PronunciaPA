@@ -93,7 +93,9 @@ class IpaPracticeState {
 
 /// Provider for IPA practice state
 class IpaPracticeNotifier extends StateNotifier<IpaPracticeState> {
-  IpaPracticeNotifier(PronunciationRepository repository) : super(IpaPracticeState()) {
+  final String _baseUrl;
+
+  IpaPracticeNotifier(PronunciationRepository repository, this._baseUrl) : super(IpaPracticeState()) {
     loadSounds();
   }
 
@@ -134,9 +136,7 @@ class IpaPracticeNotifier extends StateNotifier<IpaPracticeState> {
   }
 
   Future<List<IpaSound>> _fetchIpaSounds(String lang) async {
-    // Usar localhost para desarrollo
-    const baseUrl = 'http://127.0.0.1:8000';
-    final url = Uri.parse('$baseUrl/api/ipa-sounds?lang=$lang');
+    final url = Uri.parse('$_baseUrl/api/ipa-sounds?lang=$lang');
     
     final response = await http.get(url).timeout(
       const Duration(seconds: 5),
@@ -277,5 +277,6 @@ class IpaPracticeNotifier extends StateNotifier<IpaPracticeState> {
 /// Provider instance
 final ipaPracticeProvider = StateNotifierProvider<IpaPracticeNotifier, IpaPracticeState>((ref) {
   final repository = ref.watch(pronunciationRepositoryProvider);
-  return IpaPracticeNotifier(repository);
+  final baseUrl = ref.watch(baseUrlProvider);
+  return IpaPracticeNotifier(repository, baseUrl);
 });

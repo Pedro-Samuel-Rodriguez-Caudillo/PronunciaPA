@@ -7,111 +7,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/debug/app_logger.dart';
 import '../../core/debug/debug_http_client.dart';
 import '../../core/debug/debug_log_store.dart';
+// Canonical domain types — eliminates duplicate class definitions.
+import '../../domain/entities/feedback_result.dart';
+import '../../domain/entities/transcription_result.dart';
 
-class EditOp {
-  final String op;
-  final String? ref;
-  final String? hyp;
-
-  EditOp({required this.op, this.ref, this.hyp});
-
-  factory EditOp.fromJson(Map<String, dynamic> json) {
-    return EditOp(
-      op: json['op'] as String,
-      ref: json['ref'] as String?,
-      hyp: json['hyp'] as String?,
-    );
-  }
-}
-
-class TranscriptionResult {
-  final String ipa;
-  final double? score; // 0-100 scale (higher is better)
-  final double? per; // Phone Error Rate 0.0-1.0 (lower is better)
-  final List<List<String?>>? alignment;
-  final List<EditOp>? ops; // Edit operations from backend
-  final List<String>? tokens; // Observed IPA tokens
-  final String? mode; // casual, objective, phonetic
-  final String? evaluationLevel; // phonemic, phonetic
-  final String? targetIpa; // Reference IPA
-  final Map<String, dynamic>? meta;
-
-  TranscriptionResult({
-    required this.ipa,
-    this.score,
-    this.per,
-    this.alignment,
-    this.ops,
-    this.tokens,
-    this.mode,
-    this.evaluationLevel,
-    this.targetIpa,
-    this.meta,
-  });
-}
-
-class FeedbackDrill {
-  final String type;
-  final String text;
-
-  FeedbackDrill({required this.type, required this.text});
-
-  factory FeedbackDrill.fromJson(Map<String, dynamic> json) {
-    return FeedbackDrill(
-      type: json['type'] as String,
-      text: json['text'] as String,
-    );
-  }
-}
-
-class FeedbackPayload {
-  final String summary;
-  final String adviceShort;
-  final String adviceLong;
-  final List<FeedbackDrill> drills;
-  final String? feedbackLevel;
-  final String? tone;
-  final String? confidence;
-  final List<String>? warnings;
-
-  FeedbackPayload({
-    required this.summary,
-    required this.adviceShort,
-    required this.adviceLong,
-    required this.drills,
-    this.feedbackLevel,
-    this.tone,
-    this.confidence,
-    this.warnings,
-  });
-
-  factory FeedbackPayload.fromJson(Map<String, dynamic> json) {
-    return FeedbackPayload(
-      summary: json['summary'] as String,
-      adviceShort: json['advice_short'] as String,
-      adviceLong: json['advice_long'] as String,
-      drills: (json['drills'] as List<dynamic>)
-          .map((d) => FeedbackDrill.fromJson(d as Map<String, dynamic>))
-          .toList(),
-      feedbackLevel: json['feedback_level'] as String?,
-      tone: json['tone'] as String?,
-      confidence: json['confidence'] as String?,
-      warnings: (json['warnings'] as List<dynamic>?)?.cast<String>(),
-    );
-  }
-}
-
-class FeedbackResult {
-  final TranscriptionResult compare;
-  final FeedbackPayload feedback;
-  final Map<String, dynamic> report;
-
-  FeedbackResult({
-    required this.compare,
-    required this.feedback,
-    required this.report,
-  });
-}
+// Re-export so existing files that import api_provider keep compiling.
+export '../../domain/entities/feedback_result.dart'
+    show EditOp, FeedbackDrill, FeedbackPayload, FeedbackResult;
+export '../../domain/entities/transcription_result.dart' show TranscriptionResult;
 
 class PronunciaApiService {
   static const Duration _requestTimeout = Duration(seconds: 60);
@@ -563,22 +466,84 @@ class ApiNotifier extends StateNotifier<ApiState> {
       );
     }
   }
-  /// Re-process the last recording with full analysis (quality gates, adaptation).
+  /// Full analysis with LLM feedback via /v1/feedback.
+  Future<void> processFeedback({
+    String? path,
+    String? referenceText,
+    String? lang,
+    String? evaluationLevel,
+    String? mode,
+    String? feedbackLevel,
+  }) async {
+    final audioPath = path ?? state.lastAudioPath;
+    final ref = referenceText ?? state.lastReferenceText;
+    if (audioPath == null || ref == null || ref.isEmpty) return;
+
+    state = state.copyWith(
+      isLoading: true,
+      error: null,
+      clearResult: true,
+      clearFeedback: true,
+    );
+    try {
+      final result = await _service.feedback(
+        audioPath,
+        ref,
+        lang: lang ?? 'es',
+        evaluationLevel: evaluationLevel,
+        mode: mode,
+        feedbackLevel: feedbackLevel,
+      );
+      _logAudioChainToOverlay(result.compare.meta);
+      state = state.copyWith(
+        isLoading: false,
+        result: result.compare,
+        feedbackResult: result,
+        lastAudioPath: audioPath,
+        lastReferenceText: ref,
+        isQuickResult: false,
+      );
+    } on TimeoutException catch (e) {
+      AppLogger.w('ApiNotifier', 'Timeout error: $e');
+      state = state.copyWith(
+        isLoading: false,
+        error: 'Timeout: El servidor tardó demasiado en responder.',
+        clearResult: true,
+        clearFeedback: true,
+      );
+    } on SocketException catch (e) {
+      AppLogger.w('ApiNotifier', 'Socket error: $e');
+      state = state.copyWith(
+        isLoading: false,
+        error: 'Error de red: No se pudo conectar a ${_service.baseUrl}. ¿Está el backend encendido?',
+        clearResult: true,
+        clearFeedback: true,
+      );
+    } catch (e, stack) {
+      AppLogger.e('ApiNotifier', 'Unhandled error: $e', error: e, stackTrace: stack);
+      String msg = e.toString();
+      if (msg.startsWith('Exception: ')) msg = msg.substring(11);
+      state = state.copyWith(
+        isLoading: false,
+        error: msg,
+        clearResult: true,
+        clearFeedback: true,
+      );
+    }
+  }
+
+  /// Re-process the last recording with full LLM feedback analysis.
   Future<void> reprocessFull({
     String? lang,
     String? evaluationLevel,
     String? mode,
+    String? feedbackLevel,
   }) async {
-    final path = state.lastAudioPath;
-    final ref = state.lastReferenceText;
-    if (path == null || ref == null || ref.isEmpty) return;
-    await processAudio(
-      path,
-      referenceText: ref,
+    await processFeedback(
       lang: lang,
       evaluationLevel: evaluationLevel,
       mode: mode,
-      quick: false,
+      feedbackLevel: feedbackLevel,
     );
   }
 }

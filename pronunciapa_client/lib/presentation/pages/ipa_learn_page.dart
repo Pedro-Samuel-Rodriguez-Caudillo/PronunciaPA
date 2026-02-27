@@ -40,9 +40,9 @@ class _IpaLearnPageState extends ConsumerState<IpaLearnPage> {
                 const Icon(Icons.arrow_drop_down),
               ],
             ),
-            onSelected: (lang) {
+            onSelected: (lang) async {
               setState(() => _selectedLang = lang);
-              ref.read(ipaLearningProvider.notifier).loadContent(lang);
+              await ref.read(ipaLearningProvider.notifier).loadContent(lang);
             },
             itemBuilder: (context) => [
               const PopupMenuItem(value: 'en', child: Text('🇺🇸 English')),

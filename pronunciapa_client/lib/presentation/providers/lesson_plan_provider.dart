@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'repository_provider.dart';
+import 'preferences_provider.dart';
 
 // ── Domain models ─────────────────────────────────────────────────────────────
 
@@ -189,14 +190,24 @@ class LessonPlanNotifier extends StateNotifier<LessonPlanState> {
   }
 
   void setLang(String lang) {
+    if (_lang == lang) return;
     _lang = lang;
     state = const LessonPlanState();
+    loadAll();
   }
 }
 
 // ── Provider ──────────────────────────────────────────────────────────────────
 
 final lessonPlanProvider =
-    StateNotifierProvider<LessonPlanNotifier, LessonPlanState>(
-  (ref) => LessonPlanNotifier(ref),
-);
+    StateNotifierProvider<LessonPlanNotifier, LessonPlanState>((ref) {
+  final notifier = LessonPlanNotifier(ref);
+  // Sync language from preferences. fireImmediately triggers on first build
+  // so the notifier always uses the persisted lang on startup.
+  ref.listen(
+    preferencesProvider.select((p) => p.lang),
+    (_, lang) => notifier.setLang(lang),
+    fireImmediately: true,
+  );
+  return notifier;
+});

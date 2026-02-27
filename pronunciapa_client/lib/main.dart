@@ -3,6 +3,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'presentation/pages/home_page.dart';
+import 'presentation/pages/ipa_learn_page.dart';
+import 'presentation/pages/ipa_practice_page.dart';
+import 'presentation/pages/progress_roadmap_page.dart';
+import 'presentation/pages/settings_page.dart';
+import 'presentation/providers/preferences_provider.dart';
 import 'presentation/theme/app_theme.dart';
 import 'core/debug/debug.dart';
 
@@ -48,15 +53,13 @@ void main() {
   );
 }
 
-/// Provider para el modo del tema
-final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.dark);
-
 class MyApp extends ConsumerWidget {
   const MyApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final themeMode = ref.watch(themeModeProvider);
+    final prefs = ref.watch(preferencesProvider);
+    final themeMode = prefs.darkMode ? ThemeMode.dark : ThemeMode.light;
 
     return MaterialApp(
       title: 'PronunciaPA',
@@ -64,8 +67,69 @@ class MyApp extends ConsumerWidget {
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
       themeMode: themeMode,
-      // DebugOverlay injects the floating debug FAB in debug builds only.
-      home: const DebugOverlay(child: HomePage()),
+      home: const DebugOverlay(child: MainShell()),
+    );
+  }
+}
+
+/// Main application shell with Material 3 NavigationBar.
+/// Each tab is kept alive via IndexedStack so state is preserved.
+class MainShell extends StatefulWidget {
+  const MainShell({super.key});
+
+  @override
+  State<MainShell> createState() => _MainShellState();
+}
+
+class _MainShellState extends State<MainShell> {
+  int _selectedIndex = 0;
+
+  static const _pages = <Widget>[
+    HomePage(),
+    IpaLearnPage(),
+    IpaPracticePage(),
+    ProgressRoadmapPage(),
+    SettingsPage(),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: _pages,
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _selectedIndex,
+        onDestinationSelected: (index) => setState(() => _selectedIndex = index),
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.mic_none),
+            selectedIcon: Icon(Icons.mic),
+            label: 'Practica',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.school_outlined),
+            selectedIcon: Icon(Icons.school),
+            label: 'Aprende',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.psychology_outlined),
+            selectedIcon: Icon(Icons.psychology),
+            label: 'Ejercicios',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.show_chart),
+            selectedIcon: Icon(Icons.show_chart),
+            label: 'Progreso',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.settings_outlined),
+            selectedIcon: Icon(Icons.settings),
+            label: 'Config',
+          ),
+        ],
+      ),
     );
   }
 }
