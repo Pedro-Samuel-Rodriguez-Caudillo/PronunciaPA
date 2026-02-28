@@ -80,16 +80,17 @@ llm:
 tts:
   name: default
   params:
-    prefer: espeak  # Priorizar eSpeak-NG (funciona out-of-the-box)
+    prefer: piper  # Prioritize high quality Piper over eSpeak-NG
     system:
       backend: espeak  # Forzar eSpeak-NG explícitamente
       # espeak_bin: "C:\\Program Files\\eSpeak NG\\espeak-ng.exe"  # Descomentar si no está en PATH
       sample_rate: 22050
       channels: 1
     piper:
-      # Ajusta estas rutas a tu instalacion de Piper (opcional).
-      model_path: data/models/piper/en-us.onnx
-      config_path: data/models/piper/en-us.json
+      # Adjusted paths for local automatically downloaded model
+      binary: "C:/Users/rodri/.pronunciapa/models/piper/piper/piper.exe"
+      model_path: "C:/Users/rodri/.pronunciapa/models/piper-es/es_ES-davefx-medium.onnx"
+      config_path: "C:/Users/rodri/.pronunciapa/models/piper-es/es_ES-davefx-medium.onnx.json"
 
 # Realtime/WebSocket settings
 realtime:

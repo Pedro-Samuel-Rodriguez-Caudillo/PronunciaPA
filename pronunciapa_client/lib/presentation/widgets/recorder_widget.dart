@@ -39,7 +39,7 @@ class RecorderWidget extends ConsumerWidget {
                 lang: prefs.lang,
                 evaluationLevel: prefs.mode.name,
                 mode: compareMode,
-                quick: false,
+                quick: true, // Trigger quick analysis first, LLM later dynamically via the button
               );
               return;
             }

@@ -335,6 +335,12 @@ class ModelInstaller:
         # Buscar en PATH
         if shutil.which(binary):
             return ModelStatus.INSTALLED
+            
+        # Buscar en instalación local automática (.pronunciapa/models/piper/piper[/piper.exe])
+        local_dir = self._models_dir / binary / binary
+        local_exe = local_dir / f"{binary}.exe" if sys.platform == "win32" else local_dir / binary
+        if local_exe.exists():
+            return ModelStatus.INSTALLED
         
         # Buscar en ubicaciones conocidas (Windows)
         if sys.platform == "win32":
@@ -610,8 +616,110 @@ class ModelInstaller:
         self._verify_checksum(model, output_path2)
     
     async def _download_binary(self, model: ModelInfo) -> None:
-        """Instrucciones para descargar binario."""
-        # Para binarios, damos instrucciones ya que requieren instalación manual
+        """Descargar e instalar binarios empaquetados (ej. Piper)."""
+        if not model.download_url:
+            raise ValueError(f"Model {model.id} has no download_url defined")
+
+        self._report_progress(model.id, 10, f"Resolviendo binario para tu OS...")
+
+        # Lógica especial para Piper TTS
+        if model.id == "piper":
+            import platform
+            system = platform.system().lower()
+            machine = platform.machine().lower()
+            
+            # Map Python platform to Piper release assets
+            asset_name = ""
+            if "windows" in system:
+                asset_name = "piper_windows_amd64.zip"
+            elif "darwin" in system:
+                asset_name = "piper_macos_aarch64.tar.gz" if "arm" in machine or "aarch64" in machine else "piper_macos_x64.tar.gz"
+            else:
+                asset_name = "piper_linux_aarch64.tar.gz" if "aarch64" in machine else "piper_linux_x86_64.tar.gz"
+
+            # Buscar la URL del asset en la última release de Github
+            release_base = "https://github.com/rhasspy/piper/releases/latest/download"
+            full_url = f"{release_base}/{asset_name}"
+            
+            # Reutilizar la lógica de descarga usando una copia temporal del modelo
+            temp_model = ModelInfo(**{**model.__dict__})
+            temp_model.download_url = full_url
+            
+            # Directorio temporal para la extracción
+            extract_dir = self._models_dir / model.id
+            extract_dir.mkdir(parents=True, exist_ok=True)
+            
+            try:
+                # 1. Descargar el archivo .zip o .tar.gz
+                self._report_progress(model.id, 20, f"Descargando {asset_name}...")
+                
+                # Import aiohttp on demand to avoid crashing if not installed
+                try:
+                    import aiohttp
+                    async with aiohttp.ClientSession() as session:
+                        async with session.get(full_url) as response:
+                            if response.status != 200:
+                                raise RuntimeError(f"Download failed: HTTP {response.status}")
+                            
+                            total = int(response.headers.get("content-length", 0))
+                            downloaded = 0
+                            output_path = extract_dir / asset_name
+                            
+                            with open(output_path, "wb") as f:
+                                async for chunk in response.content.iter_chunked(8192):
+                                    f.write(chunk)
+                                    downloaded += len(chunk)
+                                    if total > 0:
+                                        self._report_progress(model.id, 20 + (downloaded / total) * 50, "Descargando binario...")
+                except ImportError:
+                    # Fallback urllib
+                    import urllib.request
+                    output_path = extract_dir / asset_name
+                    def download():
+                        urllib.request.urlretrieve(full_url, str(output_path))
+                    await asyncio.get_event_loop().run_in_executor(None, download)
+
+                # 2. Extraer el binario
+                self._report_progress(model.id, 80, "Extrayendo...")
+                if asset_name.endswith(".zip"):
+                    import zipfile
+                    with zipfile.ZipFile(output_path, 'r') as zip_ref:
+                        zip_ref.extractall(extract_dir)
+                else:
+                    import tarfile
+                    with tarfile.open(output_path, 'r:gz') as tar_ref:
+                        def is_within_directory(directory, target):
+                            abs_directory = os.path.abspath(directory)
+                            abs_target = os.path.abspath(target)
+                            prefix = os.path.commonprefix([abs_directory, abs_target])
+                            return prefix == abs_directory
+
+                        def safe_extract(tar, path=".", members=None, *, numeric_owner=False):
+                            for member in tar.getmembers():
+                                member_path = os.path.join(path, member.name)
+                                if not is_within_directory(path, member_path):
+                                    raise Exception("Attempted Path Traversal in Tar File")
+                            tar.extractall(path, members, numeric_owner=numeric_owner)
+
+                        safe_extract(tar_ref, extract_dir)
+                
+                # Limpiar archivo zipeado
+                output_path.unlink(missing_ok=True)
+                
+                # Dar permisos de ejecución en UNIX
+                if "windows" not in system:
+                    piper_bin = extract_dir / "piper" / "piper"
+                    if piper_bin.exists():
+                        os.chmod(piper_bin, 0o755)
+
+                self._report_progress(model.id, 100, "Binario instalado exitosamente.")
+                return
+
+            except Exception as e:
+                # Fallback a las instrucciones manuales si la automatización falla
+                logger.error(f"Fallo al instalar automatizadamente: {e}")
+                
+        # Fallback normal si no es piper o falló la extracción
         raise RuntimeError(
             f"El binario '{model.binary_name}' debe instalarse manualmente.\n"
             f"Descarga desde: {model.download_url}\n"
