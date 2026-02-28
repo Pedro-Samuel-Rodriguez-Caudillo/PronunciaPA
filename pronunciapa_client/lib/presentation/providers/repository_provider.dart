@@ -30,6 +30,12 @@ class BaseUrlNotifier extends StateNotifier<String> {
       final prefs = await SharedPreferences.getInstance();
       final savedUrl = prefs.getString(_key);
       if (savedUrl != null && savedUrl.isNotEmpty) {
+        // Prevent cross-platform contamination
+        if (!Platform.isAndroid && savedUrl.contains('10.0.2.2')) {
+          AppLogger.i(_tag, 'Ignoring Android emulator URL $savedUrl on non-Android platform. Using default: $_defaultUrl');
+          state = _defaultUrl;
+          return;
+        }
         state = savedUrl;
       }
     } catch (e) {

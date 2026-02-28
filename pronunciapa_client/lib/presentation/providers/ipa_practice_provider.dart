@@ -108,6 +108,7 @@ class IpaPracticeNotifier extends StateNotifier<IpaPracticeState> {
       // Intentar cargar desde el backend real
       try {
         final sounds = await _fetchIpaSounds(targetLang);
+        if (!mounted) return;
         state = state.copyWith(
           sounds: sounds,
           isLoading: false,
@@ -122,12 +123,14 @@ class IpaPracticeNotifier extends StateNotifier<IpaPracticeState> {
       // Fallback a mock data
       final sounds = _getMockIpaSounds(targetLang);
       
+      if (!mounted) return;
       state = state.copyWith(
         sounds: sounds,
         isLoading: false,
         selectedLang: targetLang,
       );
     } catch (e) {
+      if (!mounted) return;
       state = state.copyWith(
         isLoading: false,
         error: 'Error cargando sonidos IPA: $e',

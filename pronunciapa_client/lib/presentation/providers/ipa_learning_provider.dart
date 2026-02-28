@@ -168,9 +168,11 @@ class IpaLearningNotifier extends StateNotifier<IpaLearningState> {
     state = state.copyWith(isLoading: true, error: null, selectedLang: lang);
 
     try {
-      final response = await http.get(
+      final response = await http.get( // Use generic http.get here
         Uri.parse('$_baseUrl/api/ipa-learn/$lang'),
       ).timeout(const Duration(seconds: 10));
+
+      if (!mounted) return;
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -199,6 +201,7 @@ class IpaLearningNotifier extends StateNotifier<IpaLearningState> {
         );
       }
     } catch (e) {
+      if (!mounted) return;
       state = state.copyWith(
         isLoading: false,
         error: 'Connection error: $e',
