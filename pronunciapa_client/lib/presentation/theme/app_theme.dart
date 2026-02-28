@@ -459,6 +459,7 @@ class GradientButton extends StatelessWidget {
   final Widget child;
   final LinearGradient gradient;
   final double borderRadius;
+  final bool isLoading;
 
   const GradientButton({
     super.key,
@@ -466,6 +467,7 @@ class GradientButton extends StatelessWidget {
     required this.child,
     this.gradient = AppTheme.primaryGradient,
     this.borderRadius = 12,
+    this.isLoading = false,
   });
 
   @override
@@ -474,10 +476,10 @@ class GradientButton extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        gradient: onPressed != null ? gradient : null,
-        color: onPressed == null ? Colors.grey : null,
+        gradient: (onPressed != null && !isLoading) ? gradient : null,
+        color: (onPressed == null || isLoading) ? Colors.grey.withOpacity(0.5) : null,
         borderRadius: BorderRadius.circular(borderRadius),
-        boxShadow: onPressed != null
+        boxShadow: (onPressed != null && !isLoading)
             ? [
                 BoxShadow(
                   color: glass?.glow ?? AppTheme.primaryStart.withOpacity(0.4),
@@ -488,7 +490,7 @@ class GradientButton extends StatelessWidget {
             : null,
       ),
       child: ElevatedButton(
-        onPressed: onPressed,
+        onPressed: isLoading ? null : onPressed,
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.transparent,
           shadowColor: Colors.transparent,
@@ -497,7 +499,16 @@ class GradientButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(borderRadius),
           ),
         ),
-        child: child,
+        child: isLoading
+            ? const SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              )
+            : child,
       ),
     );
   }

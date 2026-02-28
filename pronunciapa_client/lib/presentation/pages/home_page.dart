@@ -20,6 +20,7 @@ class HomePage extends ConsumerStatefulWidget {
 class _HomePageState extends ConsumerState<HomePage> {
   final TextEditingController _textController = TextEditingController();
   IpaCliPayload? _ipaPayload;
+  bool _isRefiningFeedback = false;
 
   @override
   void dispose() {
@@ -154,20 +155,30 @@ class _HomePageState extends ConsumerState<HomePage> {
           ),
           const SizedBox(height: 12),
           GradientButton(
+            isLoading: _isRefiningFeedback,
             onPressed: () async {
               if (apiState.isQuickResult) {
-                // Re-run with full analysis, then navigate
-                final notifier = ref.read(apiNotifierProvider.notifier);
-                final prefs = ref.read(preferencesProvider);
-                await notifier.reprocessFull(
-                  lang: prefs.lang,
-                  evaluationLevel: prefs.mode.name,
-                  mode: prefs.comparisonMode,
-                  feedbackLevel: prefs.feedbackLevel,
-                );
-                final updatedState = ref.read(apiNotifierProvider);
-                if (updatedState.result != null && mounted) {
-                  _navigateToResults(context, updatedState.result!);
+                if (!mounted) return;
+                setState(() => _isRefiningFeedback = true);
+
+                try {
+                  // Re-run with full analysis, then navigate
+                  final notifier = ref.read(apiNotifierProvider.notifier);
+                  final prefs = ref.read(preferencesProvider);
+                  await notifier.reprocessFull(
+                    lang: prefs.lang,
+                    evaluationLevel: prefs.mode.name,
+                    mode: prefs.comparisonMode,
+                    feedbackLevel: prefs.feedbackLevel,
+                  );
+                  final updatedState = ref.read(apiNotifierProvider);
+                  if (updatedState.result != null && mounted) {
+                    _navigateToResults(context, updatedState.result!);
+                  }
+                } finally {
+                  if (mounted) {
+                    setState(() => _isRefiningFeedback = false);
+                  }
                 }
               } else {
                 _navigateToResults(context, result);
