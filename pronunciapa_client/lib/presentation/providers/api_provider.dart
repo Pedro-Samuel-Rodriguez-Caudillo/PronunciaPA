@@ -308,16 +308,11 @@ class PronunciaApiService {
       final data = jsonDecode(body);
       final compareData = data['compare'] as Map<String, dynamic>;
       final feedbackData = data['feedback'] as Map<String, dynamic>;
-      
+
       return FeedbackResult(
-        compare: TranscriptionResult(
-          ipa: compareData['ipa'] ?? '',
-          score: (compareData['score'] as num?)?.toDouble(),
-          alignment: _parseAlignment(compareData['alignment']),
-          meta: _parseMeta(compareData['meta']),
-        ),
+        compare: TranscriptionResult.fromJson(compareData),
         feedback: FeedbackPayload.fromJson(feedbackData),
-        report: data['report'] as Map<String, dynamic>,
+        report: (data['report'] as Map?)?.cast<String, dynamic>() ?? {},
       );
     } else {
       throw Exception(_formatError(response.statusCode, body));

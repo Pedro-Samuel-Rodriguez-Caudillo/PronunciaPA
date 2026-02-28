@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'repository_provider.dart';
-import 'preferences_provider.dart';
 
 // ── Domain models ─────────────────────────────────────────────────────────────
 
@@ -159,14 +158,12 @@ class LessonPlanNotifier extends StateNotifier<LessonPlanState> {
         ds.getRoadmapProgress(_userId, _lang),
         ds.getLessonPlan(_userId, _lang),
       ]);
-      if (!mounted) return;
       state = state.copyWith(
         isLoading: false,
         roadmap: RoadmapState.fromJson(results[0] as Map<String, dynamic>),
         plan: LessonPlan.fromJson(results[1] as Map<String, dynamic>),
       );
     } catch (e) {
-      if (!mounted) return;
       state = state.copyWith(isLoading: false, error: e.toString());
     }
   }
@@ -177,13 +174,11 @@ class LessonPlanNotifier extends StateNotifier<LessonPlanState> {
       final ds = _ref.read(remoteDataSourceProvider);
       final result =
           await ds.getLessonPlan(_userId, _lang, soundId: soundId);
-      if (!mounted) return;
       state = state.copyWith(
         isLoading: false,
         plan: LessonPlan.fromJson(result as Map<String, dynamic>),
       );
     } catch (e) {
-      if (!mounted) return;
       state = state.copyWith(isLoading: false, error: e.toString());
     }
   }
@@ -194,24 +189,14 @@ class LessonPlanNotifier extends StateNotifier<LessonPlanState> {
   }
 
   void setLang(String lang) {
-    if (_lang == lang) return;
     _lang = lang;
     state = const LessonPlanState();
-    loadAll();
   }
 }
 
 // ── Provider ──────────────────────────────────────────────────────────────────
 
 final lessonPlanProvider =
-    StateNotifierProvider<LessonPlanNotifier, LessonPlanState>((ref) {
-  final notifier = LessonPlanNotifier(ref);
-  // Sync language from preferences. fireImmediately triggers on first build
-  // so the notifier always uses the persisted lang on startup.
-  ref.listen(
-    preferencesProvider.select((p) => p.lang),
-    (_, lang) => notifier.setLang(lang),
-    fireImmediately: true,
-  );
-  return notifier;
-});
+    StateNotifierProvider<LessonPlanNotifier, LessonPlanState>(
+  (ref) => LessonPlanNotifier(ref),
+);

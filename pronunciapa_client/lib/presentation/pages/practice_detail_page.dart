@@ -109,6 +109,10 @@ class _PracticeDetailPageState extends ConsumerState<PracticeDetailPage> {
       );
       final result = feedbackResult.compare;
       final feedbackPayload = feedbackResult.feedback;
+      // warnings from the analysis report (e.g. out-of-vocabulary IPA tokens)
+      final reportWarnings = (feedbackResult.report['warnings'] as List<dynamic>?)
+          ?.map((e) => e.toString())
+          .toList() ?? [];
 
       if (mounted) {
         showDialog(
@@ -254,6 +258,32 @@ class _PracticeDetailPageState extends ConsumerState<PracticeDetailPage> {
                       ),
                     ),
                   ],
+                  // Backend warnings (e.g. out-of-vocabulary IPA tokens)
+                  if (reportWarnings.isNotEmpty) ...[  
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.amber.withOpacity(0.4)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(Icons.info_outline, size: 15, color: Colors.amber),
+                              SizedBox(width: 6),
+                              Text('Avisos del análisis', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          ...reportWarnings.map((w) => Text('• $w', style: const TextStyle(fontSize: 12))),
+                        ],
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 8),
                   // LLM Feedback — summary + advice
                   const Divider(),
@@ -269,10 +299,16 @@ class _PracticeDetailPageState extends ConsumerState<PracticeDetailPage> {
                     ],
                   ),
                   const SizedBox(height: 8),
-                  Text(
-                    feedbackPayload.summary,
-                    style: const TextStyle(fontSize: 14),
-                  ),
+                  if (feedbackPayload.summary.isNotEmpty)
+                    Text(
+                      feedbackPayload.summary,
+                      style: const TextStyle(fontSize: 14),
+                    )
+                  else
+                    const Text(
+                      'El modelo LLM no generó resumen para esta grabación.',
+                      style: TextStyle(fontSize: 13, color: Colors.grey),
+                    ),
                   if (feedbackPayload.adviceShort.isNotEmpty) ...[
                     const SizedBox(height: 8),
                     Container(

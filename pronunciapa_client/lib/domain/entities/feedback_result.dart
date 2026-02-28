@@ -71,16 +71,16 @@ class FeedbackPayload {
 
   factory FeedbackPayload.fromJson(Map<String, dynamic> json) {
     return FeedbackPayload(
-      summary: json['summary'] as String,
-      adviceShort: json['advice_short'] as String,
-      adviceLong: json['advice_long'] as String,
-      drills: (json['drills'] as List<dynamic>)
+      summary: (json['summary'] as String?) ?? '',
+      adviceShort: (json['advice_short'] as String?) ?? '',
+      adviceLong: (json['advice_long'] as String?) ?? '',
+      drills: ((json['drills'] as List<dynamic>?) ?? [])
           .map((d) => FeedbackDrill.fromJson(d as Map<String, dynamic>))
           .toList(),
       feedbackLevel: json['feedback_level'] as String?,
       tone: json['tone'] as String?,
       confidence: json['confidence'] as String?,
-      warnings: (json['warnings'] as List<dynamic>?)?.cast<String>(),
+      warnings: (json['warnings'] as List<dynamic>?)?.map((e) => e.toString()).toList(),
     );
   }
 

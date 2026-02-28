@@ -2,11 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import '../widgets/recorder_widget.dart';
+import '../widgets/ipa_display_widget.dart';
+import '../widgets/diff_viewer_widget.dart';
 import '../providers/api_provider.dart';
 import '../providers/preferences_provider.dart';
 import '../../domain/entities/ipa_cli.dart';
+import 'settings_page.dart';
 import 'results_page.dart';
+import '../../domain/entities/feedback_result.dart';
+import 'ipa_practice_page.dart';
+import 'ipa_learn_page.dart';
 import 'models_page.dart';
+import 'progress_roadmap_page.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_background.dart';
 
@@ -20,7 +27,6 @@ class HomePage extends ConsumerStatefulWidget {
 class _HomePageState extends ConsumerState<HomePage> {
   final TextEditingController _textController = TextEditingController();
   IpaCliPayload? _ipaPayload;
-  bool _isRefiningFeedback = false;
 
   @override
   void dispose() {
@@ -39,14 +45,49 @@ class _HomePageState extends ConsumerState<HomePage> {
         title: const Text('PronunciaPA'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.school),
+            onPressed: () {
+               Navigator.of(context).push(
+                 MaterialPageRoute(builder: (_) => const IpaLearnPage()),
+               );
+            },
+            tooltip: 'Learn IPA',
+          ),
+          IconButton(
+            icon: const Icon(Icons.psychology),
+            onPressed: () {
+               Navigator.of(context).push(
+                 MaterialPageRoute(builder: (_) => const IpaPracticePage()),
+               );
+            },
+            tooltip: 'Práctica IPA',
+          ),
+          IconButton(
+            icon: const Icon(Icons.show_chart),
+            onPressed: () {
+               Navigator.of(context).push(
+                 MaterialPageRoute(builder: (_) => const ProgressRoadmapPage()),
+               );
+            },
+            tooltip: 'Mi progreso',
+          ),
+          IconButton(
             icon: const Icon(Icons.extension),
             onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const ModelsPage()),
-              );
+               Navigator.of(context).push(
+                 MaterialPageRoute(builder: (_) => const ModelsPage()),
+               );
             },
             tooltip: 'Gestión de Modelos',
           ),
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () {
+               Navigator.of(context).push(
+                 MaterialPageRoute(builder: (_) => const SettingsPage()),
+               );
+            },
+          )
         ],
       ),
       body: Stack(
@@ -155,30 +196,19 @@ class _HomePageState extends ConsumerState<HomePage> {
           ),
           const SizedBox(height: 12),
           GradientButton(
-            isLoading: _isRefiningFeedback,
             onPressed: () async {
               if (apiState.isQuickResult) {
-                if (!mounted) return;
-                setState(() => _isRefiningFeedback = true);
-
-                try {
-                  // Re-run with full analysis, then navigate
-                  final notifier = ref.read(apiNotifierProvider.notifier);
-                  final prefs = ref.read(preferencesProvider);
-                  await notifier.reprocessFull(
-                    lang: prefs.lang,
-                    evaluationLevel: prefs.mode.name,
-                    mode: prefs.comparisonMode,
-                    feedbackLevel: prefs.feedbackLevel,
-                  );
-                  final updatedState = ref.read(apiNotifierProvider);
-                  if (updatedState.result != null && mounted) {
-                    _navigateToResults(context, updatedState.result!);
-                  }
-                } finally {
-                  if (mounted) {
-                    setState(() => _isRefiningFeedback = false);
-                  }
+                // Re-run with full analysis, then navigate
+                final notifier = ref.read(apiNotifierProvider.notifier);
+                final prefs = ref.read(preferencesProvider);
+                await notifier.reprocessFull(
+                  lang: prefs.lang,
+                  evaluationLevel: prefs.mode.name,
+                  mode: prefs.comparisonMode,
+                );
+                final updatedState = ref.read(apiNotifierProvider);
+                if (updatedState.result != null && mounted) {
+                  _navigateToResults(context, updatedState.result!);
                 }
               } else {
                 _navigateToResults(context, result);
@@ -209,7 +239,7 @@ class _HomePageState extends ConsumerState<HomePage> {
       for (var op in result.ops!) {
         PhonemeOperation operation;
         String phoneme;
-
+        
         switch (op.op) {
           case 'eq':
             operation = PhonemeOperation.correct;
@@ -217,7 +247,7 @@ class _HomePageState extends ConsumerState<HomePage> {
             break;
           case 'sub':
             operation = PhonemeOperation.substitute;
-            phoneme = op.hyp ?? '';
+            phoneme = op.hyp ?? ''; // Mostramos lo que dijo el usuario
             break;
           case 'del':
             operation = PhonemeOperation.delete;
@@ -231,22 +261,22 @@ class _HomePageState extends ConsumerState<HomePage> {
             operation = PhonemeOperation.correct;
             phoneme = op.hyp ?? op.ref ?? '';
         }
-
+        
         phonemes.add(PhonemeResult(phoneme: phoneme, operation: operation));
       }
     }
 
-    // Use rich feedback from /v1/feedback if available, otherwise null
-    final feedbackPayload = ref.read(apiNotifierProvider).feedbackResult?.feedback;
-
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => ResultsPage(
-          score: result.score ?? 0.0,
-          targetIpa: result.targetIpa ?? result.meta?['target_ipa'] as String? ?? '',
+          score: result.score ?? 0.0, // Backend now returns 0-100
+          targetIpa: result.targetIpa ?? result.meta?['target_ipa'] ?? '',
           observedIpa: result.ipa,
           phonemes: phonemes,
-          feedbackPayload: feedbackPayload,
+          feedbackPayload: result.meta?['feedback'] != null
+              ? FeedbackPayload.fromJson(
+                  Map<String, dynamic>.from(result.meta!['feedback'] as Map))
+              : null,
         ),
       ),
     );
@@ -330,6 +360,96 @@ class _HomePageState extends ConsumerState<HomePage> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildResultCard(ThemeData theme, TranscriptionResult result) {
+    final score = result.score ?? 0.0; // Backend now returns 0-100
+    final isGood = score > 80;
+
+    return GlassCard(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text("Resultado", style: theme.textTheme.titleMedium),
+                  if (result.score != null)
+                    Text(
+                      "${score.toStringAsFixed(0)}% Match",
+                      style: theme.textTheme.headlineMedium?.copyWith(
+                        color: isGood ? AppTheme.success : AppTheme.warning,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                ],
+              ),
+              Icon(
+                isGood ? Icons.check_circle : Icons.warning_amber,
+                size: 48,
+                color: isGood ? AppTheme.success : AppTheme.warning,
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          Text("Phonetic Breakdown", style: theme.textTheme.labelLarge),
+          const SizedBox(height: 12),
+
+          if (result.ops != null && result.ops!.isNotEmpty)
+            DiffViewerWidget(
+              tokens: result.ops!.map((op) {
+                DiffTag tag;
+                switch (op.op) {
+                  case 'eq':
+                    tag = DiffTag.match;
+                    break;
+                  case 'sub':
+                    tag = DiffTag.substitution;
+                    break;
+                  case 'del':
+                    tag = DiffTag.deletion;
+                    break;
+                  case 'ins':
+                    tag = DiffTag.insertion;
+                    break;
+                  default:
+                    tag = DiffTag.match;
+                }
+                return DiffToken(op.hyp ?? op.ref ?? '', tag);
+              }).toList(),
+            )
+          else if (result.alignment != null)
+            _buildLegacyAlignment(result.alignment!)
+          else
+            IpaDisplayWidget(label: "Raw IPA", ipa: result.ipa),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLegacyAlignment(List<List<String?>> alignment) {
+    // Fallback for old-style alignment display
+    return Wrap(
+      spacing: 8,
+      runSpacing: 12,
+      alignment: WrapAlignment.center,
+      children: alignment.map((pair) {
+        final ref = pair[0];
+        final hyp = pair[1];
+        final match = ref == hyp;
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: match ? Colors.green.withOpacity(0.15) : Colors.red.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(hyp ?? ref ?? '', style: const TextStyle(fontFamily: 'monospace')),
+        );
+      }).toList(),
     );
   }
 
