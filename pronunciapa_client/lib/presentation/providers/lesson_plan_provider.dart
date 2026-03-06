@@ -10,7 +10,9 @@ class LessonDrillItem {
   const LessonDrillItem({required this.type, required this.text});
 
   factory LessonDrillItem.fromJson(Map<String, dynamic> j) =>
-      LessonDrillItem(type: j['type'] as String, text: j['text'] as String);
+      LessonDrillItem(
+          type: (j['type'] as String?) ?? '',
+          text: (j['text'] as String?) ?? '');
 }
 
 class LessonPlan {
@@ -19,6 +21,7 @@ class LessonPlan {
   final String intro;
   final List<String> tips;
   final List<LessonDrillItem> drills;
+  final Map<String, dynamic> meta;
 
   const LessonPlan({
     required this.recommendedSoundId,
@@ -26,6 +29,7 @@ class LessonPlan {
     required this.intro,
     required this.tips,
     required this.drills,
+    this.meta = const {},
   });
 
   factory LessonPlan.fromJson(Map<String, dynamic> j) => LessonPlan(
@@ -37,6 +41,7 @@ class LessonPlan {
                 ?.map((e) => LessonDrillItem.fromJson(e as Map<String, dynamic>))
                 .toList() ??
             [],
+        meta: j['meta'] as Map<String, dynamic>? ?? {},
       );
 }
 

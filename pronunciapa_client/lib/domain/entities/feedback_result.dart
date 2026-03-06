@@ -34,8 +34,8 @@ class FeedbackDrill {
 
   factory FeedbackDrill.fromJson(Map<String, dynamic> json) {
     return FeedbackDrill(
-      type: json['type'] as String,
-      text: json['text'] as String,
+      type: (json['type'] as String?) ?? '',
+      text: (json['text'] as String?) ?? '',
     );
   }
 

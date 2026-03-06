@@ -233,6 +233,9 @@ class _HomePageState extends ConsumerState<HomePage> {
   }
 
   void _navigateToResults(BuildContext context, TranscriptionResult result) {
+    final apiState = ref.read(apiNotifierProvider);
+    final feedbackResult = apiState.feedbackResult;
+
     // Convertir ops a PhonemeResult si existe
     List<PhonemeResult> phonemes = [];
     if (result.ops != null) {
@@ -270,13 +273,14 @@ class _HomePageState extends ConsumerState<HomePage> {
       MaterialPageRoute(
         builder: (context) => ResultsPage(
           score: result.score ?? 0.0, // Backend now returns 0-100
-          targetIpa: result.targetIpa ?? result.meta?['target_ipa'] ?? '',
-          observedIpa: result.ipa,
+          targetIpa: feedbackResult?.report['target_ipa']?.toString() ?? result.targetIpa ?? result.meta?['target_ipa'] ?? '',
+          observedIpa: feedbackResult?.report['observed_ipa']?.toString() ?? result.ipa,
           phonemes: phonemes,
-          feedbackPayload: result.meta?['feedback'] != null
-              ? FeedbackPayload.fromJson(
-                  Map<String, dynamic>.from(result.meta!['feedback'] as Map))
-              : null,
+          feedbackPayload: feedbackResult?.feedback ?? 
+              (result.meta?['feedback'] != null
+                  ? FeedbackPayload.fromJson(
+                      Map<String, dynamic>.from(result.meta!['feedback'] as Map))
+                  : null),
         ),
       ),
     );

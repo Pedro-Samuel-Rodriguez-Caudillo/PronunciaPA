@@ -17,7 +17,7 @@ export '../../domain/entities/feedback_result.dart'
 export '../../domain/entities/transcription_result.dart' show TranscriptionResult;
 
 class PronunciaApiService {
-  static const Duration _requestTimeout = Duration(seconds: 60);
+  static const Duration _requestTimeout = Duration(minutes: 5);
   static const Duration _fileRetryDelay = Duration(milliseconds: 120);
   static const int _fileRetryAttempts = 3;
   static const int _minWavBytes = 46;

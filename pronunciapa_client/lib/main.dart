@@ -84,20 +84,18 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   int _selectedIndex = 0;
 
-  static const _pages = <Widget>[
-    HomePage(),
-    IpaLearnPage(),
-    IpaPracticePage(),
-    ProgressRoadmapPage(),
-    SettingsPage(),
-  ];
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: IndexedStack(
         index: _selectedIndex,
-        children: _pages,
+        children: [
+          const HomePage(),
+          const IpaLearnPage(),
+          const IpaPracticePage(),
+          ProgressRoadmapPage(isActive: _selectedIndex == 3),
+          const SettingsPage(),
+        ],
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,

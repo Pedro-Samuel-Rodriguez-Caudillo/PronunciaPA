@@ -1,6 +1,7 @@
 """Core pipeline endpoints: transcribe, textref, compare, feedback."""
 from __future__ import annotations
 
+import asyncio
 import logging
 import tempfile
 from pathlib import Path
@@ -47,23 +48,40 @@ router = APIRouter(prefix="/v1", tags=["pipeline"])
 # ── Kernel singleton cache ────────────────────────────────────────────
 _cached_kernel: Optional[Kernel] = None
 _kernel_ready: bool = False
+_kernel_lock: Optional[asyncio.Lock] = None
+
+
+def _get_kernel_lock() -> asyncio.Lock:
+    """Lazy-init the lock (must be created inside an event loop)."""
+    global _kernel_lock
+    if _kernel_lock is None:
+        _kernel_lock = asyncio.Lock()
+    return _kernel_lock
 
 
 async def _get_or_create_kernel() -> Kernel:
     """Return a warm, already-setup kernel (singleton).
 
     The first call creates + sets up the kernel.  Subsequent calls reuse it.
-    This removes the ~200-400 ms overhead of recreating the kernel per request.
+    An asyncio Lock prevents the race condition where multiple concurrent
+    startup requests each see _cached_kernel=None and all create their own
+    full kernel (loading Allosaurus 7+ times).
     """
     global _cached_kernel, _kernel_ready
+    # Fast path – already ready, no lock needed.
     if _cached_kernel is not None and _kernel_ready:
         return _cached_kernel
-    cfg = loader.load_config()
-    _cached_kernel = create_kernel(cfg)
-    await _cached_kernel.setup()
-    _kernel_ready = True
-    logger.info("Kernel singleton created and ready")
-    return _cached_kernel
+    async with _get_kernel_lock():
+        # Re-check inside the lock (another coroutine may have set it up
+        # while we were waiting).
+        if _cached_kernel is not None and _kernel_ready:
+            return _cached_kernel
+        cfg = loader.load_config()
+        _cached_kernel = create_kernel(cfg)
+        await _cached_kernel.setup()
+        _kernel_ready = True
+        logger.info("Kernel singleton created and ready")
+        return _cached_kernel
 
 
 async def teardown_kernel_singleton() -> None:
@@ -107,9 +125,10 @@ def _default_lang_from_config() -> str:
         backend_lang = cfg.backend.params.get("lang")
         if isinstance(backend_lang, str) and backend_lang.strip():
             return backend_lang.strip().lower()
+        return "es"
     except Exception as exc:  # pragma: no cover - fallback defensivo
         logger.debug("No se pudo resolver idioma por defecto desde config: %s", exc)
-    return "es"
+        return "es"
 
 
 def _resolve_request_lang(lang: Optional[str]) -> str:
@@ -236,7 +255,10 @@ async def transcribe(
     finally:
         await kernel.teardown()
         if tmp_path.exists():
-            tmp_path.unlink()
+            try:
+                tmp_path.unlink()
+            except OSError:
+                pass
 
 
 @router.post("/textref", response_model=TextRefResponse)
@@ -311,7 +333,7 @@ async def compare(
 
         # Cargar language pack (auto si es posible)
         language_pack = None
-        pack_id = None
+        pack_id: Optional[Path | str] = None
         if pack:
             pack_path = Path(pack)
             if pack_path.exists() and pack_path.is_dir():
@@ -378,7 +400,7 @@ async def compare(
             )
             if not _asr_related:
                 raise  # TextRef / config error → keep 400
-            logger.warning("compare: pipeline audio error — respuesta no-speech: %s", _msg)
+                logger.warning("compare: pipeline audio error — respuesta no-speech: %s", _msg)
             try:
                 _tr = await kernel.textref.to_ipa(text, lang=lang_resolved)
                 _ref_tokens = clean_textref_tokens(
@@ -501,7 +523,7 @@ async def quick_compare(
                 no_speech_hint += (
                     " El audio podría estar vacío, ser demasiado corto o no tener voz."
                 )
-            logger.warning("quick_compare: ASR sin tokens — respuesta no-speech")
+                logger.warning("quick_compare: ASR sin tokens — respuesta no-speech")
             try:
                 tr_fallback = await kernel.textref.to_ipa(text, lang=lang_resolved)
                 ref_tokens_fb = clean_textref_tokens(
@@ -610,13 +632,20 @@ async def feedback(
     """Analiza la pronunciacion y genera feedback con LLM local."""
     lang_resolved = _resolve_request_lang(lang)
     tmp_path = await _process_upload(audio)
-    kernel = _build_kernel(model_pack=model_pack, llm_name=llm)
+    # Use the singleton kernel when no per-request overrides are needed.
+    # _build_kernel creates a fresh kernel (+ full Allosaurus load) each call.
+    use_singleton = model_pack is None and llm is None
+    if use_singleton:
+        kernel = await _get_or_create_kernel()
+    else:
+        kernel = _build_kernel(model_pack=model_pack, llm_name=llm)
     try:
         # Validate output_type BEFORE setup() — see note in /v1/transcribe.
         asr_guard = _assert_real_ipa_asr(kernel.asr)
         if asr_guard:
             return asr_guard
-        await kernel.setup()
+        if not use_singleton:
+            await kernel.setup()
         audio_in: AudioInput = {
             "path": str(tmp_path),
             "sample_rate": 16000,
@@ -647,6 +676,10 @@ async def feedback(
             )
         return result
     finally:
-        await kernel.teardown()
+        if not use_singleton:
+            await kernel.teardown()
         if tmp_path.exists():
-            tmp_path.unlink()
+            try:
+                tmp_path.unlink()
+            except OSError:
+                pass

@@ -354,16 +354,6 @@ def _apply_feedback_context(
                     existing.append(warning)
         else:
             payload["warnings"] = warnings
-        warning_text = warnings[0]
-        summary = payload.get("summary")
-        if isinstance(summary, str) and warning_text not in summary:
-            payload["summary"] = f"{warning_text} {summary}"
-        else:
-            advice_short = payload.get("advice_short")
-            if isinstance(advice_short, str) and warning_text not in advice_short:
-                payload["advice_short"] = f"{warning_text} {advice_short}"
-            elif not summary:
-                payload["summary"] = warning_text
     return payload
 
 

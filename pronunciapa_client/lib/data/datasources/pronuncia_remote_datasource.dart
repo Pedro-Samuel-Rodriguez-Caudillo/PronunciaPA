@@ -13,7 +13,7 @@ class PronunciaRemoteDataSource {
 
   PronunciaRemoteDataSource({
     required this.baseUrl,
-    this.requestTimeout = const Duration(seconds: 30),
+    this.requestTimeout = const Duration(minutes: 5),
     http.Client? client,
   }) : _client = client ?? (kDebugMode ? DebugHttpClient() : http.Client());
 
