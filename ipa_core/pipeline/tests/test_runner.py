@@ -8,8 +8,12 @@ from ipa_core.phonology.representation import PhonologicalRepresentation
 
 from ipa_core.types import AudioInput, CompareResult
 
+from ipa_core.ports.preprocess import Preprocessor
+from ipa_core.ports.asr import ASRBackend
+from ipa_core.ports.textref import TextRefProvider
+from ipa_core.ports.compare import Comparator
 
-class _Preprocessor:
+class _Preprocessor(Preprocessor):
     def __init__(self) -> None:
         self.audio_seen: AudioInput | None = None
 
@@ -21,7 +25,7 @@ class _Preprocessor:
         return {"tokens": [str(t).strip().lower() for t in tokens if str(t).strip()]}
 
 
-class _ASR:
+class _ASR(ASRBackend):
     def __init__(self, *, tokens=None, raw_text="") -> None:
         self._tokens = tokens
         self._raw_text = raw_text
@@ -35,12 +39,12 @@ class _ASR:
         return result
 
 
-class _TextRef:
+class _TextRef(TextRefProvider):
     async def to_ipa(self, text: str, *, lang: str, **_kw):
         return {"tokens": list(text)}
 
 
-class _Comparator:
+class _Comparator(Comparator):
     def __init__(self) -> None:
         self.last_ref = None
         self.last_hyp = None
@@ -115,7 +119,7 @@ class _MockPack:
         return _MockScoringProfile()
 
 
-_AUDIO = {"path": "x.wav", "sample_rate": 16000, "channels": 1}
+_AUDIO: AudioInput = {"path": "x.wav", "sample_rate": 16000, "channels": 1}
 
 
 # ── execute_pipeline() tests ──────────────────────────────────────────

@@ -84,7 +84,7 @@ async def generate_drills(body: DrillsRequest) -> DrillSetOut:
         if op_val not in ("eq", "sub", "ins", "del"):
             continue
         ops.append(EditOp(
-            op=op_val,  # type: ignore[arg-type]
+            op=op_val,
             ref=raw.get("ref"),
             hyp=raw.get("hyp"),
         ))

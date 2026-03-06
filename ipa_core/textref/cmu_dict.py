@@ -155,7 +155,7 @@ class CMUDictTextRef:
                 nltk.download("cmudict", quiet=True)
                 from nltk.corpus import cmudict as _cmu
                 self._cmudict = _cmu.dict()
-            logger.info("CMU Dict cargado: %d entradas", len(self._cmudict))
+                logger.info("CMU Dict cargado: %d entradas", len(self._cmudict))
         except ImportError:
             logger.warning(
                 "nltk no instalado. CMUDictTextRef sin diccionario. "

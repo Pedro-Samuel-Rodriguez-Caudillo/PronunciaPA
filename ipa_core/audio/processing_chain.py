@@ -359,7 +359,7 @@ class AudioProcessingChain:
                     step.name,
                     path_after,
                 )
-        logger.debug(
+                logger.debug(
             "[AudioChain] DONE   audio=%s  steps=%s",
             ctx.audio.get("path"),
             ctx.steps_applied,

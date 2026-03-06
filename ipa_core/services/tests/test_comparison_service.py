@@ -10,14 +10,17 @@ from ipa_core.services.comparison import ComparisonService
 from tests.utils.audio import write_sine_wave
 
 
-class RawTextASR:
+from ipa_core.ports.asr import ASRBackend
+from ipa_core.ports.textref import TextRefProvider
+
+class RawTextASR(ASRBackend):
     async def setup(self): pass
     async def teardown(self): pass
     async def transcribe(self, audio, *, lang=None, **kw):
         return {"raw_text": "hola"}
 
 
-class TokenASR:
+class TokenASR(ASRBackend):
     async def setup(self): pass
     async def teardown(self): pass
     async def transcribe(self, audio, *, lang=None, **kw):
@@ -25,7 +28,7 @@ class TokenASR:
         return {"tokens": ["m", "a", "l"]}
 
 
-class FakeTextRef:
+class FakeTextRef(TextRefProvider):
     async def setup(self): pass
     async def teardown(self): pass
     async def to_ipa(self, text: str, *, lang: str, **kw):

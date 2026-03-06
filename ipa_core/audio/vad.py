@@ -354,7 +354,7 @@ def analyze_vad_silero(
         if curr_start - prev_end > 200:
             internal_pauses.append((prev_end, curr_start))
 
-    logger.debug(
+            logger.debug(
         "Silero VAD: %d segmentos, ratio=%.2f, threshold=%.2f",
         len(speech_segments), speech_ratio, threshold,
     )

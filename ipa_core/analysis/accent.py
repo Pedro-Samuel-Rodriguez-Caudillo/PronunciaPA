@@ -54,7 +54,7 @@ def rank_accents(
                 "confidence": confidence,
             }
         )
-    ranking.sort(key=lambda item: item["per"])
+    ranking.sort(key=lambda item: float(item["per"]))
     return ranking
 
 
@@ -107,7 +107,7 @@ def build_feedback(ops: list[EditOp]) -> list[dict[str, Any]]:
     feedback = [
         {"ref": ref, "hyp": hyp, "count": count} for (ref, hyp), count in counts.items()
     ]
-    feedback.sort(key=lambda item: item["count"], reverse=True)
+    feedback.sort(key=lambda item: int(item["count"]), reverse=True)
     return feedback
 
 

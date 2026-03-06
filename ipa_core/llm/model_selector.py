@@ -81,7 +81,7 @@ def get_available_ram_gb() -> float:
     ``/proc/meminfo`` en Linux, o devuelve 0.0 si no es posible.
     """
     try:
-        import psutil  # type: ignore[import]
+        import psutil
         return psutil.virtual_memory().available / (1024 ** 3)
     except ImportError:
         pass
@@ -102,7 +102,7 @@ def get_available_ram_gb() -> float:
 def get_total_ram_gb() -> float:
     """Retornar la RAM total del sistema en GB."""
     try:
-        import psutil  # type: ignore[import]
+        import psutil
         return psutil.virtual_memory().total / (1024 ** 3)
     except ImportError:
         pass

@@ -61,8 +61,8 @@ class VoskBackend(BasePlugin, ASRBackend):
     ) -> None:
         self._model_path = Path(model_path)
         self._sample_rate = sample_rate
-        self._model = None
-        self._recognizer = None
+        self._model: Any = None
+        self._recognizer: Any = None
         self._ready = False
     
     async def setup(self) -> None:
@@ -77,11 +77,12 @@ class VoskBackend(BasePlugin, ASRBackend):
         if not self._model_path.exists():
             raise FileNotFoundError(f"Vosk model not found: {self._model_path}")
         
-        logger.info(f"Loading Vosk model from: {self._model_path}")
+            logger.info(f"Loading Vosk model from: {self._model_path}")
         
         self._model = Model(str(self._model_path))
         self._recognizer = KaldiRecognizer(self._model, self._sample_rate)
-        self._recognizer.SetWords(True)  # Incluir timestamps
+        if self._recognizer is not None:
+            self._recognizer.SetWords(True)  # Incluir timestamps
         
         self._ready = True
         logger.info("Vosk model loaded")
@@ -126,18 +127,18 @@ class VoskBackend(BasePlugin, ASRBackend):
         return {
             "tokens": [],  # Vacío - requiere G2P
             "raw_text": text,
-            "segments": [
-                {
-                    "text": w["word"],
-                    "start": w.get("start", 0),
-                    "end": w.get("end", 0),
-                }
-                for w in words
-            ],
             "meta": {
                 "backend": "vosk",
                 "model_path": str(self._model_path),
                 "requires_g2p": True,
+                "segments": [
+                    {
+                        "text": w["word"],
+                        "start": w.get("start", 0),
+                        "end": w.get("end", 0),
+                    }
+                    for w in words
+                ],
             },
         }
     

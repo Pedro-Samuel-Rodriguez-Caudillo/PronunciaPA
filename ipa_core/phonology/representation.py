@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import List, Literal, Optional, TYPE_CHECKING
+from ipa_core.types import EditOp
 
 from ipa_core.textref.tokenize import (
     tokenize_ipa,
@@ -136,7 +137,7 @@ class ComparisonResult:
         Distancia calculada (0 = perfecto).
     score : float
         Puntuación (0-100, 100 = perfecto).
-    operations : List[dict]
+    operations : List[EditOp]
         Lista de operaciones de edición (S/I/D).
     """
     target: PhonologicalRepresentation
@@ -145,7 +146,7 @@ class ComparisonResult:
     evaluation_level: RepresentationLevel
     distance: float = 0.0
     score: float = 100.0
-    operations: List[dict] = field(default_factory=list)
+    operations: List[EditOp] = field(default_factory=list)
     
     def to_dict(self) -> dict:
         """Convert to CompareResult-compatible dict for API responses.

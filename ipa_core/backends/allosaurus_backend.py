@@ -27,7 +27,7 @@ try:
     ALLOSAURUS_AVAILABLE = True
 except (ImportError, TypeError) as e:
     ALLOSAURUS_AVAILABLE = False
-    read_recognizer = None  # type: ignore
+    read_recognizer: Any = None
     _ALLOSAURUS_ERROR = str(e)
 
 
@@ -282,8 +282,10 @@ class AllosaurusBackend(BasePlugin):
             )
         
         # Cargar modelo en un thread para no bloquear
-        def load_model():
-            return read_recognizer(self._model_name)
+        def load_model() -> Any:
+            if read_recognizer is not None:
+                return read_recognizer(self._model_name)
+            return None
         
         loop = asyncio.get_running_loop()
         self._model = await loop.run_in_executor(None, load_model)
@@ -447,7 +449,7 @@ class AllosaurusBackend(BasePlugin):
                 except OSError:
                     pass
 
-            logger.debug(
+                logger.debug(
                 "AllosaurusBackend: audio padded %d ms → %d ms (pad=%d ms cada lado)",
                 duration_ms,
                 duration_ms + 2 * pad_ms,
@@ -461,7 +463,9 @@ class AllosaurusBackend(BasePlugin):
 
     async def _run_recognize(self, audio_path: str, resolved_lang: Optional[str]) -> Any:
         """Ejecutar reconocimiento en thread separado (no bloquea el event loop)."""
-        def recognize():
+        def recognize() -> Any:
+            if not self._model:
+                raise NotReadyError()
             if resolved_lang:
                 return self._model.recognize(
                     audio_path,
@@ -543,10 +547,9 @@ class AllosaurusBackendStub(BasePlugin):
         if not self._ready:
             raise NotReadyError("Stub no inicializado.")
         
-        return {
+        result: ASRResult = {
             "tokens": list(self._mock_tokens),  # copy — never expose mutable instance state
             "raw_text": " ".join(self._mock_tokens),
-            "time_stamps": self._mock_timestamps,
             "confidences": [1.0] * len(self._mock_tokens),
             "meta": {
                 "backend": "allosaurus_stub",
@@ -556,6 +559,10 @@ class AllosaurusBackendStub(BasePlugin):
                 "confidence_available": True,
             },
         }
+        if self._mock_timestamps is not None:
+            result["time_stamps"] = self._mock_timestamps
+            
+        return result
 
 
 __all__ = [

@@ -73,9 +73,8 @@ class StubASR(BasePlugin):
         if not self._download_stub:
             return
         await self.model_manager.ensure_model(
-            name="Stub Model",
-            local_path=self._model_path,
-            download_url="https://example.com/models/stub.bin",
+            filename=self._model_path.name,
+            url="https://example.com/models/stub.bin",
         )
 
     # ── helpers ──────────────────────────────────────────────────────

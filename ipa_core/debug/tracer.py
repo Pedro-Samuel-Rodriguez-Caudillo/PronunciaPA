@@ -164,7 +164,7 @@ class PipelineTracer:
         for rec in self._records:
             lines.append(rec.as_line())
         lines.append(sep)
-        status = "PASS" if self.passed else f"FAIL at '{self.failed.name}'"
+        status = "PASS" if self.failed is None else f"FAIL at '{self.failed.name}'"
         lines.append(f" {status}  total={self.total_ms:.0f}ms")
         return "\n".join(lines)
 

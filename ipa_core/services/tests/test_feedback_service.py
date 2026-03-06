@@ -62,7 +62,8 @@ async def test_feedback_service_with_stub_llm(tmp_path: Path) -> None:
     )
     kernel = create_kernel(cfg)
     service = FeedbackService(kernel)
-    audio = {"path": "dummy.wav", "sample_rate": 16000, "channels": 1}
+    from ipa_core.types import AudioInput
+    audio: AudioInput = {"path": "dummy.wav", "sample_rate": 16000, "channels": 1}
 
     await kernel.setup()
     try:

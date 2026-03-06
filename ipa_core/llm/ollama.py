@@ -25,7 +25,7 @@ class OllamaAdapter(BasePlugin):
         - model: Model name to use (default: tinyllama)
         - temperature: Sampling temperature (default: 0.7)
         - num_ctx: Context window size (default: 4096)
-        - timeout: Request timeout in seconds (default: 120)
+        - timeout: Request timeout in seconds (default: 300)
     """
 
     def __init__(self, params: Optional[dict[str, Any]] = None) -> None:
@@ -39,7 +39,7 @@ class OllamaAdapter(BasePlugin):
         self._model = params.get("model", "tinyllama")
         self._temperature = params.get("temperature", 0.7)
         self._num_ctx = params.get("num_ctx", 4096)
-        self._timeout = params.get("timeout", 120)
+        self._timeout = params.get("timeout", 300)
         self._session = None
 
     async def setup(self) -> None:

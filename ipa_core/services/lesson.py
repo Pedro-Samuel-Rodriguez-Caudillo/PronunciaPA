@@ -35,6 +35,7 @@ _STUB_LESSON: dict[str, Any] = {
         {"type": "minimal_pair", "text": "caza / casa"},
         {"type": "syllable", "text": "sa se si so su"},
     ],
+    "meta": {"llm_model": "none (stub)"},
 }
 
 
@@ -141,7 +142,7 @@ async def update_roadmap(
         )
         updated[topic_id] = new_level
 
-    logger.debug("Roadmap actualizado para user=%s lang=%s: %s", user_id, lang, updated)
+        logger.debug("Roadmap actualizado para user=%s lang=%s: %s", user_id, lang, updated)
     return updated
 
 
@@ -379,6 +380,7 @@ async def plan_lesson(
             "drills": list(payload.get("drills", [])),
             "pace": str(payload.get("pace", adaptation["pace"])),
             "length": str(payload.get("length", adaptation["length"])),
+            "meta": {"llm_model": getattr(kernel.llm, "name", kernel.llm.__class__.__name__) if kernel.llm else "unknown"},
         }
     except Exception as exc:
         logger.warning("Error parseando respuesta LLM de lección: %s", exc)
@@ -395,6 +397,7 @@ async def plan_lesson(
             ],
             "pace": adaptation["pace"],
             "length": adaptation["length"],
+            "meta": {"llm_model": "stub (fallback)"},
         }
 
 

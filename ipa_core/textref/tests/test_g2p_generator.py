@@ -12,7 +12,9 @@ from ipa_core.textref.g2p_generator import (
 from ipa_core.drill_types import DrillItem, DrillSet, MinimalPair
 
 
-class MockTextRef:
+from ipa_core.ports.textref import TextRefProvider
+
+class MockTextRef(TextRefProvider):
     """Mock de TextRefProvider para testing."""
     
     async def to_ipa(self, text: str, *, lang: str, **kw) -> dict:

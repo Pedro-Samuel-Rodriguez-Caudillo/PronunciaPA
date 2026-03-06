@@ -152,7 +152,7 @@ class UnifiedIPABackend(BasePlugin):
                 "Upgrade Python or set PRONUNCIAPA_ASR=stub."
             ) from e
         
-        logger.info(f"Loading Allosaurus model: {self._allosaurus_lang}")
+            logger.info(f"Loading Allosaurus model: {self._allosaurus_lang}")
         self._backend = read_recognizer(self._allosaurus_lang)
         logger.info("Allosaurus ready")
     

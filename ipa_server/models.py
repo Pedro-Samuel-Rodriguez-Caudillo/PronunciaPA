@@ -339,6 +339,10 @@ class LessonPlanResponse(BaseModel):
         default="medium",
         description="Extensión sugerida: short | medium | long",
     )
+    meta: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Metadatos de la lección, incluyendo el LLM utilizado",
+    )
 
 
 class RoadmapTopicProgress(BaseModel):

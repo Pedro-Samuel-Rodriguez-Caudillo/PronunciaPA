@@ -31,7 +31,7 @@ async def test_allosaurus_transcribe_uses_mapped_lang_positional() -> None:
     backend._backend = recognizer
     backend._ready = True
 
-    result = await backend.transcribe({"path": "clip.wav"}, lang="en")
+    result = await backend.transcribe({"path": "clip.wav", "sample_rate": 16000, "channels": 1}, lang="en")
 
     recognizer.recognize.assert_called_once_with("clip.wav", "eng")
     assert result["tokens"] == ["t", "e", "s", "t"]
@@ -47,7 +47,7 @@ async def test_allosaurus_transcribe_maps_regional_lang() -> None:
     backend._backend = recognizer
     backend._ready = True
 
-    result = await backend.transcribe({"path": "clip.wav"}, lang="EN_us")
+    result = await backend.transcribe({"path": "clip.wav", "sample_rate": 16000, "channels": 1}, lang="EN_us")
 
     recognizer.recognize.assert_called_once_with("clip.wav", "eng")
     assert result["meta"]["lang"] == "en_us"
@@ -70,7 +70,7 @@ async def test_allosaurus_transcribe_falls_back_to_lang_id_keyword() -> None:
     backend._backend = recognizer
     backend._ready = True
 
-    result = await backend.transcribe({"path": "clip.wav"}, lang="es-MX")
+    result = await backend.transcribe({"path": "clip.wav", "sample_rate": 16000, "channels": 1}, lang="es-MX")
 
     assert recognizer.calls == [("clip.wav", "spa")]
     assert result["tokens"] == ["x", "y"]
@@ -86,7 +86,7 @@ async def test_allosaurus_transcribe_uses_default_lang_when_request_missing() ->
     backend._backend = recognizer
     backend._ready = True
 
-    result = await backend.transcribe({"path": "clip.wav"})
+    result = await backend.transcribe({"path": "clip.wav", "sample_rate": 16000, "channels": 1})
 
     recognizer.recognize.assert_called_once_with("clip.wav", "por")
     assert result["meta"]["lang"] == "pt-br"

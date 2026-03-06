@@ -46,7 +46,7 @@ from ipa_core.ports.oov import OOVHandlerPort
 _BLOCKING_QUALITY_ISSUES = {"no_speech", "too_quiet"}
 
 
-def _check_quality_gate(pre_res: dict[str, Any]) -> None:
+def _check_quality_gate(pre_res: PreprocessorResult) -> None:
     """Lanza ValidationError con feedback al usuario si la calidad es bloqueante.
 
     Solo bloquea en issues críticos (sin voz, demasiado silencioso, clipping,
@@ -64,7 +64,7 @@ def _check_quality_gate(pre_res: dict[str, Any]) -> None:
         raise ValidationError(msg)
 
 
-def _quality_enriched_error(pre_res: dict[str, Any], fallback: str) -> ValidationError:
+def _quality_enriched_error(pre_res: PreprocessorResult, fallback: str) -> ValidationError:
     """Retorna ValidationError usando feedback de calidad si está disponible."""
     feedback = pre_res.get("meta", {}).get("audio_quality", {}).get("user_feedback")
     return ValidationError(feedback or fallback)
@@ -324,7 +324,7 @@ __all__ = [
 
 async def _resolve_hyp_tokens(
     pre: Preprocessor,
-    asr_result: dict[str, Any],
+    asr_result: ASRResult,
     lang: Optional[str] = None,
     inventory: Optional[Any] = None,
 ) -> list[Token]:
@@ -340,7 +340,7 @@ async def _resolve_hyp_tokens(
     raise ValidationError("ASR no devolvió tokens IPA")
 
 
-def _cleanup_preprocessor_res(res: dict[str, Any]) -> None:
+def _cleanup_preprocessor_res(res: PreprocessorResult) -> None:
     """Elimina archivos temporales creados por el preprocesador."""
     import os
     from ipa_core.audio.files import cleanup_temp

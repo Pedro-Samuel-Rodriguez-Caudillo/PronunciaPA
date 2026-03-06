@@ -46,7 +46,7 @@ class TestTranscribeAudio:
     @pytest.mark.asyncio
     async def test_returns_phonetic(self, mock_pre: MagicMock, mock_asr: MagicMock) -> None:
         """Retorna representación fonética."""
-        result = await transcribe_audio(mock_pre, mock_asr, audio={"path": "test.wav"})
+        result = await transcribe_audio(mock_pre, mock_asr, audio={"path": "test.wav", "sample_rate": 16000, "channels": 1})
         assert isinstance(result, PhonologicalRepresentation)
         assert result.level == "phonetic"
     
@@ -55,7 +55,7 @@ class TestTranscribeAudio:
         """Error si ASR no retorna tokens."""
         mock_asr.transcribe.return_value = {"tokens": []}
         with pytest.raises(ValidationError):
-            await transcribe_audio(mock_pre, mock_asr, audio={"path": "test.wav"})
+            await transcribe_audio(mock_pre, mock_asr, audio={"path": "test.wav", "sample_rate": 16000, "channels": 1})
 
 
 class TestTranscribeText:
@@ -89,7 +89,7 @@ class TestPrepareComparison:
         """En nivel fonémico, ambas representaciones son fonémicas."""
         target, observed = await prepare_comparison(
             target_text="casa",
-            observed_audio={"path": "test.wav"},
+            observed_audio={"path": "test.wav", "sample_rate": 16000, "channels": 1},
             pre=mock_pre,
             asr=mock_asr,
             textref=mock_textref,
@@ -109,7 +109,7 @@ class TestPrepareComparison:
         """En nivel fonético sin pack, usa aproximación."""
         target, observed = await prepare_comparison(
             target_text="casa",
-            observed_audio={"path": "test.wav"},
+            observed_audio={"path": "test.wav", "sample_rate": 16000, "channels": 1},
             pre=mock_pre,
             asr=mock_asr,
             textref=mock_textref,
@@ -133,6 +133,6 @@ class TestLegacyTranscribe:
         """Retorna lista de tokens."""
         result = await transcribe(
             mock_pre, mock_asr, mock_textref,
-            audio={"path": "test.wav"},
+            audio={"path": "test.wav", "sample_rate": 16000, "channels": 1},
         )
         assert result == ["k", "a", "s", "a"]

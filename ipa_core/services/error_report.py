@@ -272,17 +272,17 @@ def build_enriched_error_report(
         op_type = op.get("op", "")
         
         if op_type == "sub":
-            ref = op.get("ref", "")
-            hyp = op.get("hyp", "")
+            ref = str(op.get("ref", ""))
+            hyp = str(op.get("hyp", ""))
             enriched_op["ref_features"] = get_phone_features(ref)
             enriched_op["hyp_features"] = get_phone_features(hyp)
             enriched_op["articulatory_distance"] = calculate_articulatory_distance(ref, hyp)
         elif op_type == "del":
-            ref = op.get("ref", "")
+            ref = str(op.get("ref", ""))
             enriched_op["ref_features"] = get_phone_features(ref)
             enriched_op["articulatory_distance"] = 1.0  # Missing phone
         elif op_type == "ins":
-            hyp = op.get("hyp", "")
+            hyp = str(op.get("hyp", ""))
             enriched_op["hyp_features"] = get_phone_features(hyp)
             enriched_op["articulatory_distance"] = 0.8  # Extra phone
         else:
@@ -318,9 +318,9 @@ def build_enriched_error_report(
     # so the most impactful confusions appear first.
     error_ops = [
         op for op in enriched_ops
-        if op.get("op") != "eq" and op.get("articulatory_distance", 0) > 0.2
+        if op.get("op") != "eq" and float(op.get("articulatory_distance", 0.0)) > 0.2
     ]
-    error_ops.sort(key=lambda o: o.get("articulatory_distance", 0), reverse=True)
+    error_ops.sort(key=lambda o: float(o.get("articulatory_distance", 0.0)), reverse=True)
     focus_errors = error_ops[:3]
     
     return {

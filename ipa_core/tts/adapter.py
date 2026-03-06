@@ -19,8 +19,8 @@ class TTSAdapter(BasePlugin):
         self._prefer = str(params.get("prefer", "piper")).lower()
         self._piper = PiperTTS(params.get("piper"))
         self._system = SystemTTS(params.get("system"))
-        self._piper_ready = None
-        self._system_ready = None
+        self._piper_ready: Optional[bool] = None
+        self._system_ready: Optional[bool] = None
 
     async def setup(self) -> None:
         self._piper_ready = await _safe_setup(self._piper)

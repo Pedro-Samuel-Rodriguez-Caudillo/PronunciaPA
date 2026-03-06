@@ -229,7 +229,7 @@ class MinimalPairGenerator:
         self._lexicon = lexicon
         self.language = language
         self.max_pairs = max_pairs
-        self._pair_cache: dict[str, list[MinimalPair]] | None = None
+        self._pair_cache: list[MinimalPair] | None = None
 
     @classmethod
     def from_lexicon_strings(

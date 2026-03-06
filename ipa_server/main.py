@@ -8,9 +8,16 @@ from __future__ import annotations
 
 import logging
 import os
+import shutil
 import time
+import warnings
 from datetime import datetime
 from typing import Any
+
+# Suppress pydub's "Couldn't find ffmpeg" RuntimeWarning that fires on import.
+# The real ffmpeg path is configured below in _configure_ffmpeg() once all
+# modules are loaded.
+warnings.filterwarnings("ignore", message=".*ffmpeg.*", category=RuntimeWarning, module="pydub")
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,8 +25,12 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from ipa_core.errors import (
+    AudioFormatError,
     FileNotFound,
     KernelError,
+    LLMAPIError,
+    LLMTimeoutError,
+    ModelLoadError,
     NotReadyError,
     UnsupportedFormat,
     ValidationError,
@@ -38,6 +49,46 @@ from ipa_server.routers.record import router as record_router
 from ipa_server.routers.tts import router as tts_router
 
 logger = logging.getLogger("ipa_server")
+
+
+def _configure_ffmpeg() -> None:
+    """Locate ffmpeg and configure pydub's converter to a real binary."""
+    ffmpeg_path = shutil.which("ffmpeg")
+    if ffmpeg_path is None:
+        # Try imageio-ffmpeg bundled binary (installed in the venv)
+        try:
+            import imageio_ffmpeg  # type: ignore
+            ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()
+        except Exception:
+            pass
+
+    if ffmpeg_path is None:
+        # Common Windows install locations (winget / manual)
+        candidates = [
+            r"C:\ffmpeg\ffmpeg.exe",
+            r"C:\ProgramData\chocolatey\bin\ffmpeg.exe",
+            os.path.expandvars(r"%LOCALAPPDATA%\Microsoft\WinGet\Links\ffmpeg.exe"),
+        ]
+        for c in candidates:
+            if os.path.isfile(c):
+                ffmpeg_path = c
+                break
+
+    if ffmpeg_path:
+        try:
+            from pydub import AudioSegment
+            AudioSegment.converter = ffmpeg_path
+            logger.info("ffmpeg configured: %s", ffmpeg_path)
+        except Exception:
+            pass
+    else:
+        logger.warning(
+            "ffmpeg not found. Audio format conversion (non-WAV) will be unavailable. "
+            "Install ffmpeg and add it to PATH: https://ffmpeg.org/download.html"
+        )
+
+
+_configure_ffmpeg()
 
 
 class TimingMiddleware(BaseHTTPMiddleware):
@@ -86,6 +137,34 @@ def _register_exception_handlers(app: FastAPI) -> None:
         return JSONResponse(
             status_code=400,
             content={"detail": str(exc), "type": "plugin_not_found"},
+        )
+
+    @app.exception_handler(AudioFormatError)
+    async def audio_format_exception_handler(request: Request, exc: AudioFormatError):
+        return JSONResponse(
+            status_code=400,
+            content={"detail": str(exc), "type": "audio_format_error"},
+        )
+
+    @app.exception_handler(ModelLoadError)
+    async def model_load_exception_handler(request: Request, exc: ModelLoadError):
+        return JSONResponse(
+            status_code=503,
+            content={"detail": str(exc), "type": "model_load_error"},
+        )
+
+    @app.exception_handler(LLMTimeoutError)
+    async def llm_timeout_exception_handler(request: Request, exc: LLMTimeoutError):
+        return JSONResponse(
+            status_code=504,
+            content={"detail": str(exc), "type": "llm_timeout_error"},
+        )
+
+    @app.exception_handler(LLMAPIError)
+    async def llmapi_exception_handler(request: Request, exc: LLMAPIError):
+        return JSONResponse(
+            status_code=422,
+            content={"detail": str(exc), "type": "llm_api_error"},
         )
 
     @app.exception_handler(NotReadyError)

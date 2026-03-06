@@ -272,7 +272,7 @@ class LanguagePackPlugin(BasePlugin):
         Convenience method que delega a la gramática.
         """
         self._check_ready()
-        return self._grammar.derive(phonemic, mode=mode)
+        return self.get_grammar().derive(phonemic, mode=mode)
     
     def collapse(self, phonetic: str, *, mode: str = "objective") -> str:
         """Colapsar forma fonética a fonémica.
@@ -280,7 +280,7 @@ class LanguagePackPlugin(BasePlugin):
         Convenience method que delega a la gramática.
         """
         self._check_ready()
-        return self._grammar.collapse(phonetic, mode=mode)
+        return self.get_grammar().collapse(phonetic, mode=mode)
 
 
 __all__ = [

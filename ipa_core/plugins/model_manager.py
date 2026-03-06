@@ -105,7 +105,7 @@ class ModelManager:
             if not dest:
                 # Por defecto guardar en el root del cache si no se especifica
                 dest = self.get_file_path(entry["filename"])
-            logger.info(f"Resolviendo modelo '{name}': {entry['description']}")
+                logger.info(f"Resolviendo modelo '{name}': {entry['description']}")
 
         if not url:
             raise ValueError(f"URL no proporcionada y el modelo '{name}' no está en el catálogo.")
@@ -127,7 +127,7 @@ class ModelManager:
                 if self._verify_hash(dest, sha256, algo="sha256"):
                     logger.debug(f"Modelo verificado (SHA256): {dest}")
                     return dest
-                logger.warning(f"Hash SHA256 inválido para {dest.name}, re-descargando...")
+                    logger.warning(f"Hash SHA256 inválido para {dest.name}, re-descargando...")
             else:
                 logger.debug(f"Modelo existente (sin verificación): {dest}")
                 return dest
@@ -178,12 +178,12 @@ class ModelManager:
                 if self._verify_hash(file_path, md5_hash):
                     logger.debug(f"Modelo encontrado y verificado: {file_path}")
                     return file_path
-                logger.warning(f"Hash inválido para {filename}, re-descargando...")
+                    logger.warning(f"Hash inválido para {filename}, re-descargando...")
             else:
                 logger.debug(f"Modelo encontrado (sin verificación): {file_path}")
                 return file_path
 
-        logger.info(f"Descargando recurso {filename} desde {url}...")
+                logger.info(f"Descargando recurso {filename} desde {url}...")
         try:
             # urlretrieve requiere string
             url_str = str(url)

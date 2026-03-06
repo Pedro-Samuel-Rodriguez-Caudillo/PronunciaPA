@@ -41,7 +41,9 @@ async def test_transcription_service_falls_back_when_epitran_missing(monkeypatch
 
     monkeypatch.setattr(registry, "resolve", mock_resolve)
 
-    class TokenASR:
+    from ipa_core.ports.asr import ASRBackend
+
+    class TokenASR(ASRBackend):
         output_type = "ipa"
         async def setup(self): pass
         async def teardown(self): pass
@@ -61,13 +63,16 @@ async def test_transcription_service_falls_back_when_epitran_missing(monkeypatch
 async def test_transcription_service_fallbacks_to_textref(tmp_path):
     wav_path = write_sine_wave(tmp_path / "service-raw.wav")
 
-    class RawTextASR:
+    from ipa_core.ports.asr import ASRBackend
+    from ipa_core.ports.textref import TextRefProvider
+
+    class RawTextASR(ASRBackend):
         async def setup(self): pass
         async def teardown(self): pass
         async def transcribe(self, audio, *, lang=None, **kw):
             return {"raw_text": "hola"}
 
-    class FakeTextRef:
+    class FakeTextRef(TextRefProvider):
         async def setup(self): pass
         async def teardown(self): pass
         async def to_ipa(self, text: str, *, lang: str, **kw):

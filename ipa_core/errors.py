@@ -50,3 +50,19 @@ class UnsupportedFormat(KernelError):
 
 class FileNotFound(KernelError):
     """Archivo de audio/texto no encontrado en la ruta indicada."""
+
+
+class AudioFormatError(KernelError):
+    """Error al procesar, decodificar o leer un archivo de audio."""
+
+
+class ModelLoadError(KernelError):
+    """El modelo (ASR, TextRef, TTS, LLM) no se pudo cargar en memoria."""
+
+
+class LLMAPIError(KernelError):
+    """La API del LLM local o remoto falló o retornó datos inválidos."""
+
+
+class LLMTimeoutError(LLMAPIError):
+    """La petición al LLM excedió el tiempo límite."""

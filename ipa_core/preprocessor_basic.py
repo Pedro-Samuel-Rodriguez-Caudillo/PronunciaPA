@@ -90,10 +90,10 @@ class BasicPreprocessor(BasePlugin):
                 meta["oov_count"] = len(oov_tokens)
             return {"tokens": out, "meta": meta}
 
-        out: list[Token] = []
+        result_tokens: list[Token] = []
         for token in tokens:
             # Strip, lower and NFC normalization + unicode IPA mappings
             normalized = normalize_unicode(str(token).strip().lower())
             if normalized:
-                out.append(normalized)
-        return {"tokens": out, "meta": {"preprocessor": "basic", "count": len(out)}}
+                result_tokens.append(normalized)
+        return {"tokens": result_tokens, "meta": {"preprocessor": "basic", "count": len(result_tokens)}}

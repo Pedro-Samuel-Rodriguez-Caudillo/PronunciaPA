@@ -264,7 +264,7 @@ class RealtimeSession:
                 self.ws_config.reference_text = data["reference_text"]
             if "mode" in data:
                 self.ws_config.mode = data["mode"]
-            logger.info(f"Config actualizada: {self.ws_config}")
+                logger.info(f"Config actualizada: {self.ws_config}")
         
         elif msg_type == "flush":
             # Forzar procesamiento del buffer actual

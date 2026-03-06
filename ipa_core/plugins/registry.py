@@ -85,7 +85,7 @@ def resolve(category: str, name: str, params: Optional[Dict[str, Any]] = None, *
         if strict_mode:
             raise KeyError(f"Plugin '{name}' no encontrado en categoría '{category}'")
         # Auto-fallback: Intentar con stub/default según categoría
-        logger.warning(f"⚠️ Plugin '{name}' no encontrado en '{category}'. Usando fallback automático.")
+        logger.warning(f" Plugin '{name}' no encontrado en '{category}'. Usando fallback automático.")
         fallback_name = _get_fallback(category)
         if fallback_name and fallback_name in _REGISTRY[category]:
             name = fallback_name
@@ -294,7 +294,7 @@ def resolve_asr(name: str, params: Optional[Dict[str, Any]] = None, *, strict_mo
     except (KeyError, NotReadyError) as e:
         if strict_mode:
             raise
-        logger.warning(f"⚠️ ASR backend '{name}' no disponible ({e}). Usando StubASR como fallback.")
+            logger.warning(f" ASR backend '{name}' no disponible ({e}). Usando StubASR como fallback.")
         return resolve("asr", "stub", params)
 
 
@@ -308,7 +308,7 @@ def resolve_textref(name: str, params: Optional[Dict[str, Any]] = None, *, stric
     except (KeyError, NotReadyError) as e:
         if strict_mode:
             raise
-        logger.warning(f"⚠️ TextRef '{name}' no disponible ({e}). Usando GraphemeTextRef como fallback.")
+            logger.warning(f" TextRef '{name}' no disponible ({e}). Usando GraphemeTextRef como fallback.")
         return resolve("textref", "grapheme", params)
 
 
