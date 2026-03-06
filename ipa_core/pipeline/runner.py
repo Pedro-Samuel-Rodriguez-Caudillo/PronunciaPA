@@ -16,6 +16,8 @@ Entrypoints
 """
 from __future__ import annotations
 
+import logging
+import os
 from typing import Any, Optional
 
 from ipa_core.errors import ValidationError
@@ -23,7 +25,7 @@ from ipa_core.ports.asr import ASRBackend
 from ipa_core.ports.compare import Comparator
 from ipa_core.ports.preprocess import Preprocessor
 from ipa_core.ports.textref import TextRefProvider
-from ipa_core.types import AudioInput, CompareResult, CompareWeights, Token
+from ipa_core.types import ASRResult, AudioInput, CompareResult, CompareWeights, PreprocessorResult, Token
 from ipa_core.phonology.representation import (
     PhonologicalRepresentation,
     RepresentationLevel,
@@ -34,6 +36,18 @@ from ipa_core.pipeline.ipa_cleaning import clean_asr_tokens, clean_textref_token
 from ipa_core.compare.compare import compare_representations
 from ipa_core.compare.oov_handler import OOVHandler
 from ipa_core.ports.oov import OOVHandlerPort
+
+logger = logging.getLogger(__name__)
+
+
+def _default_lang() -> str:
+    """Return the configured default language for TextRef when lang is None.
+
+    Uses PRONUNCIAPA_DEFAULT_LANG env var, falling back to "es" (Spanish).
+    """
+    default = os.getenv("PRONUNCIAPA_DEFAULT_LANG", "es")
+    logger.debug("lang no especificado; usando default '%s' para TextRef", default)
+    return default
 
 
 # Issues que impiden llamar al ASR — el audio no tiene información fonética útil.
@@ -118,11 +132,11 @@ async def execute_pipeline(
     pre_audio_res = await pre.process_audio(audio)
     processed_audio = pre_audio_res.get("audio", audio)
 
-    # Bloquear temprano si la calidad impide cualquier reconocimiento útil.
-    # Esto da al usuario feedback accionable en lugar de un error genérico de ASR.
-    _check_quality_gate(pre_audio_res)
-
     try:
+        # Bloquear temprano si la calidad impide cualquier reconocimiento útil.
+        # Esto da al usuario feedback accionable en lugar de un error genérico de ASR.
+        _check_quality_gate(pre_audio_res)
+
         # 2. ASR → tokens limpios → normalización → representación fonética
         asr_result = await asr.transcribe(processed_audio, lang=lang)
         raw_asr_tokens = asr_result.get("tokens")
@@ -144,7 +158,8 @@ async def execute_pipeline(
         observed_phonetic = PhonologicalRepresentation.phonetic("".join(asr_tokens))
 
         # 3. TextRef → tokens limpios → normalización → representación fonémica
-        tr_result = await textref.to_ipa(text, lang=lang or "")
+        effective_lang = lang or _default_lang()
+        tr_result = await textref.to_ipa(text, lang=effective_lang)
         raw_ref_tokens = tr_result.get("tokens", [])
         cleaned_ref = clean_textref_tokens(
             raw_ref_tokens,
@@ -262,10 +277,10 @@ async def run_pipeline(
     pre_audio_res = await pre.process_audio(audio)
     processed_audio = pre_audio_res.get("audio", audio)
 
-    # Bloquear temprano si la calidad impide el reconocimiento (feedback accionable).
-    _check_quality_gate(pre_audio_res)
-
     try:
+        # Bloquear temprano si la calidad impide el reconocimiento (feedback accionable).
+        _check_quality_gate(pre_audio_res)
+
         # 2. Transcripción ASR
         asr_result = await asr.transcribe(processed_audio, lang=lang)
 
@@ -276,7 +291,8 @@ async def run_pipeline(
             raise _quality_enriched_error(pre_audio_res, "ASR no devolvió tokens IPA")
 
         # 4. Obtención, limpieza y normalización de referencia
-        tr_result = await textref.to_ipa(text, lang=lang or "")
+        effective_lang = lang or _default_lang()
+        tr_result = await textref.to_ipa(text, lang=effective_lang)
         ref_tokens_raw = clean_textref_tokens(tr_result.get("tokens", []), lang=lang, preserve_allophones=False)
         ref_pre_res = await pre.normalize_tokens(ref_tokens_raw)
         ref_tokens = ref_pre_res.get("tokens", [])

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from pathlib import Path
 from typing import Any, Optional, TYPE_CHECKING
 
@@ -136,7 +137,6 @@ class AllosaurusBackend(BasePlugin):
         # ── Urálicas ──────────────────────────────────────────────────────────
         "fi": "fin",    # Finés
         "hu": "hun",    # Húngaro
-        "et": "est",    # Estonio (también urálica)
         "kpv": "kpv",   # Komi-Zyryan
         "koi": "koi",   # Komi-Permyak
         "mhr": "mhr",   # Mari del este
@@ -209,7 +209,6 @@ class AllosaurusBackend(BasePlugin):
         "sm": "smo",    # Samoano
         "to": "ton",    # Tongano
         "haw": "haw",   # Hawaiano
-        "mg": "mlg",    # Malgache (también Austronesia)
         "ceb": "ceb",   # Cebuano
         "ilo": "ilo",   # Ilocano
         "war": "war",   # Waray-Waray
@@ -218,7 +217,6 @@ class AllosaurusBackend(BasePlugin):
         "lo": "lao",    # Laosiano
         "km": "khm",    # Jemer
         "vi": "vie",    # Vietnamita
-        "mn": "khk",    # Mongol
         # ── Caucásicas ────────────────────────────────────────────────────────
         "ka": "kat",    # Georgiano
         "ab": "abk",    # Abjasio
@@ -229,9 +227,6 @@ class AllosaurusBackend(BasePlugin):
         "inh": "inh",   # Ingush
         # ── Lenguas de signos y otras ─────────────────────────────────────────
         "eu": "eus",    # Euskera (aislada)
-        "ka": "kat",    # Georgiano
-        "mn": "khk",    # Mongol
-        "hy": "hye",    # Armenio (también IE pero incluido aquí para agrupación)
         # ── Lenguas indígenas americanas ──────────────────────────────────────
         "qu": "que",    # Quechua
         "ay": "aym",    # Aimara
@@ -307,7 +302,15 @@ class AllosaurusBackend(BasePlugin):
         resolved = lang if lang is not None else self._lang
         if resolved:
             return self._LANG_MAP.get(resolved, resolved)
-        return None
+        # Sin idioma → inventario universal produce fonemas de otros idiomas.
+        # Usar fallback configurable para restringir el inventario.
+        default = os.getenv("PRONUNCIAPA_DEFAULT_LANG", "es")
+        logger.warning(
+            "No se especificó idioma para Allosaurus; usando fallback '%s'. "
+            "Configure PRONUNCIAPA_DEFAULT_LANG o pase lang= explícitamente.",
+            default,
+        )
+        return self._LANG_MAP.get(default, default)
     
     async def transcribe(
         self,

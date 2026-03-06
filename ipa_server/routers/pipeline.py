@@ -400,7 +400,7 @@ async def compare(
             )
             if not _asr_related:
                 raise  # TextRef / config error → keep 400
-                logger.warning("compare: pipeline audio error — respuesta no-speech: %s", _msg)
+            logger.warning("compare: pipeline audio error — respuesta no-speech: %s", _msg)
             try:
                 _tr = await kernel.textref.to_ipa(text, lang=lang_resolved)
                 _ref_tokens = clean_textref_tokens(

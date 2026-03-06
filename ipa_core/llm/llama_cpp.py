@@ -106,6 +106,7 @@ def _binary_exists(binary: str) -> bool:
 def _write_prompt(prompt: str) -> Path:
     tmp = tempfile.NamedTemporaryFile(prefix="pronunciapa_llm_", suffix=".txt", delete=False)
     path = Path(tmp.name)
+    tmp.close()
     path.write_text(prompt, encoding="utf-8")
     return path
 
