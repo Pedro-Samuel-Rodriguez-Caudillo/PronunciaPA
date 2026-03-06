@@ -21,7 +21,7 @@ En ``configs/local.yaml``::
     llm:
       name: ollama
       params:
-        model: phi3:mini        # modelos recomendados: phi3:mini (rápido), llama3:8b (calidad)
+        model: qwen3.5:3b        # modelos recomendados: qwen3.5:3b (rápido, json), llama3:8b (calidad)
         base_url: http://localhost:11434
         temperature: 0.4        # más bajo = más determinista, mejor para JSON
         timeout: 60
@@ -55,14 +55,14 @@ RULES:
 - Focus on the most important errors (max 3)
 - Suggest practical exercises (drills)
 
-OUTPUT JSON structure:
+OUTPUT JSON structure (replace placeholders with actual feedback):
 {{
-  "summary": "Brief overall assessment (1 sentence, encouraging tone)",
-  "advice_short": "Single most important tip",
-  "advice_long": "Detailed explanation with phonetic guidance (2-4 sentences)",
+  "summary": "<Insert brief overall assessment (1 sentence, encouraging tone)>",
+  "advice_short": "<Insert single most important tip>",
+  "advice_long": "<Insert detailed explanation with phonetic guidance (2-4 sentences)>",
   "drills": [
-    {{"type": "contrast", "text": "minimal pair or contrast exercise"}},
-    {{"type": "practice", "text": "repetition exercise"}}
+    {{"type": "contrast", "text": "<Insert minimal pair or contrast exercise>"}},
+    {{"type": "practice", "text": "<Insert repetition exercise>"}}
   ]
 }}
 
@@ -126,7 +126,7 @@ def _extract_feedback(raw: str, report: dict[str, Any]) -> dict[str, Any]:
         except (json.JSONDecodeError, ValueError):
             pass
 
-    logger.debug("No se pudo parsear JSON de la respuesta de Ollama: %r", raw[:200])
+        logger.debug("No se pudo parsear JSON de la respuesta de Ollama: %r", raw[:200])
     return {}
 
 
@@ -154,7 +154,7 @@ class OllamaFeedbackAdapter(OllamaAdapter):
         self._fallback_on_error = params.pop("fallback_on_error", True)
         # Default to better models for pronunciation feedback
         if "model" not in params:
-            params = {**params, "model": "phi3:mini"}
+            params = {**params, "model": "qwen3.5:4b"}
         if "temperature" not in params:
             params = {**params, "temperature": 0.4}
         super().__init__(params)
@@ -209,20 +209,39 @@ class OllamaFeedbackAdapter(OllamaAdapter):
         # Construir prompt pedagógico
         ollama_prompt = _build_prompt(report)
 
-        try:
-            raw = await super().complete(ollama_prompt, params=params, **kw)
-            feedback = _extract_feedback(raw, report)
-            if feedback:
-                # Asegurarnos de que el resultado tiene todos los campos requeridos
-                feedback.setdefault("drills", [])
-                feedback.setdefault("summary", feedback.get("advice_short", ""))
-                feedback.setdefault("advice_short", feedback.get("summary", ""))
-                feedback.setdefault("advice_long", feedback.get("advice_short", ""))
-                feedback["source"] = "ollama"
-                feedback["model"] = self._model
-                return json.dumps(feedback, ensure_ascii=False)
-        except Exception as exc:
-            logger.warning("Ollama request falló: %s. Usando fallback rule_based.", exc)
+        import asyncio
+        from ipa_core.errors import LLMAPIError
+
+        max_retries = 3
+        base_delay = 1.0
+
+        for attempt in range(1, max_retries + 1):
+            try:
+                raw = await super().complete(ollama_prompt, params=params, **kw)
+                feedback = _extract_feedback(raw, report)
+                if feedback:
+                    # Asegurarnos de que el resultado tiene todos los campos requeridos
+                    feedback.setdefault("drills", [])
+                    feedback.setdefault("summary", feedback.get("advice_short", ""))
+                    feedback.setdefault("advice_short", feedback.get("summary", ""))
+                    feedback.setdefault("advice_long", feedback.get("advice_short", ""))
+                    feedback["source"] = "ollama"
+                    feedback["model"] = self._model
+                    return json.dumps(feedback, ensure_ascii=False)
+                else:
+                    raise LLMAPIError("Extracción de feedback falló o JSON no encontrado")
+            except Exception as exc:
+                if attempt < max_retries:
+                    logger.warning(
+                        "Ollama request falló (intento %d/%d): %r. Reintentando en %.1fs...",
+                        attempt, max_retries, exc, base_delay * (2 ** (attempt - 1))
+                    )
+                    await asyncio.sleep(base_delay * (2 ** (attempt - 1)))
+                else:
+                    logger.warning(
+                        "Ollama request falló definitivamente tras %d intentos: %r. Usando fallback rule_based.",
+                        max_retries, exc
+                    )
 
         # Fallback: usar generate_fallback_feedback
         fallback = generate_fallback_feedback(report)
