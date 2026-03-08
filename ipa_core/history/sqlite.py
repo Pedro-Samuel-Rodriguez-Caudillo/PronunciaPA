@@ -50,10 +50,10 @@ from typing import Any, Optional
 
 _AIOSQLITE_AVAILABLE = False
 try:
-    import aiosqlite
+    import aiosqlite  # type: ignore
     _AIOSQLITE_AVAILABLE = True
 except ImportError:
-    aiosqlite = None
+    aiosqlite = None  # type: ignore
 
 
 _CREATE_ATTEMPTS = """
@@ -136,7 +136,7 @@ class SQLiteHistory:
             Path(self._db_path).parent.mkdir(parents=True, exist_ok=True)
 
         # Re-import locally so Pylance sees a non-None module type.
-        import aiosqlite as _aio
+        import aiosqlite as _aio  # type: ignore[import]
 
         self._conn = await _aio.connect(self._db_path)
         assert self._conn is not None  # narrow Optional[Any] → Any

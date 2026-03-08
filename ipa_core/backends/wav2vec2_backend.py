@@ -53,7 +53,7 @@ class Wav2Vec2Backend(BasePlugin, ASRBackend):
     
     # Por defecto asume texto (modelos xlsr-53 base son texto)
     # Solo cambia a "ipa" si usas modelo fine-tuned para IPA
-    output_type: str = "text"
+    output_type = "text"
     
     def __init__(
         self,
@@ -93,7 +93,7 @@ class Wav2Vec2Backend(BasePlugin, ASRBackend):
                 "Install with: pip install transformers torch"
             ) from e
         
-            logger.info(f"Loading Wav2Vec2 model: {self._model_name}")
+        logger.info(f"Loading Wav2Vec2 model: {self._model_name}")
         
         self._processor = Wav2Vec2Processor.from_pretrained(
             self._model_name,
@@ -103,7 +103,6 @@ class Wav2Vec2Backend(BasePlugin, ASRBackend):
             self._model_name,
             cache_dir=self._cache_dir,
         )
-        assert self._model is not None
         self._model.to(self._device)
         self._model.eval()
         
@@ -139,9 +138,6 @@ class Wav2Vec2Backend(BasePlugin, ASRBackend):
         """
         if not self._ready:
             raise RuntimeError("Wav2Vec2Backend not initialized. Call setup() first.")
-        
-        assert self._processor is not None
-        assert self._model is not None
         
         import torch
         import numpy as np

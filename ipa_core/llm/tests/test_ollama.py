@@ -17,7 +17,7 @@ class TestOllamaAdapterInit:
         assert adapter._model == "tinyllama"
         assert adapter._temperature == 0.7
         assert adapter._num_ctx == 4096
-        assert adapter._timeout == 120
+        assert adapter._timeout == 300
 
     def test_custom_params(self):
         """Should accept custom parameters."""
