@@ -215,15 +215,6 @@ MODEL_CATALOG: Dict[str, ModelInfo] = {
         install_command="ollama pull phi3:mini",
         dependencies=["ollama"],
     ),
-    "qwen3.5:4b": ModelInfo(
-        id="qwen3.5:4b",
-        name="Qwen 3.5 4B (vía Ollama)",
-        category=ModelCategory.LLM,
-        description="Modelo de 4B parámetros (Qwen 3.5) con gran balance de feedback bilingüe.",
-        size_mb=3500,
-        install_command="ollama pull qwen3.5:4b",
-        dependencies=["ollama"],
-    ),
     "aiohttp": ModelInfo(
         id="aiohttp",
         name="aiohttp (Python)",
@@ -287,7 +278,7 @@ class ModelInstaller:
         """Reportar progreso de instalación."""
         if self._on_progress:
             self._on_progress(model_id, progress, message)
-            logger.info(f"[{model_id}] {progress:.0f}% - {message}")
+        logger.info(f"[{model_id}] {progress:.0f}% - {message}")
     
     async def check_status(self, model_id: str) -> ModelInfo:
         """Verificar estado de instalación de un modelo."""
@@ -302,7 +293,7 @@ class ModelInstaller:
             model.status = await self._check_pip_package(model.pip_package)
         elif model.binary_name:
             model.status = await self._check_binary(model.binary_name)
-        elif model.id in ("tinyllama", "phi3", "qwen3.5:3b"):
+        elif model.id in ("tinyllama", "phi3"):
             model.status = await self._check_ollama_model(model.id)
         elif model.id in ("wav2vec2-ipa", "xlsr-ipa"):
             # Modelos HuggingFace - verificar si transformers está instalado Y el modelo fue usado
@@ -448,7 +439,7 @@ class ModelInstaller:
         tasks = [self.check_status(model_id) for model_id in MODEL_CATALOG]
         results = await asyncio.gather(*tasks, return_exceptions=True)
         
-        models: list[ModelInfo] = []
+        models = []
         for model_id, result in zip(MODEL_CATALOG.keys(), results):
             if isinstance(result, Exception):
                 model = ModelInfo(**{**MODEL_CATALOG[model_id].__dict__})
@@ -456,7 +447,6 @@ class ModelInstaller:
                 model.error = str(result)
                 models.append(model)
             else:
-                assert isinstance(result, ModelInfo)
                 models.append(result)
         
         return models
@@ -658,7 +648,7 @@ class ModelInstaller:
                 f"  actual:   {actual}\n"
                 "The downloaded file has been removed. Please retry the installation."
             )
-            logger.debug("Checksum OK for '%s': %s", model.id, actual)
+        logger.debug("Checksum OK for '%s': %s", model.id, actual)
     
     async def install_recommended(self) -> List[ModelInfo]:
         """Instalar todos los modelos recomendados."""

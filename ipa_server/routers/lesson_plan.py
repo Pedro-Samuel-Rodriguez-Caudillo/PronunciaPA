@@ -67,7 +67,6 @@ async def get_lesson_plan(body: LessonPlanRequest) -> LessonPlanResponse:
             LessonDrillItem(type=d.get("type", "phrase"), text=d.get("text", ""))
             for d in result.get("drills", [])
         ],
-        meta=result.get("meta", {}),
     )
 
 
@@ -160,5 +159,4 @@ async def generate_lesson_for_sound(lang: str, sound_id: str) -> LessonPlanRespo
             LessonDrillItem(type=d.get("type", "phrase"), text=d.get("text", ""))
             for d in result.get("drills", [])
         ],
-        meta=result.get("meta", {}),
     )

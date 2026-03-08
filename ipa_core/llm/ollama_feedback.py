@@ -53,6 +53,7 @@ RULES:
 - Return ONLY a valid JSON object, no extra text
 - Keep advice concise and encouraging
 - Focus on the most important errors (max 3)
+- For the `advice_long` section, explicitly include articulatory hints: explain HOW the user possibly pronounced the sound (e.g. "Posiblemente lo hiciste así: moviste tu lengua...") and HOW they should correctly pronounce it (e.g. "Debería ser: coloca los labios...").
 - Suggest practical exercises (drills)
 
 OUTPUT JSON structure (replace placeholders with actual feedback):

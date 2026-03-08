@@ -16,21 +16,21 @@ from typing import Any, Optional
 TEMPLATES = {
     "es": {
         "perfect": "¡Excelente! Tu pronunciación es correcta.",
-        "good": "Muy bien. Solo pequeños detalles por mejorar.",
-        "needs_work": "Buen intento. Enfócate en los sonidos marcados.",
-        "sub": "Sustituiste [{ref}] por [{hyp}]. Intenta articular más claramente.",
-        "ins": "Añadiste el sonido [{hyp}] donde no va. Intenta ser más preciso.",
-        "del": "Omitiste el sonido [{ref}]. Asegúrate de pronunciar todas las sílabas.",
+        "good": "Muy bien. Tienes una buena base, solo trata de ajustar un poco la posición de tu lengua o tus labios.",
+        "needs_work": "Buen intento. Sin embargo, intenta observar la posición de tu lengua o tu apertura de boca para los sonidos marcados. Escucha con atención y trata de imitar.",
+        "sub": "Sustituiste [{ref}] por [{hyp}]. Intenta cambiar la forma en la que posicionas tu lengua o tus labios para producir [{ref}] correctamente.",
+        "ins": "Añadiste el sonido [{hyp}] donde no va. Trata de relajar la articulación y emitir un flujo de aire más limpio para evitar ese sonido extra.",
+        "del": "Omitiste el sonido [{ref}]. Asegúrate de dar el esfuerzo necesario con tus labios y tu lengua para pronunciar todas las sílabas.",
         "drill_header": "Practica estos sonidos:",
         "no_errors": "No se detectaron errores significativos.",
     },
     "en": {
         "perfect": "Excellent! Your pronunciation is correct.",
-        "good": "Good job. Just minor details to improve.",
-        "needs_work": "Nice try. Focus on the marked sounds.",
-        "sub": "You substituted [{ref}] with [{hyp}]. Try to articulate more clearly.",
-        "ins": "You added the sound [{hyp}] where it doesn't belong. Try to be more precise.",
-        "del": "You omitted the sound [{ref}]. Make sure to pronounce all syllables.",
+        "good": "Good job. You have a solid base, just consider adjusting your tongue position or lip shape slightly.",
+        "needs_work": "Nice try. However, try observing your tongue position or mouth opening for the marked sounds. Listen carefully and mimic.",
+        "sub": "You substituted [{ref}] with [{hyp}]. Try changing how you place your tongue or lips to produce [{ref}] properly.",
+        "ins": "You added the sound [{hyp}] where it doesn't belong. Try to relax your articulation and release a cleaner airflow to avoid that extra sound.",
+        "del": "You omitted the sound [{ref}]. Make sure to put enough effort with your lips and tongue to pronounce all syllables.",
         "drill_header": "Practice these sounds:",
         "no_errors": "No significant errors detected.",
     },
@@ -75,6 +75,26 @@ def _build_comparison_note(
         f"Comparacion general en nivel {level_label}. "
         "Enfocate en los sonidos marcados."
     )
+
+
+class FallbackPayloadAdapter:
+    """Aplica el patrón Adapter para transformar representaciones internas
+    a la estructura esperada por FeedbackPayload (UI).
+    """
+
+    @staticmethod
+    def adapt_drills(raw_drills: list[dict[str, Any]]) -> list[dict[str, str]]:
+        adapted = []
+        for d in raw_drills:
+            if d.get("type") == "contrast" and "pair" in d:
+                ref, hyp = d["pair"]
+                adapted.append({"type": "contrast", "text": f"Contraste {ref} vs {hyp}"})
+            elif d.get("type") == "practice" and "sound" in d:
+                sound = d["sound"]
+                adapted.append({"type": "practice", "text": f"Práctica del sonido {sound}"})
+            else:
+                adapted.append(d)  # Si ya viene en otro formato, as-is
+        return adapted
 
 
 def generate_fallback_feedback(
@@ -131,6 +151,18 @@ def generate_fallback_feedback(
     drills = []
     shown = {"sub": 0, "ins": 0, "del": 0}
     
+    # Intentar importar la función para obtener hints de articulación
+    try:
+        from ipa_core.analysis.drill_generator import _build_hints
+    except ImportError:
+        _build_hints = lambda x: []
+
+    def _get_hints_text(phone: str, prefix: str = "") -> str:
+        hints = _build_hints(phone)
+        if not hints:
+            return ""
+        return f"{prefix} {' '.join(hints)}"
+
     for op in ops:
         op_type = op.get("op", "")
         ref = op.get("ref", "")
@@ -140,9 +172,14 @@ def generate_fallback_feedback(
             if tone == "technical":
                 advice_lines.append(f"sub {ref}->{hyp}")
             else:
-                advice_lines.append(
-                    templates["sub"].format(ref=ref, hyp=hyp)
-                )
+                base_advice = templates["sub"].format(ref=ref, hyp=hyp)
+                ref_hints = _get_hints_text(ref, "Debería ser: ")
+                hyp_hints = _get_hints_text(hyp, "Posiblemente lo hiciste así: ")
+                hints_str = f" {hyp_hints} {ref_hints}".strip()
+                if hints_str:
+                    base_advice += f" ({hints_str})"
+                advice_lines.append(base_advice)
+            # Internal rich format, will be adapted later
             drills.append({"type": "contrast", "pair": [ref, hyp]})
             shown["sub"] += 1
             
@@ -150,18 +187,23 @@ def generate_fallback_feedback(
             if tone == "technical":
                 advice_lines.append(f"ins {hyp}")
             else:
-                advice_lines.append(
-                    templates["ins"].format(hyp=hyp)
-                )
+                base_advice = templates["ins"].format(hyp=hyp)
+                hyp_hints = _get_hints_text(hyp, "Posiblemente moviste tus articuladores así: ")
+                if hyp_hints:
+                    base_advice += f" ({hyp_hints})"
+                advice_lines.append(base_advice)
             shown["ins"] += 1
             
         elif op_type == "del" and shown["del"] < 2:
             if tone == "technical":
                 advice_lines.append(f"del {ref}")
             else:
-                advice_lines.append(
-                    templates["del"].format(ref=ref)
-                )
+                base_advice = templates["del"].format(ref=ref)
+                ref_hints = _get_hints_text(ref, "Para no omitirlo, intenta: ")
+                if ref_hints:
+                    base_advice += f" ({ref_hints})"
+                advice_lines.append(base_advice)
+            # Internal rich format, will be adapted later
             drills.append({"type": "practice", "sound": ref})
             shown["del"] += 1
 
@@ -184,7 +226,7 @@ def generate_fallback_feedback(
         "summary": summary,
         "advice_short": summary,
         "advice_long": advice_long,
-        "drills": drills[:5],  # Max 5 drills
+        "drills": FallbackPayloadAdapter.adapt_drills(drills[:5]),  # Max 5 drills
         "severity": severity,
         "feedback_level": feedback_level,
         "tone": tone,
