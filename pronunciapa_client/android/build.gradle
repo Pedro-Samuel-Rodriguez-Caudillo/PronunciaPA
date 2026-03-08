@@ -5,6 +5,39 @@ allprojects {
     }
 }
 
+def sharedFlutterSdk = [
+    compileSdkVersion: 35,
+    minSdkVersion    : 23,
+    targetSdkVersion : 35,
+]
+
+subprojects { project ->
+    if (project.name != "app" && !project.hasProperty("flutter")) {
+        project.ext.flutter = sharedFlutterSdk
+    }
+
+    project.buildscript.configurations.configureEach { config ->
+        if (config.name == "classpath") {
+            config.resolutionStrategy.eachDependency { details ->
+                if (
+                    details.requested.group == "com.android.tools.build"
+                    && details.requested.name == "gradle"
+                ) {
+                    details.useVersion("8.7.0")
+                    details.because("Align Android Gradle Plugin across Flutter plugins and avoid extra network downloads")
+                }
+            }
+        }
+    }
+
+    project.plugins.withId("com.android.library") {
+        def androidExt = project.extensions.findByName("android")
+        if (androidExt != null && androidExt.metaClass.respondsTo(androidExt, "compileSdkVersion", Integer)) {
+            androidExt.compileSdkVersion(sharedFlutterSdk.compileSdkVersion)
+        }
+    }
+}
+
 rootProject.buildDir = "../build"
 subprojects {
     project.buildDir = "${rootProject.buildDir}/${project.name}"

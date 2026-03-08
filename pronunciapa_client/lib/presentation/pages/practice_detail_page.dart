@@ -8,7 +8,6 @@ import '../widgets/app_background.dart';
 import '../widgets/diff_viewer_widget.dart';
 import '../widgets/feedback_level_selector.dart';
 import '../../domain/entities/feedback_result.dart';
-import 'drills_page.dart';
 
 /// Practice detail page for a specific IPA sound
 class PracticeDetailPage extends ConsumerStatefulWidget {
@@ -332,28 +331,6 @@ class _PracticeDetailPageState extends ConsumerState<PracticeDetailPage> {
                 onPressed: () => Navigator.of(context).pop(),
                 child: const Text('Cerrar'),
               ),
-              if (feedbackPayload.drills.isNotEmpty || feedbackPayload.adviceLong.isNotEmpty)
-                TextButton(
-                  onPressed: () {
-                    // Close the dialog first
-                    Navigator.of(context).pop();
-                    // Navigate to DrillsPage
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => DrillsPage(
-                          drills: feedbackPayload.drills,
-                          targetIpa: result.targetIpa ?? _selectedExample,
-                          observedIpa: result.ipa,
-                          summary: feedbackPayload.adviceLong.isNotEmpty
-                              ? feedbackPayload.adviceLong
-                              : (feedbackPayload.summary.isNotEmpty ? feedbackPayload.summary : 'No hay detalles adicionales.'),
-                        ),
-                      ),
-                    );
-                  },
-                  child: const Text('Ver Detalles'),
-                ),
               ElevatedButton(
                 onPressed: () {
                   Navigator.of(context).pop();

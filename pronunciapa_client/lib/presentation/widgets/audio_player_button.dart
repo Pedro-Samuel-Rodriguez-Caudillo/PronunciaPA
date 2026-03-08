@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:audioplayers/audioplayers.dart';
+import 'package:just_audio/just_audio.dart';
 
 /// Button widget that plays audio from a URL.
 /// Pass [voice] to append `?voice=<id>` to TTS endpoint URLs.
@@ -37,11 +37,11 @@ class _AudioPlayerButtonState extends State<AudioPlayerButton> {
     super.initState();
 
     // Listen to player state changes; store subscription to cancel on dispose.
-    _stateSubscription = _audioPlayer.onPlayerStateChanged.listen((state) {
+    _stateSubscription = _audioPlayer.playerStateStream.listen((state) {
       if (mounted) {
         setState(() {
-          _isPlaying = state == PlayerState.playing;
-          _isLoading = false;
+          _isPlaying = state.playing && state.processingState != ProcessingState.completed;
+          _isLoading = state.processingState == ProcessingState.loading || state.processingState == ProcessingState.buffering;
         });
       }
     });
@@ -82,7 +82,8 @@ class _AudioPlayerButtonState extends State<AudioPlayerButton> {
       }
 
       // Play audio from URL
-      await _audioPlayer.play(UrlSource(fullUrl));
+      await _audioPlayer.setUrl(fullUrl);
+      await _audioPlayer.play();
 
     } catch (e) {
       if (mounted) {

@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:audioplayers/audioplayers.dart';
+import 'package:just_audio/just_audio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -157,14 +157,20 @@ class _AudioDebugTab extends ConsumerStatefulWidget {
 
 class _AudioDebugTabState extends ConsumerState<_AudioDebugTab> {
   late final AudioPlayer _player;
-  PlayerState _playerState = PlayerState.stopped;
+  bool _isPlaying = false;
+  bool _isCompleted = false;
 
   @override
   void initState() {
     super.initState();
     _player = AudioPlayer();
-    _player.onPlayerStateChanged.listen((s) {
-      if (mounted) setState(() => _playerState = s);
+    _player.playerStateStream.listen((s) {
+      if (mounted) {
+        setState(() {
+          _isPlaying = s.playing && s.processingState != ProcessingState.completed;
+          _isCompleted = s.processingState == ProcessingState.completed;
+        });
+      }
     });
   }
 
@@ -175,10 +181,11 @@ class _AudioDebugTabState extends ConsumerState<_AudioDebugTab> {
   }
 
   Future<void> _togglePlay(String path) async {
-    if (_playerState == PlayerState.playing) {
+    if (_isPlaying) {
       await _player.stop();
     } else {
-      await _player.play(DeviceFileSource(path));
+      await _player.setFilePath(path);
+      await _player.play();
     }
   }
 
@@ -200,8 +207,8 @@ class _AudioDebugTabState extends ConsumerState<_AudioDebugTab> {
       );
     }
 
-    final isPlaying = _playerState == PlayerState.playing;
-    final isDone = _playerState == PlayerState.completed;
+    final isPlaying = _isPlaying;
+    final isDone = _isCompleted;
 
     return Padding(
       padding: const EdgeInsets.all(16),

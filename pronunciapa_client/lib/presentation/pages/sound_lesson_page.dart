@@ -1,4 +1,4 @@
-import 'package:audioplayers/audioplayers.dart';
+import 'package:just_audio/just_audio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/ipa_learning_provider.dart';
@@ -83,7 +83,8 @@ class _SoundLessonPageState extends ConsumerState<SoundLessonPage>
     final baseUrl = ref.read(baseUrlProvider);
     final fullUrl = audioUrl.startsWith('http') ? audioUrl : '$baseUrl$audioUrl';
     await _pairPlayer.stop();
-    await _pairPlayer.play(UrlSource(fullUrl));
+    await _pairPlayer.setUrl(fullUrl);
+    await _pairPlayer.play();
   }
 
   @override
