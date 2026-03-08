@@ -10,6 +10,7 @@ from typing import Any, Optional, Union, cast
 from fastapi import APIRouter, Depends, File, Form, UploadFile
 from fastapi.responses import JSONResponse
 
+from ipa_core.audio.markers import mark_audio_preprocessed
 from ipa_core.audio.files import cleanup_temp, ensure_wav
 from ipa_core.backends.audio_io import to_audio_input
 from ipa_core.config import loader
@@ -125,10 +126,9 @@ def _default_lang_from_config() -> str:
         backend_lang = cfg.backend.params.get("lang")
         if isinstance(backend_lang, str) and backend_lang.strip():
             return backend_lang.strip().lower()
-        return "es"
     except Exception as exc:  # pragma: no cover - fallback defensivo
         logger.debug("No se pudo resolver idioma por defecto desde config: %s", exc)
-        return "es"
+    return "es"
 
 
 def _resolve_request_lang(lang: Optional[str]) -> str:
@@ -209,6 +209,12 @@ def _assert_real_ipa_asr(asr_backend: Any) -> Optional[JSONResponse]:
     return None
 
 
+def _cleanup_uploaded_file(path: Path) -> None:
+    """Limpia archivos temporales de upload sin tapar errores previos."""
+    if path.exists():
+        cleanup_temp(str(path))
+
+
 @router.post("/transcribe", response_model=TranscriptionResponse)
 async def transcribe(
     audio: UploadFile = File(..., description="Archivo de audio a transcribir"),
@@ -224,10 +230,12 @@ async def transcribe(
     tmp_path = await _process_upload(audio)
     try:
         if backend:
-            kernel.asr = registry.resolve_asr(backend.lower(), {"lang": lang_resolved})
+            kernel.asr = registry.resolve_asr(
+                backend.lower(), {"lang": lang_resolved}, strict_mode=True
+            )
         if textref:
             kernel.textref = registry.resolve_textref(
-                textref.lower(), {"default_lang": lang_resolved}
+                textref.lower(), {"default_lang": lang_resolved}, strict_mode=True
             )
         # Validate output_type BEFORE setup() — avoids loading heavy models for
         # non-IPA backends injected via the `backend` request parameter.
@@ -254,11 +262,7 @@ async def transcribe(
         }
     finally:
         await kernel.teardown()
-        if tmp_path.exists():
-            try:
-                tmp_path.unlink()
-            except OSError:
-                pass
+        _cleanup_uploaded_file(tmp_path)
 
 
 @router.post("/textref", response_model=TextRefResponse)
@@ -273,7 +277,7 @@ async def textref_endpoint(
     try:
         if textref:
             kernel.textref = registry.resolve_textref(
-                textref.lower(), {"default_lang": lang_resolved}
+                textref.lower(), {"default_lang": lang_resolved}, strict_mode=True
             )
         await kernel.setup()
         tr_res = await kernel.textref.to_ipa(text, lang=lang_resolved)
@@ -323,38 +327,17 @@ async def compare(
     tmp_path = await _process_upload(audio)
     try:
         if backend:
-            kernel.asr = registry.resolve_asr(backend.lower(), {"lang": lang_resolved})
+            kernel.asr = registry.resolve_asr(
+                backend.lower(), {"lang": lang_resolved}, strict_mode=True
+            )
         if textref:
             kernel.textref = registry.resolve_textref(
-                textref.lower(), {"default_lang": lang_resolved}
+                textref.lower(), {"default_lang": lang_resolved}, strict_mode=True
             )
         if comparator:
-            kernel.comp = registry.resolve_comparator(comparator.lower(), {})
-
-        # Cargar language pack (auto si es posible)
-        language_pack = None
-        pack_id: Optional[Path | str] = None
-        if pack:
-            pack_path = Path(pack)
-            if pack_path.exists() and pack_path.is_dir():
-                pack_id = pack_path
-            else:
-                pack_id = pack.lower()
-        if not pack_id:
-            pack_id = resolve_pack_id(lang=lang_resolved)
-        if pack_id:
-            from ipa_core.packs.loader import DEFAULT_PACKS_DIR
-
-            try:
-                pack_dir = (
-                    pack_id
-                    if isinstance(pack_id, Path)
-                    else (DEFAULT_PACKS_DIR / str(pack_id))
-                )
-                language_pack = LanguagePackPlugin(Path(pack_dir))
-                await language_pack.setup()
-            except Exception as e:
-                logger.warning(f"No se pudo cargar language pack '{pack_id}': {e}")
+            kernel.comp = registry.resolve_comparator(
+                comparator.lower(), {}, strict_mode=True
+            )
 
         # Validate output_type BEFORE setup() — see note in /v1/transcribe.
         asr_guard = _assert_real_ipa_asr(kernel.asr)
@@ -362,89 +345,23 @@ async def compare(
             return asr_guard
         await kernel.setup()
 
-        # Quality assessment + adaptive settings (una sola vez)
-        quality_res, quality_warnings, profile_meta = assess_audio_quality(
-            str(tmp_path), user_id=user_id
+        service = ComparisonService(
+            preprocessor=kernel.pre,
+            asr=kernel.asr,
+            textref=kernel.textref,
+            comparator=kernel.comp,
+            default_lang=lang_resolved,
         )
-        profile = None
-        if profile_meta and isinstance(profile_meta.get("profile"), dict):
-            from ipa_core.services.user_profile import UserAudioProfile
-            profile = UserAudioProfile.from_dict(profile_meta["profile"])
-        effective_mode, effective_level, adaptive_meta = adapt_settings(
-            requested_mode=mode,
-            requested_level=evaluation_level,
-            quality=quality_res,
-            profile=profile,
+        compare_payload = await service.compare_file_detail(
+            str(tmp_path),
+            text,
+            lang=lang_resolved,
+            evaluation_level=evaluation_level,
+            pack=pack,
+            mode=mode,
+            user_id=user_id,
         )
-
-        # Pipeline unificado — soporta pack y sin pack
-        try:
-            comp_res = await execute_pipeline(
-                kernel.pre, kernel.asr, kernel.textref, kernel.comp,
-                audio={"path": str(tmp_path), "sample_rate": 16000, "channels": 1},
-                text=text,
-                lang=lang_resolved,
-                pack=language_pack,
-                mode=cast(EvaluationMode, effective_mode),
-                evaluation_level=cast(RepresentationLevel, effective_level),
-            )
-        except ValidationError as _pipeline_exc:
-            _msg = str(_pipeline_exc)
-            # Distinguish audio/ASR failures (no speech, too short, quality gate)
-            # from TextRef/config failures.  The former return a zero-score result
-            # so the user sees usable feedback; the latter are re-raised as 400.
-            _msg_lower = _msg.lower()
-            _asr_related = any(
-                kw in _msg_lower
-                for kw in ("asr", "voz", "silencio", "audio", "corta", "grabación", "tokens ipa")
-            )
-            if not _asr_related:
-                raise  # TextRef / config error → keep 400
-            logger.warning("compare: pipeline audio error — respuesta no-speech: %s", _msg)
-            try:
-                _tr = await kernel.textref.to_ipa(text, lang=lang_resolved)
-                _ref_tokens = clean_textref_tokens(
-                    _tr.get("tokens", []), lang=lang_resolved
-                )
-            except Exception:
-                _ref_tokens = []
-            _no_speech_meta: dict[str, Any] = {
-                "no_speech": True,
-                "no_speech_hint": _msg,
-                "adaptive": adaptive_meta,
-            }
-            if quality_res:
-                _no_speech_meta["audio_quality"] = quality_res.to_dict()
-            if quality_warnings:
-                _no_speech_meta["warnings"] = quality_warnings
-            return {
-                "per": 1.0,
-                "score": 0.0,
-                "mode": effective_mode,
-                "evaluation_level": effective_level,
-                "ipa": "",
-                "tokens": [],
-                "target_ipa": " ".join(_ref_tokens),
-                "ops": [],
-                "alignment": [],
-                "meta": _no_speech_meta,
-            }
-
-        payload = comp_res.to_dict()
-        payload["score"] = comp_res.score
-        payload["mode"] = effective_mode
-        payload["evaluation_level"] = effective_level
-        payload["ipa"] = comp_res.observed.to_ipa(with_delimiters=False)
-        payload["tokens"] = comp_res.observed.segments
-        payload["target_ipa"] = comp_res.target.to_ipa(with_delimiters=False)
-        payload.setdefault("meta", {})
-        payload["meta"]["adaptive"] = adaptive_meta
-        if quality_res:
-            payload["meta"]["audio_quality"] = quality_res.to_dict()
-        if quality_warnings:
-            payload["meta"]["warnings"] = quality_warnings
-        if profile_meta:
-            payload["meta"]["user_profile"] = profile_meta
+        payload = compare_payload.to_response()
 
         # Poblar campo display si el cliente lo solicita
         if display_mode is not None:
@@ -453,7 +370,7 @@ async def compare(
                 disp_result = build_display(
                     payload.get("ops", []),
                     mode=dm,
-                    level=effective_level,  # type: ignore[arg-type]
+                    level=payload["evaluation_level"],  # type: ignore[arg-type]
                     score=float(payload.get("score") or 0.0),
                 )
                 d = disp_result.as_dict()
@@ -474,8 +391,7 @@ async def compare(
         return payload
     finally:
         await kernel.teardown()
-        if tmp_path.exists():
-            tmp_path.unlink()
+        _cleanup_uploaded_file(tmp_path)
 
 
 # ── Quick-compare: fast path using cached kernel, no quality gates ───
@@ -506,7 +422,8 @@ async def quick_compare(
 
         # Direct ASR → textref → compare pipeline
         audio_in: AudioInput = to_audio_input(wav_path)
-        pre_result = await kernel.pre.process_audio(audio_in)
+        audio_pre = mark_audio_preprocessed(audio_in)
+        pre_result = await kernel.pre.process_audio(cast(AudioInput, audio_pre))
         processed = pre_result.get("audio", audio_in)
 
         asr_result = await kernel.asr.transcribe(processed, lang=lang_resolved)
@@ -523,56 +440,16 @@ async def quick_compare(
                 no_speech_hint += (
                     " El audio podría estar vacío, ser demasiado corto o no tener voz."
                 )
-                logger.warning("quick_compare: ASR sin tokens — respuesta no-speech")
-            try:
-                tr_fallback = await kernel.textref.to_ipa(text, lang=lang_resolved)
-                ref_tokens_fb = clean_textref_tokens(
-                    tr_fallback.get("tokens", []), lang=lang_resolved
-                )
-            except Exception:
-                ref_tokens_fb = []
-            return {
-                "per": 1.0,
-                "score": 0.0,
-                "mode": mode,
-                "evaluation_level": evaluation_level,
-                "ipa": "",
-                "tokens": [],
-                "target_ipa": " ".join(ref_tokens_fb),
-                "ops": [],
-                "alignment": [],
-                "meta": {
-                    "no_speech": True,
-                    "no_speech_hint": no_speech_hint,
-                    "quick": True,
-                },
-            }
+            logger.warning("quick_compare: ASR sin tokens")
+            raise ValidationError(no_speech_hint)
 
         # Limpieza IPA unificada para quick-compare
         hyp_tokens = clean_asr_tokens(hyp_tokens, lang=lang_resolved)
         if not hyp_tokens:
-            # All tokens were noise/silence markers — return no-speech result.
-            tr_fallback2 = await kernel.textref.to_ipa(text, lang=lang_resolved)
-            ref_fb2 = clean_textref_tokens(tr_fallback2.get("tokens", []), lang=lang_resolved)
-            return {
-                "per": 1.0,
-                "score": 0.0,
-                "mode": mode,
-                "evaluation_level": evaluation_level,
-                "ipa": "",
-                "tokens": [],
-                "target_ipa": " ".join(ref_fb2),
-                "ops": [],
-                "alignment": [],
-                "meta": {
-                    "no_speech": True,
-                    "no_speech_hint": (
-                        "ASR no devolvió tokens IPA válidos tras limpieza. "
-                        "El audio podría ser muy corto o contener sólo ruido."
-                    ),
-                    "quick": True,
-                },
-            }
+            raise ValidationError(
+                "ASR no devolvió tokens IPA válidos tras limpieza. "
+                "El audio podría ser muy corto o contener sólo ruido."
+            )
 
         tr_result = await kernel.textref.to_ipa(text, lang=lang_resolved)
         ref_tokens = clean_textref_tokens(tr_result.get("tokens", []), lang=lang_resolved)
@@ -602,8 +479,7 @@ async def quick_compare(
     finally:
         if wav_tmp:
             cleanup_temp(wav_path)
-        if tmp_path.exists():
-            tmp_path.unlink()
+        _cleanup_uploaded_file(tmp_path)
 
 
 @router.post("/feedback", response_model=FeedbackResponse)
@@ -678,8 +554,4 @@ async def feedback(
     finally:
         if not use_singleton:
             await kernel.teardown()
-        if tmp_path.exists():
-            try:
-                tmp_path.unlink()
-            except OSError:
-                pass
+        _cleanup_uploaded_file(tmp_path)

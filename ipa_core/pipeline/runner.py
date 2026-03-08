@@ -18,14 +18,16 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
+from ipa_core.audio.quality_gates import quality_gate_error_code
+from ipa_core.config import loader
 from ipa_core.errors import ValidationError
 from ipa_core.ports.asr import ASRBackend
 from ipa_core.ports.compare import Comparator
 from ipa_core.ports.preprocess import Preprocessor
 from ipa_core.ports.textref import TextRefProvider
-from ipa_core.types import ASRResult, AudioInput, CompareResult, CompareWeights, PreprocessorResult, Token
+from ipa_core.types import ASRResult, AudioInput, CompareResult, CompareWeights, EditOp, PreprocessorResult, Token
 from ipa_core.phonology.representation import (
     PhonologicalRepresentation,
     RepresentationLevel,
@@ -41,11 +43,26 @@ logger = logging.getLogger(__name__)
 
 
 def _default_lang() -> str:
-    """Return the configured default language for TextRef when lang is None.
+    """Return the canonical default language for TextRef when lang is None.
 
-    Uses PRONUNCIAPA_DEFAULT_LANG env var, falling back to "es" (Spanish).
+    Resolution order:
+    1. Config options.lang
+    2. Config backend.params.lang
+    3. PRONUNCIAPA_DEFAULT_LANG
+    4. "es"
     """
-    default = os.getenv("PRONUNCIAPA_DEFAULT_LANG", "es")
+    default = None
+    try:
+        cfg = loader.load_config()
+        opt_lang = getattr(cfg.options, "lang", None)
+        if isinstance(opt_lang, str) and opt_lang.strip():
+            default = opt_lang.strip().lower()
+        elif isinstance(cfg.backend.params.get("lang"), str) and cfg.backend.params.get("lang", "").strip():
+            default = cfg.backend.params["lang"].strip().lower()
+    except Exception as exc:  # pragma: no cover - fallback defensivo
+        logger.debug("No se pudo resolver idioma por defecto desde config: %s", exc)
+    if not default:
+        default = os.getenv("PRONUNCIAPA_DEFAULT_LANG", "es")
     logger.debug("lang no especificado; usando default '%s' para TextRef", default)
     return default
 
@@ -58,6 +75,13 @@ def _default_lang() -> str:
 #   original ya no llega al ASR tras la conversión.
 # LOW_SNR solo es una advertencia: el ASR puede intentarlo de todas formas.
 _BLOCKING_QUALITY_ISSUES = {"no_speech", "too_quiet"}
+
+
+def _quality_error_context(quality: dict[str, Any]) -> dict[str, object]:
+    return {
+        "issues": list(quality.get("issues", [])),
+        "audio_quality": dict(quality),
+    }
 
 
 def _check_quality_gate(pre_res: PreprocessorResult) -> None:
@@ -75,13 +99,39 @@ def _check_quality_gate(pre_res: PreprocessorResult) -> None:
             quality.get("user_feedback")
             or "Audio de baja calidad: no se puede transcribir."
         )
-        raise ValidationError(msg)
+        raise ValidationError(
+            msg,
+            error_code=cast(Optional[str], quality.get("error_code")) or quality_gate_error_code(list(issues)),
+            context=_quality_error_context(cast(dict[str, Any], quality)),
+        )
 
 
 def _quality_enriched_error(pre_res: PreprocessorResult, fallback: str) -> ValidationError:
     """Retorna ValidationError usando feedback de calidad si está disponible."""
-    feedback = pre_res.get("meta", {}).get("audio_quality", {}).get("user_feedback")
-    return ValidationError(feedback or fallback)
+    quality = cast(dict[str, Any], pre_res.get("meta", {}).get("audio_quality", {}))
+    feedback = quality.get("user_feedback")
+    return ValidationError(
+        cast(str, feedback or fallback),
+        error_code=cast(Optional[str], quality.get("error_code")) or quality_gate_error_code(list(quality.get("issues", []))),
+        context=_quality_error_context(quality) if quality else {},
+    )
+
+
+def _ops_from_alignment(alignment: list[tuple[Optional[str], Optional[str]]] | list[list[Optional[str]]]) -> list[EditOp]:
+    """Reconstruye ops desde alignment cuando el comparador no las provee."""
+    ops: list[EditOp] = []
+    for pair in alignment:
+        ref, hyp = pair
+        if ref is None:
+            op = "ins"
+        elif hyp is None:
+            op = "del"
+        elif ref == hyp:
+            op = "eq"
+        else:
+            op = "sub"
+        ops.append({"op": op, "ref": ref, "hyp": hyp})
+    return ops
 
 
 async def execute_pipeline(
@@ -163,7 +213,7 @@ async def execute_pipeline(
         raw_ref_tokens = tr_result.get("tokens", [])
         cleaned_ref = clean_textref_tokens(
             raw_ref_tokens,
-            lang=lang,
+            lang=effective_lang,
             preserve_allophones=(evaluation_level == "phonetic"),
         )
         norm_ref = await pre.normalize_tokens(cleaned_ref, **norm_params)
@@ -235,6 +285,7 @@ async def execute_pipeline(
         # Path sin pack: usar comparador inyectado si existe
         if comp is not None:
             res = await comp.compare(target_repr.segments, observed_repr.segments, weights=weights)
+            ops = res.get("ops", []) or _ops_from_alignment(res.get("alignment", []))
             # Convertir CompareResult a ComparisonResult
             return ComparisonResult(
                 target=target_repr,
@@ -243,7 +294,7 @@ async def execute_pipeline(
                 evaluation_level=evaluation_level,
                 distance=res.get("meta", {}).get("distance", 0.0),
                 score=max(0.0, (1.0 - res.get("per", 0.0)) * 100.0),
-                operations=res.get("ops", []),
+                operations=ops,
             )
 
         return await compare_representations(
@@ -272,35 +323,20 @@ async def run_pipeline(
     Wrapper compatible que usa el comparador ``comp`` proporcionado.
     Para el pipeline unificado con packs, usar ``execute_pipeline()``.
     """
-    # lang intentionally kept as-is (see note in execute_pipeline).
-    # 1. Preproceso de audio
-    pre_audio_res = await pre.process_audio(audio)
-    processed_audio = pre_audio_res.get("audio", audio)
-
-    try:
-        # Bloquear temprano si la calidad impide el reconocimiento (feedback accionable).
-        _check_quality_gate(pre_audio_res)
-
-        # 2. Transcripción ASR
-        asr_result = await asr.transcribe(processed_audio, lang=lang)
-
-        # 3. Resolución y normalización de hipótesis
-        try:
-            hyp_tokens = await _resolve_hyp_tokens(pre, asr_result, lang=lang)
-        except ValidationError:
-            raise _quality_enriched_error(pre_audio_res, "ASR no devolvió tokens IPA")
-
-        # 4. Obtención, limpieza y normalización de referencia
-        effective_lang = lang or _default_lang()
-        tr_result = await textref.to_ipa(text, lang=effective_lang)
-        ref_tokens_raw = clean_textref_tokens(tr_result.get("tokens", []), lang=lang, preserve_allophones=False)
-        ref_pre_res = await pre.normalize_tokens(ref_tokens_raw)
-        ref_tokens = ref_pre_res.get("tokens", [])
-
-        # 5. Comparación usando el comparador inyectado
-        return await comp.compare(ref_tokens, hyp_tokens, weights=weights)
-    finally:
-        _cleanup_preprocessor_res(pre_audio_res)
+    result = await execute_pipeline(
+        pre,
+        asr,
+        textref,
+        comp,
+        audio=audio,
+        text=text,
+        lang=lang,
+        pack=None,
+        mode="objective",
+        evaluation_level="phonemic",
+        weights=weights,
+    )
+    return cast(CompareResult, result.to_dict())
 
 
 async def run_pipeline_with_pack(
@@ -336,24 +372,6 @@ __all__ = [
     "run_pipeline",
     "run_pipeline_with_pack",
 ]
-
-
-async def _resolve_hyp_tokens(
-    pre: Preprocessor,
-    asr_result: ASRResult,
-    lang: Optional[str] = None,
-    inventory: Optional[Any] = None,
-) -> list[Token]:
-    """Extrae, limpia y normaliza tokens IPA del ASR (usado internamente)."""
-    tokens = asr_result.get("tokens")
-    if tokens:
-        tokens = clean_asr_tokens(tokens, lang=lang)
-        norm_params = {}
-        if inventory is not None:
-            norm_params["inventory"] = inventory
-        res = await pre.normalize_tokens(tokens, **norm_params)
-        return res.get("tokens", [])
-    raise ValidationError("ASR no devolvió tokens IPA")
 
 
 def _cleanup_preprocessor_res(res: PreprocessorResult) -> None:

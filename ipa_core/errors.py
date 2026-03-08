@@ -40,6 +40,17 @@ class NotReadyError(KernelError):
 class ValidationError(KernelError):
     """Entrada inválida (por ejemplo, texto vacío o idioma no soportado)."""
 
+    def __init__(
+        self,
+        message: str,
+        *,
+        error_code: str | None = None,
+        context: dict[str, object] | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.error_code = error_code
+        self.context = context or {}
+
 
 class UnsupportedFormat(KernelError):
     """Formato de archivo o contenido no soportado.

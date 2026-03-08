@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional, Tuple, cast
 
 from ipa_core.config.schema import AppConfig
 from ipa_core.packs.loader import load_language_pack, load_model_pack, resolve_manifest_path
 from ipa_core.packs.schema import LanguagePack, ModelPack, TTSConfig
-from ipa_core.pipeline.runner import run_pipeline, run_pipeline_with_pack, execute_pipeline
+from ipa_core.pipeline.runner import run_pipeline_with_pack, execute_pipeline
 from ipa_core.pipeline.transcribe import EvaluationMode
 from ipa_core.phonology.representation import RepresentationLevel, ComparisonResult
 from ipa_core.plugins import registry
@@ -41,6 +41,7 @@ class Kernel:
     model_pack: Optional[ModelPack] = None
     model_pack_dir: Optional[Path] = None
     history: Optional[HistoryPort] = None
+    strict_mode: bool = False
 
     async def setup(self) -> None:
         """Inicializar todos los componentes."""
@@ -48,6 +49,8 @@ class Kernel:
         try:
             await self.asr.setup()
         except (TypeError, ImportError) as exc:
+            if self.strict_mode:
+                raise
             # Graceful degradation: panphon/allosaurus may fail on Python <3.10
             logger.warning(
                 "ASR backend setup failed (%s), falling back to StubASR. "
@@ -55,7 +58,7 @@ class Kernel:
                 exc,
             )
             from ipa_core.backends.asr_stub import StubASR
-            self.asr = StubASR()
+            self.asr = cast(ASRBackend, StubASR())
             await self.asr.setup()
         await self.textref.setup()
         await self.comp.setup()
@@ -91,29 +94,18 @@ class Kernel:
     ) -> CompareResult:
         """Ejecutar el pipeline completo (Asíncrono).
 
-        Con pack: usa execute_pipeline() (derive/collapse + ScoringProfile).
-        Sin pack:  usa run_pipeline() con el comparador inyectado.
+        Usa siempre execute_pipeline() para evitar divergencia entre paths
+        con y sin pack.
         """
-        if self.language_pack is not None:
-            result = await execute_pipeline(
-                self.pre, self.asr, self.textref, self.comp,
-                audio=audio, text=text, lang=lang,
-                pack=self.language_pack,
-                mode=mode,
-                evaluation_level=evaluation_level,
-                weights=weights,
-            )
-            return result.to_dict()
-        return await run_pipeline(
-            pre=self.pre,
-            asr=self.asr,
-            textref=self.textref,
-            comp=self.comp,
-            audio=audio,
-            text=text,
-            lang=lang,
+        result = await execute_pipeline(
+            self.pre, self.asr, self.textref, self.comp,
+            audio=audio, text=text, lang=lang,
+            pack=self.language_pack,
+            mode=mode,
+            evaluation_level=evaluation_level,
             weights=weights,
         )
+        return cast(CompareResult, result.to_dict())
 
     async def run_with_pack(
         self,
@@ -198,6 +190,7 @@ def create_kernel(cfg: AppConfig) -> Kernel:
         model_pack=model_pack,
         model_pack_dir=model_pack_dir,
         history=history,
+        strict_mode=strict,
     )
 
 

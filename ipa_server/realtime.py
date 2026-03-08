@@ -23,6 +23,7 @@ from ipa_core.audio.stream import AudioBuffer, AudioSegment, StreamConfig, Strea
 from ipa_core.config import loader
 from ipa_core.kernel.core import create_kernel, Kernel
 from ipa_core.plugins import registry
+from ipa_core.services.comparison import ComparisonService
 from ipa_core.services.transcription import TranscriptionService
 
 logger = logging.getLogger(__name__)
@@ -151,7 +152,9 @@ class RealtimeSession:
                 buffer_duration_ms=state.buffer_duration_ms,
                 status=state.status,
             )
-            await self.websocket.send_json(msg.model_dump())
+            payload = msg.model_dump()
+            payload.pop("type", None)
+            await self.websocket.send_json({"type": "state", "data": payload})
         except Exception as e:
             logger.warning(f"Error enviando estado: {e}")
     
@@ -161,33 +164,38 @@ class RealtimeSession:
             return
         
         try:
-            # Transcribir audio
-            service = TranscriptionService(
-                preprocessor=self.kernel.pre,
-                asr=self.kernel.asr,
-                textref=self.kernel.textref,
-                default_lang=self.ws_config.lang,
-            )
-            
-            result = await service.transcribe_file(
-                str(segment.audio_path),
-                lang=self.ws_config.lang,
-            )
-            
             # Si hay texto de referencia, comparar
             if self.ws_config.reference_text:
                 await self._send_comparison(
-                    user_ipa=result.ipa,
+                    segment_path=str(segment.audio_path),
                     duration_ms=segment.duration_ms,
                 )
             else:
+                service = TranscriptionService(
+                    preprocessor=self.kernel.pre,
+                    asr=self.kernel.asr,
+                    textref=self.kernel.textref,
+                    default_lang=self.ws_config.lang,
+                )
+
+                result = await service.transcribe_file(
+                    str(segment.audio_path),
+                    lang=self.ws_config.lang,
+                )
+
                 # Solo transcripción
                 msg = WSTranscriptionResult(
                     ipa=result.ipa,
                     tokens=result.tokens,
                     duration_ms=segment.duration_ms,
                 )
-                await self.websocket.send_json(msg.model_dump())
+                payload = {
+                    "ipa": msg.ipa,
+                    "tokens": msg.tokens,
+                    "lang": self.ws_config.lang,
+                    "meta": {"duration_ms": msg.duration_ms},
+                }
+                await self.websocket.send_json({"type": "transcription", "data": payload})
             
         except Exception as e:
             logger.error(f"Error procesando segmento: {e}")
@@ -199,49 +207,54 @@ class RealtimeSession:
             except Exception:
                 pass
     
-    async def _send_comparison(self, user_ipa: str, duration_ms: int) -> None:
+    async def _send_comparison(self, segment_path: str, duration_ms: int) -> None:
         """Enviar resultado de comparación."""
         if not self.kernel:
             return
         
         try:
-            # Obtener IPA de referencia
-            ref_result = await self.kernel.textref.to_ipa(
+            service = ComparisonService(
+                preprocessor=self.kernel.pre,
+                asr=self.kernel.asr,
+                textref=self.kernel.textref,
+                comparator=self.kernel.comp,
+                default_lang=self.ws_config.lang,
+            )
+            payload = await service.compare_file_detail(
+                segment_path,
                 self.ws_config.reference_text or "",
                 lang=self.ws_config.lang,
+                mode=self.ws_config.mode,
+                evaluation_level=self.ws_config.evaluation_level,
             )
-            ref_ipa = " ".join(ref_result.get("tokens", []))
-            
-            # Comparar usando el comparador directamente
-            comp_result = await self.kernel.comp.compare(
-                ref=ref_ipa.split(),
-                hyp=user_ipa.split(),
-            )
-            
+
+            compare_payload = payload.to_response()
+
             msg = WSComparisonResult(
-                score=1.0 - comp_result.get("per", 0.0),
-                user_ipa=user_ipa,
-                ref_ipa=ref_ipa,
-                alignment=comp_result.get("alignment", []),
+                score=compare_payload["score"],
+                user_ipa=compare_payload["ipa"],
+                ref_ipa=compare_payload["target_ipa"],
+                alignment=compare_payload.get("alignment", []),
                 duration_ms=duration_ms,
             )
-            await self.websocket.send_json(msg.model_dump())
+            compare_payload["duration_ms"] = msg.duration_ms
+            await self.websocket.send_json({"type": "comparison", "data": compare_payload})
             
         except Exception as e:
             logger.error(f"Error en comparación: {e}")
-            # Enviar solo transcripción como fallback
-            msg = WSTranscriptionResult(
-                ipa=user_ipa,
-                tokens=user_ipa.split(),
-                duration_ms=duration_ms,
-            )
-            await self.websocket.send_json(msg.model_dump())
+            await self._send_error(str(e), "comparison_error")
     
     async def _send_error(self, message: str, code: str = "unknown") -> None:
         """Enviar mensaje de error."""
         try:
             msg = WSError(message=message, code=code)
-            await self.websocket.send_json(msg.model_dump())
+            await self.websocket.send_json(
+                {
+                    "type": "error",
+                    "message": msg.message,
+                    "data": {"message": msg.message, "code": msg.code},
+                }
+            )
         except Exception:
             pass
     
@@ -264,7 +277,9 @@ class RealtimeSession:
                 self.ws_config.reference_text = data["reference_text"]
             if "mode" in data:
                 self.ws_config.mode = data["mode"]
-                logger.info(f"Config actualizada: {self.ws_config}")
+            if "evaluation_level" in data:
+                self.ws_config.evaluation_level = data["evaluation_level"]
+            logger.info(f"Config actualizada: {self.ws_config}")
         
         elif msg_type == "flush":
             # Forzar procesamiento del buffer actual
@@ -295,13 +310,14 @@ async def websocket_practice(websocket: WebSocket) -> None:
     5. Cliente puede enviar mensajes de control (flush, reset, config)
     
     Mensajes del servidor:
-    - {"type": "state", "is_speaking": bool, "volume_level": float, ...}
-    - {"type": "transcription", "ipa": str, "tokens": [...], ...}
-    - {"type": "comparison", "score": float, "user_ipa": str, ...}
-    - {"type": "error", "message": str, "code": str}
+    - {"type": "ready", "message": str, "config": {...}}
+    - {"type": "state", "data": {"is_speaking": bool, "volume_level": float, ...}}
+    - {"type": "transcription", "data": {"ipa": str, "tokens": [...], "lang": str, "meta": {...}}}
+    - {"type": "comparison", "data": {"score": float, "ipa": str, "target_ipa": str, ...}}
+    - {"type": "error", "message": str, "data": {"message": str, "code": str}}
     
     Mensajes del cliente:
-    - {"type": "config", "data": {"lang": "es", "reference_text": "..."}}
+    - {"type": "config", "data": {"lang": "es", "reference_text": "...", "mode": "objective", "evaluation_level": "phonemic"}}
     - {"type": "flush"} - Forzar procesamiento inmediato
     - {"type": "reset"} - Limpiar buffer
     - {"type": "ping"} - Keepalive

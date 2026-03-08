@@ -67,7 +67,7 @@ class TestVAD:
         try:
             result = analyze_vad(wav_path)
             assert result.speech_ratio < 0.7
-            assert result.trim_suggestion is not None
+            assert result.speech_segments
         finally:
             os.unlink(wav_path)
     
@@ -103,6 +103,7 @@ class TestQualityGates:
             result = check_quality(wav_path, min_duration_ms=500)
             assert result.passed is False
             assert QualityIssue.TOO_SHORT in result.issues
+            assert result.user_feedback is not None
             assert "corta" in result.user_feedback.lower()
         finally:
             os.unlink(wav_path)
@@ -114,6 +115,7 @@ class TestQualityGates:
             result = check_quality(wav_path)
             assert result.passed is False
             assert QualityIssue.TOO_QUIET in result.issues
+            assert result.user_feedback is not None
             assert "silencioso" in result.user_feedback.lower()
         finally:
             os.unlink(wav_path)
@@ -142,10 +144,12 @@ class TestQualityGates:
         """QualityGateResult debe ser serializable."""
         wav_path = _create_test_wav(1000)
         try:
-            result = check_quality(wav_path)
+            result = check_quality(wav_path, speech_ratio=0.05)
             data = result.to_dict()
             assert "passed" in data
             assert "issues" in data
             assert isinstance(data["issues"], list)
+            assert data["error_code"] == "audio_no_speech"
+            assert data["primary_issue"] == "no_speech"
         finally:
             os.unlink(wav_path)

@@ -32,6 +32,63 @@ class QualityIssue(Enum):
     NO_SPEECH = "no_speech"
 
 
+QUALITY_ISSUE_PRIORITY = [
+    QualityIssue.NO_SPEECH,
+    QualityIssue.TOO_QUIET,
+    QualityIssue.CLIPPING,
+    QualityIssue.LOW_SNR,
+    QualityIssue.TOO_SHORT,
+    QualityIssue.TOO_LONG,
+]
+
+QUALITY_ISSUE_ERROR_CODES = {
+    QualityIssue.CLIPPING: "audio_clipping",
+    QualityIssue.LOW_SNR: "audio_low_snr",
+    QualityIssue.TOO_SHORT: "audio_too_short",
+    QualityIssue.TOO_LONG: "audio_too_long",
+    QualityIssue.TOO_QUIET: "audio_too_quiet",
+    QualityIssue.NO_SPEECH: "audio_no_speech",
+}
+
+
+def _normalize_quality_issue(issue: QualityIssue | str) -> Optional[QualityIssue]:
+    if isinstance(issue, QualityIssue):
+        return issue
+    try:
+        return QualityIssue(str(issue))
+    except ValueError:
+        return None
+
+
+def primary_quality_issue(issues: List[QualityIssue] | List[str]) -> Optional[QualityIssue]:
+    """Retorna el issue prioritario para feedback y códigos estables."""
+    normalized = {
+        normalized_issue
+        for issue in issues
+        if (normalized_issue := _normalize_quality_issue(issue)) is not None
+    }
+    for priority_issue in QUALITY_ISSUE_PRIORITY:
+        if priority_issue in normalized:
+            return priority_issue
+    return None
+
+
+def quality_issue_error_code(issue: QualityIssue | str) -> Optional[str]:
+    """Mapea un issue de calidad a un código de error estable."""
+    normalized = _normalize_quality_issue(issue)
+    if normalized is None:
+        return None
+    return QUALITY_ISSUE_ERROR_CODES.get(normalized)
+
+
+def quality_gate_error_code(issues: List[QualityIssue] | List[str]) -> Optional[str]:
+    """Retorna el código estable del issue prioritario."""
+    priority_issue = primary_quality_issue(issues)
+    if priority_issue is None:
+        return None
+    return QUALITY_ISSUE_ERROR_CODES.get(priority_issue)
+
+
 @dataclass
 class QualityGateResult:
     """Resultado de quality gates.
@@ -61,9 +118,12 @@ class QualityGateResult:
 
     def to_dict(self) -> dict:
         """Convertir a diccionario para serialización."""
+        priority_issue = primary_quality_issue(self.issues)
         return {
             "passed": self.passed,
             "issues": [i.value for i in self.issues],
+            "primary_issue": priority_issue.value if priority_issue else None,
+            "error_code": quality_gate_error_code(self.issues),
             "snr_db": self.snr_db,
             "snr_method": self.snr_method,
             "clipping_ratio": self.clipping_ratio,
@@ -243,19 +303,9 @@ def check_quality(
     # Generar feedback
     user_feedback = None
     if issues:
-        # Priorizar el issue más importante
-        priority_order = [
-            QualityIssue.NO_SPEECH,
-            QualityIssue.TOO_QUIET,
-            QualityIssue.CLIPPING,
-            QualityIssue.LOW_SNR,
-            QualityIssue.TOO_SHORT,
-            QualityIssue.TOO_LONG,
-        ]
-        for priority_issue in priority_order:
-            if priority_issue in issues:
-                user_feedback = _FEEDBACK_MESSAGES[priority_issue]
-                break
+        priority_issue = primary_quality_issue(issues)
+        if priority_issue is not None:
+            user_feedback = _FEEDBACK_MESSAGES[priority_issue]
     
     return QualityGateResult(
         passed=len(issues) == 0,
@@ -270,4 +320,13 @@ def check_quality(
     )
 
 
-__all__ = ["QualityIssue", "QualityGateResult", "check_quality"]
+__all__ = [
+    "QualityIssue",
+    "QualityGateResult",
+    "QUALITY_ISSUE_ERROR_CODES",
+    "QUALITY_ISSUE_PRIORITY",
+    "check_quality",
+    "primary_quality_issue",
+    "quality_gate_error_code",
+    "quality_issue_error_code",
+]

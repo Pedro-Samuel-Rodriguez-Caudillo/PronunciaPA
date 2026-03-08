@@ -1,6 +1,8 @@
 """Tests para `run_pipeline` y `execute_pipeline`."""
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 from ipa_core.errors import ValidationError
 from ipa_core.pipeline.runner import run_pipeline, execute_pipeline
@@ -95,6 +97,42 @@ async def test_run_pipeline_rejects_raw_text():
             text="ab",
             lang="es",
         )
+
+
+@pytest.mark.asyncio
+async def test_execute_pipeline_exposes_stable_audio_error_code():
+    class _QualityPreprocessor(_Preprocessor):
+        async def process_audio(self, audio: AudioInput):
+            self.audio_seen = audio
+            return {
+                "audio": audio,
+                "meta": {
+                    "audio_quality": {
+                        "passed": False,
+                        "issues": ["no_speech"],
+                        "error_code": "audio_no_speech",
+                        "user_feedback": "No se detectó voz.",
+                    }
+                },
+            }
+
+    pre = _QualityPreprocessor()
+    asr = _ASR(tokens=["a"])
+    textref = _TextRef()
+
+    with pytest.raises(ValidationError) as excinfo:
+        await execute_pipeline(
+            pre,
+            asr,
+            textref,
+            _Comparator(),
+            audio={"path": "x.wav", "sample_rate": 16000, "channels": 1},
+            text="ab",
+            lang="es",
+        )
+
+    assert excinfo.value.error_code == "audio_no_speech"
+    assert excinfo.value.context["issues"] == ["no_speech"]
 
 
 # ── Mock pack for execute_pipeline tests ─────────────────────────────
@@ -223,3 +261,37 @@ async def test_execute_pipeline_empty_asr_raises():
             pre, asr, textref,
             audio=_AUDIO, text="ab", lang="es",
         )
+
+
+@pytest.mark.asyncio
+async def test_execute_pipeline_uses_config_default_lang_when_missing(monkeypatch):
+    pre = _Preprocessor()
+    asr = _ASR(tokens=["a", "b"])
+
+    class TrackingTextRef(_TextRef):
+        def __init__(self) -> None:
+            self.last_lang = None
+
+        async def to_ipa(self, text: str, *, lang: str, **_kw):
+            self.last_lang = lang
+            return await super().to_ipa(text, lang=lang, **_kw)
+
+    textref = TrackingTextRef()
+    fake_cfg = SimpleNamespace(
+        options=SimpleNamespace(lang="en"),
+        backend=SimpleNamespace(params={}),
+    )
+    monkeypatch.setattr("ipa_core.pipeline.runner.loader.load_config", lambda: fake_cfg)
+
+    await execute_pipeline(
+        pre,
+        asr,
+        textref,
+        audio=_AUDIO,
+        text="ab",
+        lang=None,
+        pack=None,
+        evaluation_level="phonemic",
+    )
+
+    assert textref.last_lang == "en"

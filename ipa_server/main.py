@@ -6,6 +6,7 @@ PronunciaPA.  Las rutas estan organizadas en modulos separados bajo
 """
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 import logging
 import os
 import shutil
@@ -25,12 +26,8 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from ipa_core.errors import (
-    AudioFormatError,
     FileNotFound,
     KernelError,
-    LLMAPIError,
-    LLMTimeoutError,
-    ModelLoadError,
     NotReadyError,
     UnsupportedFormat,
     ValidationError,
@@ -109,76 +106,51 @@ def _register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(ValidationError)
     async def validation_exception_handler(request: Request, exc: ValidationError):
         logger.error("Validation error on %s: %s", request.url.path, exc)
-        return JSONResponse(
-            status_code=400,
-            content={
-                "detail": str(exc),
-                "type": "validation_error",
-                "path": request.url.path,
-            },
-        )
+        content: dict[str, Any] = {
+            "detail": str(exc),
+            "type": "validation_error",
+            "code": 400,
+            "path": request.url.path,
+        }
+        if exc.error_code:
+            content["error_code"] = exc.error_code
+        if exc.context:
+            content["context"] = exc.context
+        return JSONResponse(status_code=400, content=content)
 
     @app.exception_handler(UnsupportedFormat)
     async def unsupported_exception_handler(request: Request, exc: UnsupportedFormat):
         return JSONResponse(
             status_code=415,
-            content={"detail": str(exc), "type": "unsupported_format"},
+            content={"detail": str(exc), "type": "unsupported_format", "code": 415},
         )
 
     @app.exception_handler(FileNotFound)
     async def file_not_found_handler(request: Request, exc: FileNotFound):
         return JSONResponse(
             status_code=400,
-            content={"detail": str(exc), "type": "file_not_found"},
+            content={"detail": str(exc), "type": "file_not_found", "code": 400},
         )
 
     @app.exception_handler(KeyError)
     async def plugin_not_found_handler(request: Request, exc: KeyError):
         return JSONResponse(
             status_code=400,
-            content={"detail": str(exc), "type": "plugin_not_found"},
-        )
-
-    @app.exception_handler(AudioFormatError)
-    async def audio_format_exception_handler(request: Request, exc: AudioFormatError):
-        return JSONResponse(
-            status_code=400,
-            content={"detail": str(exc), "type": "audio_format_error"},
-        )
-
-    @app.exception_handler(ModelLoadError)
-    async def model_load_exception_handler(request: Request, exc: ModelLoadError):
-        return JSONResponse(
-            status_code=503,
-            content={"detail": str(exc), "type": "model_load_error"},
-        )
-
-    @app.exception_handler(LLMTimeoutError)
-    async def llm_timeout_exception_handler(request: Request, exc: LLMTimeoutError):
-        return JSONResponse(
-            status_code=504,
-            content={"detail": str(exc), "type": "llm_timeout_error"},
-        )
-
-    @app.exception_handler(LLMAPIError)
-    async def llmapi_exception_handler(request: Request, exc: LLMAPIError):
-        return JSONResponse(
-            status_code=422,
-            content={"detail": str(exc), "type": "llm_api_error"},
+            content={"detail": str(exc), "type": "plugin_not_found", "code": 400},
         )
 
     @app.exception_handler(NotReadyError)
     async def not_ready_exception_handler(request: Request, exc: NotReadyError):
         return JSONResponse(
             status_code=503,
-            content={"detail": str(exc), "type": "not_ready"},
+            content={"detail": str(exc), "type": "not_ready", "code": 503},
         )
 
     @app.exception_handler(KernelError)
     async def kernel_exception_handler(request: Request, exc: KernelError):
         return JSONResponse(
             status_code=500,
-            content={"detail": str(exc), "type": "kernel_error"},
+            content={"detail": str(exc), "type": "kernel_error", "code": 500},
         )
 
     @app.exception_handler(Exception)
@@ -192,9 +164,19 @@ def _register_exception_handlers(app: FastAPI) -> None:
             content={
                 "detail": str(exc),
                 "type": type(exc).__name__,
+                "code": 500,
                 "path": request.url.path,
             },
         )
+
+
+@asynccontextmanager
+async def _app_lifespan(_app: FastAPI):
+    """Manage app lifecycle resources."""
+    try:
+        yield
+    finally:
+        await teardown_kernel_singleton()
 
 
 def get_app() -> FastAPI:
@@ -203,6 +185,7 @@ def get_app() -> FastAPI:
         title="PronunciaPA API",
         description="API para reconocimiento y evaluacion fonetica",
         version="0.1.0",
+        lifespan=_app_lifespan,
     )
 
     # CORS
@@ -236,11 +219,6 @@ def get_app() -> FastAPI:
     app.include_router(ipa_catalog_router)
     app.include_router(models_router)
     app.include_router(realtime_router)
-
-    @app.on_event("shutdown")
-    async def _on_shutdown() -> None:
-        """Tear down the /v1/quick-compare kernel singleton on server stop."""
-        await teardown_kernel_singleton()
 
     return app
 

@@ -22,6 +22,7 @@ import os
 from dataclasses import dataclass, field
 from typing import Any, List, Optional
 
+from ipa_core.audio.markers import is_audio_preprocessed
 from ipa_core.types import AudioInput
 
 logger = logging.getLogger(__name__)
@@ -69,6 +70,10 @@ class EnsureWavStep:
 
     async def process(self, ctx: AudioContext) -> AudioContext:
         if ctx.was_step_applied(self.name):
+            return ctx
+        if is_audio_preprocessed(ctx.audio):
+            ctx.meta["ensure_wav"] = {"skipped": True, "path": ctx.audio.get("path")}
+            ctx.mark_step(self.name)
             return ctx
         try:
             from ipa_core.audio.files import ensure_wav

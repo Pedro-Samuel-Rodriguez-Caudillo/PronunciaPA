@@ -2,7 +2,10 @@
 from __future__ import annotations
 
 import pytest
+from unittest.mock import AsyncMock
+from ipa_core.audio.markers import is_audio_preprocessed
 from ipa_core.errors import NotReadyError
+from ipa_core.preprocessor_basic import BasicPreprocessor
 from ipa_core.services.transcription import TranscriptionService
 from tests.utils.audio import write_sine_wave
 
@@ -60,11 +63,12 @@ async def test_transcription_service_falls_back_when_epitran_missing(monkeypatch
 
 
 @pytest.mark.asyncio
-async def test_transcription_service_fallbacks_to_textref(tmp_path):
+async def test_transcription_service_rejects_raw_text_without_ipa_tokens(tmp_path):
     wav_path = write_sine_wave(tmp_path / "service-raw.wav")
 
     from ipa_core.ports.asr import ASRBackend
     from ipa_core.ports.textref import TextRefProvider
+    from ipa_core.errors import ValidationError
 
     class RawTextASR(ASRBackend):
         async def setup(self): pass
@@ -79,5 +83,30 @@ async def test_transcription_service_fallbacks_to_textref(tmp_path):
             return {"tokens": ["h", "o", "l", "a"]}
 
     service = TranscriptionService(default_lang="es", asr=RawTextASR(), textref=FakeTextRef())
-    payload = await service.transcribe_file(wav_path)
-    assert payload.tokens == ["h", "o", "l", "a"]
+    with pytest.raises(ValidationError):
+        await service.transcribe_file(wav_path)
+
+
+@pytest.mark.asyncio
+async def test_transcription_service_marks_audio_as_already_wav(tmp_path):
+    wav_path = write_sine_wave(tmp_path / "service-pre.wav")
+
+    from ipa_core.ports.asr import ASRBackend
+
+    class TokenASR(ASRBackend):
+        async def setup(self): pass
+        async def teardown(self): pass
+        async def transcribe(self, audio, *, lang=None, **kw):
+            return {"tokens": ["m", "a", "l"]}
+
+    pre = BasicPreprocessor()
+    pre.process_audio = AsyncMock(return_value={
+        "audio": {"path": wav_path, "sample_rate": 16000, "channels": 1},
+        "meta": {},
+    })
+
+    service = TranscriptionService(default_lang="es", preprocessor=pre, asr=TokenASR())
+    await service.transcribe_file(wav_path)
+
+    called_audio = pre.process_audio.await_args.args[0]
+    assert is_audio_preprocessed(called_audio)

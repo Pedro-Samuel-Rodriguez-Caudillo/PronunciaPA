@@ -74,7 +74,9 @@ def reset_kernel_singleton():
     """Evita contaminación entre tests para /v1/quick-compare."""
     pipeline_router._cached_kernel = None
     pipeline_router._kernel_ready = False
+    pipeline_router._kernel_lock = None
     yield
     pipeline_router._cached_kernel = None
     pipeline_router._kernel_ready = False
+    pipeline_router._kernel_lock = None
 

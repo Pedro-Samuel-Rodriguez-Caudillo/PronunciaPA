@@ -5,8 +5,10 @@ import os
 import wave
 import tempfile
 import struct
+from typing import cast
 import pytest
 
+from ipa_core.audio.markers import mark_audio_preprocessed
 from ipa_core.audio.processing_chain import (
     AGCStep,
     AudioContext,
@@ -74,8 +76,9 @@ class TestEnsureWavStep:
         step = EnsureWavStep()
         ctx = await step.process(ctx)
         assert ctx.was_step_applied("ensure_wav")
-        # Valid 16kHz mono WAV should not create temp files
-        assert len(ctx.temp_files) == 0 or ctx.audio["path"] == str(p)
+        assert ctx.audio["sample_rate"] == 16000
+        assert ctx.audio["channels"] == 1
+        assert os.path.exists(ctx.audio["path"])
 
     @pytest.mark.asyncio
     async def test_idempotent_second_call(self, tmp_path):
@@ -87,6 +90,16 @@ class TestEnsureWavStep:
         initial_path = ctx.audio["path"]
         ctx = await step.process(ctx)  # second call
         assert ctx.audio["path"] == initial_path
+
+    @pytest.mark.asyncio
+    async def test_preprocessed_marker_skips_conversion(self, tmp_path):
+        p = tmp_path / "test.wav"
+        _make_wav(str(p))
+        ctx = AudioContext(audio=cast(AudioInput, mark_audio_preprocessed(_audio_input(str(p)))))
+        step = EnsureWavStep()
+        ctx = await step.process(ctx)
+        assert ctx.meta["ensure_wav"]["skipped"] is True
+        assert ctx.audio["path"] == str(p)
 
 
 # ── VADTrimStep ───────────────────────────────────────────────────────

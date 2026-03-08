@@ -4,11 +4,13 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional, cast
 
 from ipa_core.audio.files import cleanup_temp, ensure_wav, persist_bytes
+from ipa_core.audio.markers import mark_audio_preprocessed
 from ipa_core.backends.audio_io import to_audio_input
 from ipa_core.errors import NotReadyError, ValidationError
+from ipa_core.normalization.resolve import resolve_pack_id
 from ipa_core.ports.asr import ASRBackend
 from ipa_core.ports.compare import Comparator
 from ipa_core.ports.preprocess import Preprocessor
@@ -16,11 +18,14 @@ from ipa_core.ports.textref import TextRefProvider
 from ipa_core.preprocessor_basic import BasicPreprocessor
 from ipa_core.types import CompareResult, CompareWeights, Token
 from ipa_core.plugins import registry
-from ipa_core.normalization.resolve import load_inventory_for
+from ipa_core.phonology.representation import ComparisonResult, RepresentationLevel
+from ipa_core.pipeline.runner import execute_pipeline
+from ipa_core.pipeline.transcribe import EvaluationMode
+from ipa_core.plugins.language_pack import LanguagePackPlugin
+from ipa_core.packs.loader import DEFAULT_PACKS_DIR
 from ipa_core.services.audio_quality import assess_audio_quality
 from ipa_core.services.adaptation import adapt_settings
 from ipa_core.services.user_profile import UserAudioProfile
-from ipa_core.pipeline.ipa_cleaning import clean_asr_tokens, clean_textref_tokens
 
 
 @dataclass
@@ -28,7 +33,25 @@ class ComparisonPayload:
     ref_tokens: list[Token]
     hyp_tokens: list[Token]
     result: CompareResult
-    meta: dict = field(default_factory=dict)
+    mode: str = "objective"
+    evaluation_level: str = "phonemic"
+    meta: dict[str, Any] = field(default_factory=dict)
+
+    def to_response(self, *, extra_meta: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+        payload: dict[str, Any] = dict(self.result)
+        per = float(payload.get("per", 0.0) or 0.0)
+        payload["score"] = max(0.0, (1.0 - per) * 100.0)
+        payload["mode"] = self.mode
+        payload["evaluation_level"] = self.evaluation_level
+        payload["ipa"] = " ".join(self.hyp_tokens)
+        payload["tokens"] = list(self.hyp_tokens)
+        payload["target_ipa"] = " ".join(self.ref_tokens)
+        payload_meta = dict(cast(dict[str, Any], payload.get("meta", {})))
+        payload_meta.update(self.meta)
+        if extra_meta:
+            payload_meta.update(extra_meta)
+        payload["meta"] = payload_meta
+        return payload
 
 
 class ComparisonService:
@@ -68,6 +91,35 @@ class ComparisonService:
     def _resolve_comparator(self, comparator_name: Optional[str]) -> Comparator:
         selected = (comparator_name or os.getenv("PRONUNCIAPA_COMPARATOR") or "default").lower()
         return registry.resolve_comparator(selected, {})
+
+    @staticmethod
+    def _build_pipeline_audio(path: str) -> dict[str, object]:
+        return mark_audio_preprocessed({
+            "path": path,
+            "sample_rate": 16000,
+            "channels": 1,
+        })
+
+    @staticmethod
+    async def _load_language_pack(pack: Optional[str], lang: str) -> tuple[Optional[LanguagePackPlugin], Optional[str]]:
+        if pack:
+            pack_path = Path(pack)
+            if pack_path.exists() and pack_path.is_dir():
+                try:
+                    language_pack = LanguagePackPlugin(pack_path)
+                    await language_pack.setup()
+                    return language_pack, str(pack_path)
+                except Exception:
+                    return None, str(pack_path)
+        pack_id = resolve_pack_id(lang=lang, pack=pack)
+        if not pack_id:
+            return None, None
+        try:
+            language_pack = LanguagePackPlugin(DEFAULT_PACKS_DIR / pack_id)
+            await language_pack.setup()
+            return language_pack, pack_id
+        except Exception:
+            return None, pack_id
 
     async def compare_file(
         self,
@@ -198,6 +250,7 @@ class ComparisonService:
         mode: str,
         user_id: Optional[str],
     ) -> ComparisonPayload:
+        effective_lang = lang or self._default_lang
         quality_res, quality_warnings, profile_meta = assess_audio_quality(
             wav_path,
             user_id=user_id,
@@ -213,78 +266,54 @@ class ComparisonService:
             quality=quality_res,
             profile=profile,
         )
-
-        audio = to_audio_input(wav_path)
-        pre_audio_res = await self.pre.process_audio(audio)
-        processed_audio = pre_audio_res.get("audio", audio)
-
-        # Si el preprocessor ya ejecutó la cadena de audio, usar quality de ahí
-        pre_meta = pre_audio_res.get("meta", {}) if isinstance(pre_audio_res, dict) else {}
-        if quality_res is None and "audio_quality" in pre_meta:
-            quality_res = pre_meta["audio_quality"]
-
-        asr_result = await self.asr.transcribe(processed_audio, lang=lang or self._default_lang)
-        hyp_tokens = asr_result.get("tokens")
-        if not hyp_tokens and allow_textref_fallback:
-            raw_text = asr_result.get("raw_text", "")
-            if raw_text:
-                tr_res = await self.textref.to_ipa(raw_text, lang=lang or self._default_lang)
-                hyp_tokens = tr_res.get("tokens", [])
-        if not hyp_tokens:
-            raw_text = asr_result.get("raw_text", "")
-            msg = "ASR no devolvió tokens IPA."
-            if raw_text:
-                msg += f" Texto detectado: '{raw_text}'. Verifique el language pack o la configuración del backend."
-            else:
-                msg += " El audio podría estar vacío, ser demasiado corto o el modelo aún no está listo."
-            raise ValidationError(msg)
-
-        # Limpieza IPA unificada antes de normalización
-        hyp_tokens = clean_asr_tokens(hyp_tokens, lang=lang or self._default_lang)
-        inventory, pack_id = load_inventory_for(lang=lang or self._default_lang, pack=pack)
-        allophone_rules = inventory.allophone_collapse if inventory and effective_level == "phonemic" else None
-        if effective_level == "phonetic" and not pack_id:
-            warnings.append(
-                "Aviso: evaluation_level=phonetic sin language pack; comparación aproximada."
+        if allow_textref_fallback:
+            raise ValidationError(
+                "allow_textref_fallback ya no está soportado en modo estricto"
             )
-        hyp_pre_res = await self.pre.normalize_tokens(
-            hyp_tokens,
-            inventory=inventory,
-            allophone_rules=allophone_rules,
-        )
-        hyp_tokens = hyp_pre_res.get("tokens", [])
 
-        ref_lang = lang or self._default_lang
+        pipeline_lang = effective_lang
+        if fallback_lang and fallback_lang != effective_lang:
+            try:
+                await self.textref.to_ipa(text, lang=effective_lang)
+            except (ValidationError, NotReadyError):
+                pipeline_lang = fallback_lang
+
+        language_pack = None
+        pack_id = None
         try:
-            tr_result = await self.textref.to_ipa(text, lang=ref_lang)
-        except (ValidationError, NotReadyError):
-            if fallback_lang and fallback_lang != ref_lang:
-                tr_result = await self.textref.to_ipa(text, lang=fallback_lang)
-            else:
-                raise
-        # Limpieza IPA para referencia (sin lang-fixes, TextRef es canónico)
-        ref_tokens_raw = clean_textref_tokens(tr_result.get("tokens", []), lang=ref_lang)
-        ref_pre_res = await self.pre.normalize_tokens(
-            ref_tokens_raw,
-            inventory=inventory,
-            allophone_rules=allophone_rules,
-        )
-        ref_tokens = ref_pre_res.get("tokens", [])
+            language_pack, pack_id = await self._load_language_pack(pack, pipeline_lang)
+            if effective_level == "phonetic" and language_pack is None:
+                warnings.append(
+                    "Aviso: evaluation_level=phonetic sin language pack; comparación aproximada."
+                )
+            audio = self._build_pipeline_audio(wav_path)
+            comp_res = await execute_pipeline(
+                self.pre,
+                self.asr,
+                self.textref,
+                self.comp,
+                audio=audio,  # type: ignore[arg-type]
+                text=text,
+                lang=pipeline_lang,
+                pack=language_pack,
+                mode=effective_mode,  # type: ignore[arg-type]
+                evaluation_level=effective_level,  # type: ignore[arg-type]
+                weights=weights,
+            )
+        finally:
+            if language_pack is not None:
+                await language_pack.teardown()
 
-        result = await self.comp.compare(ref_tokens, hyp_tokens, weights=weights)
-        hyp_meta = hyp_pre_res.get("meta", {})
-        oov_tokens = hyp_meta.get("oov_tokens", []) if isinstance(hyp_meta, dict) else []
-        if oov_tokens:
-            preview = ", ".join(oov_tokens[:6])
-            warnings.append(f"Tokens IPA fuera del inventario: {preview}")
-        meta: dict = {
-            "asr": asr_result.get("meta", {}),
+        result = comp_res.to_dict()
+        ref_tokens = list(comp_res.target.segments)
+        hyp_tokens = list(comp_res.observed.segments)
+        meta: dict[str, Any] = {
             "compare": result.get("meta", {}),
             "warnings": warnings,
             "normalization": {
                 "pack": pack_id,
-                "oov_tokens": oov_tokens,
-                "oov_count": len(oov_tokens),
+                "oov_tokens": [],
+                "oov_count": 0,
             },
             "adaptive": adaptive_meta,
         }
@@ -295,6 +324,8 @@ class ComparisonService:
         return ComparisonPayload(
             ref_tokens=ref_tokens,
             hyp_tokens=hyp_tokens,
-            result=result,
+            result=cast(CompareResult, result),
+            mode=effective_mode,
+            evaluation_level=effective_level,
             meta=meta,
         )

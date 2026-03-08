@@ -192,6 +192,8 @@ class ErrorResponse(BaseModel):
     detail: str = Field(..., description="Descripción detallada del error", json_schema_extra={"example": "El formato de audio no es compatible."})
     type: str = Field(..., description="Tipo de error (código corto)", json_schema_extra={"example": "validation_error"})
     code: int = Field(default=400, description="Código HTTP asociado (opcional)", json_schema_extra={"example": 400})
+    error_code: Optional[str] = Field(default=None, description="Código estable de dominio", json_schema_extra={"example": "audio_no_speech"})
+    context: Dict[str, Any] = Field(default_factory=dict, description="Contexto estructurado adicional")
 
 class AudioUploadMeta(BaseModel):
     """Metadatos esperados para la subida de audio."""
@@ -338,10 +340,6 @@ class LessonPlanResponse(BaseModel):
     length: str = Field(
         default="medium",
         description="Extensión sugerida: short | medium | long",
-    )
-    meta: Dict[str, Any] = Field(
-        default_factory=dict,
-        description="Metadatos de la lección, incluyendo el LLM utilizado",
     )
 
 

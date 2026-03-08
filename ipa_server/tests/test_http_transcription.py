@@ -3,6 +3,8 @@ from __future__ import annotations
 import os
 import pytest
 from fastapi.testclient import TestClient
+from fastapi import APIRouter
+from ipa_core.errors import ValidationError as CoreValidationError
 from ipa_server.main import get_app
 from tests.utils.audio import write_sine_wave
 
@@ -154,3 +156,26 @@ def test_http_transcribe_unsupported_audio(client, monkeypatch) -> None:
     assert response.status_code == 415
     data = response.json()
     assert data["type"] == "unsupported_format"
+
+
+def test_validation_handler_exposes_stable_audio_error_code() -> None:
+    app = get_app()
+    router = APIRouter()
+
+    @router.get("/_raise-audio-validation")
+    async def _raise_audio_validation():
+        raise CoreValidationError(
+            "No se detectó voz.",
+            error_code="audio_no_speech",
+            context={"issues": ["no_speech"]},
+        )
+
+    app.include_router(router)
+    client = TestClient(app, raise_server_exceptions=False)
+    response = client.get("/_raise-audio-validation")
+
+    assert response.status_code == 400
+    data = response.json()
+    assert data["type"] == "validation_error"
+    assert data["error_code"] == "audio_no_speech"
+    assert data["context"]["issues"] == ["no_speech"]
