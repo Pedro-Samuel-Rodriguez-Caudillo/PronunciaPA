@@ -16,14 +16,13 @@ preprocessor:
 #   - wav2vec2-ipa: Alta precisión, ~1.2GB, requiere GPU para velocidad
 #   - xlsr-ipa: Multilingüe 128 idiomas, ~1.2GB, buen balance
 #
-# Para cambiar de modelo, cambia 'engine' abajo:
+# Para usar Wav2Vec2, cambia name a `wav2vec2` y ajusta model_name:
 # ============================================================
 backend:
-  name: unified_ipa  # Nuevo backend unificado
+  name: allosaurus
   params:
-    engine: allosaurus  # Opciones: allosaurus, wav2vec2-ipa, xlsr-ipa
     device: cpu         # cpu, cuda, mps (auto para detectar)
-    allosaurus_lang: uni2005  # Modelo Allosaurus recomendado (ipa da error)
+    model_name: uni2005
     lang: es
 
 # Backend ASR legacy (Allosaurus directo) - ALTERNATIVA
