@@ -129,6 +129,14 @@ class Kernel:
         )
 
 
+@dataclass(frozen=True)
+class ResolvedPlugin:
+    """Configuracion final de un plugin lista para resolverse en el registry."""
+
+    name: str
+    params: dict
+
+
 def create_kernel(cfg: AppConfig) -> Kernel:
     """Crea un `Kernel` resolviendo plugins definidos en la configuración.
     
@@ -136,44 +144,13 @@ def create_kernel(cfg: AppConfig) -> Kernel:
     Usa strict_mode de la config para determinar comportamiento ante errores.
     Conecta la AudioProcessingChain al BasicPreprocessor.
     """
-    from ipa_core.audio.processing_chain import AudioProcessingChain
-    from ipa_core.preprocessor_basic import BasicPreprocessor
-
     strict = cfg.strict_mode
-    pre = registry.resolve_preprocessor(cfg.preprocessor.name, cfg.preprocessor.params, strict_mode=strict)
-    # Inyectar la cadena de audio si el preprocessor es BasicPreprocessor y no tiene una
-    if isinstance(pre, BasicPreprocessor) and pre._audio_chain is None:
-        vad_backend = cfg.preprocessor.params.get("vad_backend", "auto")
-        # AGC y VAD desactivados: ffmpeg ya normaliza el audio a 16kHz/mono/s16,
-        # y el VAD de energía corta consonantes sordas iniciales (/p/, /t/, /k/)
-        # que Allosaurus necesita para contextualizar el inicio de la frase.
-        # Mantener solo EnsureWavStep (conversión mediante ffmpeg) y QualityCheck.
-        pre._audio_chain = AudioProcessingChain.default(
-            vad_enabled=False,
-            agc_enabled=False,
-            vad_backend=vad_backend,
-        )
-    asr = registry.resolve_asr(cfg.backend.name, cfg.backend.params, strict_mode=strict)
-    textref = registry.resolve_textref(cfg.textref.name, cfg.textref.params, strict_mode=strict)
-    comp = registry.resolve_comparator(cfg.comparator.name, cfg.comparator.params, strict_mode=strict)
-    
-    # Validar que ASR produce IPA si es requerido
-    require_ipa = cfg.backend.params.get("require_ipa", True)  # Por defecto True
-    if require_ipa:
-        output_type = getattr(asr, "output_type", "none")
-        if output_type != "ipa":
-            raise ValueError(
-                f"❌ Backend ASR '{cfg.backend.name}' produce '{output_type}', no IPA.\n"
-                f"PronunciaPA requiere backends que produzcan IPA directo para análisis fonético.\n"
-                f"\n"
-                f"Opciones:\n"
-                f"1. Usa 'allosaurus' (recomendado): ASR → IPA universal\n"
-                f"2. Usa un modelo Wav2Vec2 IPA (ej: facebook/wav2vec2-large-xlsr-53-ipa)\n"
-                f"3. Desactiva la validación (no recomendado): añade 'require_ipa: false' en config\n"
-                f"\n"
-                f"Backends texto (como Vosk, Wav2Vec2-texto) pierden información de alófonos."
-            )
-    
+    pre = _create_preprocessor(cfg, strict_mode=strict)
+    asr = _create_asr_backend(cfg, strict_mode=strict)
+    textref = _create_textref_provider(cfg, strict_mode=strict)
+    comp = _create_comparator(cfg, strict_mode=strict)
+    _validate_asr_backend(cfg, asr)
+
     language_pack = _load_language_pack(cfg)
     model_pack, model_pack_dir = _load_model_pack(cfg)
     tts = _resolve_tts(cfg, language_pack, strict_mode=strict)
@@ -200,6 +177,80 @@ def _create_history() -> HistoryPort:
     return InMemoryHistory()
 
 
+def _create_preprocessor(cfg: AppConfig, *, strict_mode: bool) -> Preprocessor:
+    """Resuelve el preprocessor y le inyecta la cadena de audio por defecto."""
+    from ipa_core.audio.processing_chain import AudioProcessingChain
+    from ipa_core.preprocessor_basic import BasicPreprocessor
+
+    pre = registry.resolve_preprocessor(
+        cfg.preprocessor.name,
+        cfg.preprocessor.params,
+        strict_mode=strict_mode,
+    )
+    if isinstance(pre, BasicPreprocessor) and pre._audio_chain is None:
+        vad_backend = cfg.preprocessor.params.get("vad_backend", "auto")
+        # AGC y VAD desactivados: ffmpeg ya normaliza el audio a 16kHz/mono/s16,
+        # y el VAD de energía corta consonantes sordas iniciales (/p/, /t/, /k/)
+        # que Allosaurus necesita para contextualizar el inicio de la frase.
+        # Mantener solo EnsureWavStep (conversión mediante ffmpeg) y QualityCheck.
+        pre._audio_chain = AudioProcessingChain.default(
+            vad_enabled=False,
+            agc_enabled=False,
+            vad_backend=vad_backend,
+        )
+    return pre
+
+
+def _create_asr_backend(cfg: AppConfig, *, strict_mode: bool) -> ASRBackend:
+    """Resuelve el backend ASR configurado."""
+    return registry.resolve_asr(
+        cfg.backend.name,
+        cfg.backend.params,
+        strict_mode=strict_mode,
+    )
+
+
+def _create_textref_provider(cfg: AppConfig, *, strict_mode: bool) -> TextRefProvider:
+    """Resuelve el proveedor texto→IPA configurado."""
+    return registry.resolve_textref(
+        cfg.textref.name,
+        cfg.textref.params,
+        strict_mode=strict_mode,
+    )
+
+
+def _create_comparator(cfg: AppConfig, *, strict_mode: bool) -> Comparator:
+    """Resuelve el comparador configurado."""
+    return registry.resolve_comparator(
+        cfg.comparator.name,
+        cfg.comparator.params,
+        strict_mode=strict_mode,
+    )
+
+
+def _validate_asr_backend(cfg: AppConfig, asr: ASRBackend) -> None:
+    """Valida que el backend ASR exponga IPA cuando la config lo requiere."""
+    require_ipa = cfg.backend.params.get("require_ipa", True)
+    if not require_ipa:
+        return
+
+    output_type = getattr(asr, "output_type", "none")
+    if output_type == "ipa":
+        return
+
+    raise ValueError(
+        f"❌ Backend ASR '{cfg.backend.name}' produce '{output_type}', no IPA.\n"
+        f"PronunciaPA requiere backends que produzcan IPA directo para análisis fonético.\n"
+        f"\n"
+        f"Opciones:\n"
+        f"1. Usa 'allosaurus' (recomendado): ASR → IPA universal\n"
+        f"2. Usa un modelo Wav2Vec2 IPA (ej: facebook/wav2vec2-large-xlsr-53-ipa)\n"
+        f"3. Desactiva la validación (no recomendado): añade 'require_ipa: false' en config\n"
+        f"\n"
+        f"Backends texto (como Vosk, Wav2Vec2-texto) pierden información de alófonos."
+    )
+
+
 def _load_language_pack(cfg: AppConfig) -> Optional[LanguagePack]:
     if not cfg.language_pack:
         return None
@@ -214,13 +265,21 @@ def _load_model_pack(cfg: AppConfig) -> tuple[Optional[ModelPack], Optional[Path
 
 
 def _resolve_tts(cfg: AppConfig, language_pack: Optional[LanguagePack], *, strict_mode: bool = False) -> Optional[TTSProvider]:
+    resolved = _build_tts_resolution(cfg, language_pack)
+    if resolved is None:
+        return None
+    return registry.resolve_tts(resolved.name, resolved.params, strict_mode=strict_mode)
+
+
+def _build_tts_resolution(cfg: AppConfig, language_pack: Optional[LanguagePack]) -> Optional[ResolvedPlugin]:
     if cfg.tts is None:
         return None
+
     name = (cfg.tts.name or "default").lower()
     params = dict(cfg.tts.params or {})
     if language_pack and language_pack.tts:
         name, params = _merge_pack_tts(name, params, language_pack.tts)
-    return registry.resolve_tts(name, params, strict_mode=strict_mode)
+    return ResolvedPlugin(name=name, params=params)
 
 
 def _resolve_llm(
@@ -230,38 +289,59 @@ def _resolve_llm(
     *,
     strict_mode: bool = False,
 ) -> Optional[LLMAdapter]:
-    name = (cfg.llm.name or "auto").lower()
-    name = _normalize_llm_name(name)
+    resolved = _build_llm_resolution(cfg, model_pack, model_pack_dir)
+    if resolved is None:
+        return None
+    return registry.resolve_llm(resolved.name, resolved.params, strict_mode=strict_mode)
+
+
+def _build_llm_resolution(
+    cfg: AppConfig,
+    model_pack: Optional[ModelPack],
+    model_pack_dir: Optional[Path],
+) -> Optional[ResolvedPlugin]:
+    name = _normalize_llm_name((cfg.llm.name or "auto").lower())
 
     # RuleBasedFeedbackAdapter no requiere model_pack: se puede activar con
     # PRONUNCIAPA_LLM=rule_based sin necesidad de descargar ningún modelo.
     if name == "rule_based":
-        return registry.resolve_llm("rule_based", {}, strict_mode=strict_mode)
+        return ResolvedPlugin(name="rule_based", params={})
 
     if not model_pack:
         if name == "auto":
             # Sin model_pack y sin LLM explícito → usar rule_based para que
             # /v1/feedback genere consejos offline sin necesidad de un modelo
-            # descargado.  El usuario puede sobreescribir con PRONUNCIAPA_LLM=ollama
+            # descargado. El usuario puede sobreescribir con PRONUNCIAPA_LLM=ollama
             # (o llama_cpp/onnx) cuando tenga un model_pack configurado.
             logger.info("LLM 'auto' sin model_pack → usando rule_based como fallback")
-            return registry.resolve_llm("rule_based", {}, strict_mode=False)
+            return ResolvedPlugin(name="rule_based", params={})
         return None
 
     runtime_kind = (model_pack.runtime.kind or "").lower()
-    if name == "auto":
-        name = runtime_kind
-    name = _normalize_llm_name(name)
+    resolved_name = _normalize_llm_name(runtime_kind if name == "auto" else name)
+    return ResolvedPlugin(
+        name=resolved_name,
+        params=_build_llm_params(cfg, model_pack, model_pack_dir),
+    )
+
+
+def _build_llm_params(
+    cfg: AppConfig,
+    model_pack: ModelPack,
+    model_pack_dir: Optional[Path],
+) -> dict:
     params = dict(model_pack.runtime.params or {})
     params.update(model_pack.params or {})
     params.update(cfg.llm.params or {})
+
+    base_dir = model_pack_dir or Path(".")
     if model_pack_dir:
         params["model_pack_dir"] = str(model_pack_dir)
     if "prompt_path" not in params and model_pack.prompt:
-        params["prompt_path"] = str(model_pack.prompt.resolve_path(model_pack_dir or Path(".")))
+        params["prompt_path"] = str(model_pack.prompt.resolve_path(base_dir))
     if "output_schema_path" not in params and model_pack.output_schema:
-        params["output_schema_path"] = str(model_pack.output_schema.resolve_path(model_pack_dir or Path(".")))
-    return registry.resolve_llm(name, params, strict_mode=strict_mode)
+        params["output_schema_path"] = str(model_pack.output_schema.resolve_path(base_dir))
+    return params
 
 
 def _merge_pack_tts(name: str, params: dict, pack_tts: TTSConfig) -> Tuple[str, dict]:

@@ -29,13 +29,13 @@ preprocessor:
 # Opciones:
 #   stub        — sin modelo, para desarrollo rápido            (PRONUNCIAPA_ASR=stub)
 #   allosaurus  — universal, 200+ idiomas, ~500 MB, CPU OK      (PRONUNCIAPA_ASR=allosaurus)
-#   unified_ipa — elige entre allosaurus / wav2vec2-ipa / xlsr-ipa
+#   wav2vec2    — backend transformers (requiere torch + transformers)
 backend:
   name: allosaurus
-  # Para unified_ipa descomenta:
-  # name: unified_ipa
+  # Para wav2vec2 descomenta:
+  # name: wav2vec2
   # params:
-  #   engine: allosaurus   # allosaurus | wav2vec2-ipa | xlsr-ipa
+  #   model_name: facebook/wav2vec2-large-xlsr-53
   #   device: cpu          # cpu | cuda | mps
 
 

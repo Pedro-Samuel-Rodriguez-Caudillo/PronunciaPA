@@ -28,6 +28,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from starlette.background import BackgroundTask
 
 from ipa_core.errors import ValidationError
+from ipa_server.http_errors import error_response
 
 logger = logging.getLogger("ipa_server")
 
@@ -51,11 +52,12 @@ async def record_fixed(
     try:
         from ipa_core.audio.microphone import record
     except ImportError as exc:
-        return JSONResponse(
+        return error_response(
             status_code=503,
-            content={
-                "error": "Microphone capture not available",
-                "detail": str(exc),
+            detail="Microphone capture not available",
+            error_type="recording_unavailable",
+            extra={
+                "dependency_error": str(exc),
                 "hint": "Install sounddevice and numpy: pip install sounddevice numpy",
             },
         )
@@ -63,14 +65,19 @@ async def record_fixed(
     try:
         path, meta = record(seconds, sample_rate=sample_rate, channels=channels)
     except ValidationError as exc:
-        return JSONResponse(status_code=400, content={"error": str(exc)})
+        return error_response(
+            status_code=400,
+            detail=str(exc),
+            error_type="validation_error",
+        )
     except Exception as exc:
         logger.exception("Error recording audio: %s", exc)
-        return JSONResponse(
+        return error_response(
             status_code=503,
-            content={
-                "error": "Recording failed",
-                "detail": str(exc),
+            detail="Recording failed",
+            error_type="recording_failed",
+            extra={
+                "backend_error": str(exc),
                 "hint": "Make sure a microphone is connected and accessible.",
             },
         )
@@ -109,11 +116,12 @@ async def record_vad(
     try:
         from ipa_core.audio.microphone import record_with_vad
     except ImportError as exc:
-        return JSONResponse(
+        return error_response(
             status_code=503,
-            content={
-                "error": "Microphone capture not available",
-                "detail": str(exc),
+            detail="Microphone capture not available",
+            error_type="recording_unavailable",
+            extra={
+                "dependency_error": str(exc),
                 "hint": "Install sounddevice and numpy: pip install sounddevice numpy",
             },
         )
@@ -127,14 +135,19 @@ async def record_vad(
             energy_threshold=energy_threshold,
         )
     except ValidationError as exc:
-        return JSONResponse(status_code=400, content={"error": str(exc)})
+        return error_response(
+            status_code=400,
+            detail=str(exc),
+            error_type="validation_error",
+        )
     except Exception as exc:
         logger.exception("Error during VAD recording: %s", exc)
-        return JSONResponse(
+        return error_response(
             status_code=503,
-            content={
-                "error": "VAD recording failed",
-                "detail": str(exc),
+            detail="VAD recording failed",
+            error_type="recording_failed",
+            extra={
+                "backend_error": str(exc),
                 "hint": "Make sure a microphone is connected and accessible.",
             },
         )

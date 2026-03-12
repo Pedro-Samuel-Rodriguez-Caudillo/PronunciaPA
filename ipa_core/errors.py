@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Jerarquía de errores del microkernel.
 
 Define códigos de error estables y su mapeo HTTP/CLI.

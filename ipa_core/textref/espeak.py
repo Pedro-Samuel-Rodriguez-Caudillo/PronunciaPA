@@ -35,6 +35,31 @@ class EspeakTextRef(BasePlugin):
         self._default_lang = default_lang
         self._binary = binary or os.getenv("PRONUNCIAPA_ESPEAK_BIN") or self._detect_binary()
         self._cache = cache
+        self._voice_map = self._build_voice_map()
+
+    def _build_voice_map(self) -> dict[str, str]:
+        """Build language->voice map with optional environment overrides.
+
+        Supported overrides:
+        - PRONUNCIAPA_ESPEAK_VOICE (global default voice)
+        - PRONUNCIAPA_ESPEAK_VOICE_<LANG> (per language, e.g. EN, EN_US, ES)
+        """
+        voice_map = dict(self._VOICE_MAP)
+        global_voice = os.getenv("PRONUNCIAPA_ESPEAK_VOICE")
+        if global_voice:
+            voice_map["*"] = global_voice.strip()
+
+        prefix = "PRONUNCIAPA_ESPEAK_VOICE_"
+        for key, value in os.environ.items():
+            if not key.startswith(prefix):
+                continue
+            lang_key = key[len(prefix):].strip().lower().replace("_", "-")
+            if not lang_key:
+                continue
+            normalized_voice = value.strip()
+            if normalized_voice:
+                voice_map[lang_key] = normalized_voice
+        return voice_map
 
     def _detect_binary(self) -> str:
         for candidate in (os.getenv("ESPEAK_BIN"), "espeak-ng", "espeak"):
@@ -54,8 +79,18 @@ class EspeakTextRef(BasePlugin):
         )
 
     def _resolve_voice(self, lang: str) -> str:
-        lang = lang or self._default_lang
-        return self._VOICE_MAP.get(lang, lang)
+        lang = (lang or self._default_lang or "").strip().lower()
+        if lang in self._voice_map:
+            return self._voice_map[lang]
+
+        base_lang = lang.split("-", 1)[0] if lang else ""
+        if base_lang in self._voice_map:
+            return self._voice_map[base_lang]
+
+        if "*" in self._voice_map:
+            return self._voice_map["*"]
+
+        return lang or self._default_lang
 
     async def to_ipa(self, text: str, *, lang: Optional[str] = None, **kw: Any) -> TextRefResult:  # noqa: D401
         """Convertir texto a IPA usando el binario externo de forma asíncrona."""
@@ -89,9 +124,10 @@ class EspeakTextRef(BasePlugin):
             stdout, stderr = await proc.communicate()
             
             if proc.returncode != 0:
-                raise ValidationError(f"eSpeak falló con código {proc.returncode}: {stderr.decode()}")
+                stderr_text = stderr.decode("utf-8", errors="replace")
+                raise ValidationError(f"eSpeak falló con código {proc.returncode}: {stderr_text}")
                 
-            output = stdout.decode().strip()
+            output = stdout.decode("utf-8", errors="replace").strip()
             
         except FileNotFoundError as exc:  # pragma: no cover
             raise NotReadyError(f"No se pudo ejecutar {self._binary}") from exc

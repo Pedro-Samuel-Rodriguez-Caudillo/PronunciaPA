@@ -15,16 +15,12 @@ import warnings
 from datetime import datetime
 from typing import Any
 
-# Suppress pydub's "Couldn't find ffmpeg" RuntimeWarning that fires on import.
-# The real ffmpeg path is configured below in _configure_ffmpeg() once all
-# modules are loaded.
-warnings.filterwarnings("ignore", message=".*ffmpeg.*", category=RuntimeWarning, module="pydub")
-
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from ipa_core.audio.ffmpeg import find_ffmpeg_binary
 from ipa_core.errors import (
     FileNotFound,
     KernelError,
@@ -32,6 +28,8 @@ from ipa_core.errors import (
     UnsupportedFormat,
     ValidationError,
 )
+from ipa_server.http_errors import error_response, from_request, kernel_error_response, validation_error_response
+from ipa_server.kernel_provider import teardown_kernel_singleton
 from ipa_server.realtime import realtime_router
 from ipa_server.routers.debug import router as debug_router
 from ipa_server.routers.drills import router as drills_router
@@ -40,7 +38,7 @@ from ipa_server.routers.history import router as history_router
 from ipa_server.routers.ipa_catalog import router as ipa_catalog_router
 from ipa_server.routers.lesson_plan import router as lesson_plan_router
 from ipa_server.routers.models import router as models_router
-from ipa_server.routers.pipeline import router as pipeline_router, teardown_kernel_singleton
+from ipa_server.routers.pipeline import router as pipeline_router
 from ipa_server.routers.prosody import router as prosody_router
 from ipa_server.routers.record import router as record_router
 from ipa_server.routers.tts import router as tts_router
@@ -48,44 +46,31 @@ from ipa_server.routers.tts import router as tts_router
 logger = logging.getLogger("ipa_server")
 
 
-def _configure_ffmpeg() -> None:
-    """Locate ffmpeg and configure pydub's converter to a real binary."""
-    ffmpeg_path = shutil.which("ffmpeg")
-    if ffmpeg_path is None:
-        # Try imageio-ffmpeg bundled binary (installed in the venv)
-        try:
-            import imageio_ffmpeg  # type: ignore
-            ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()
-        except Exception:
-            pass
+def _configure_runtime_warnings() -> None:
+    """Suppress known noisy third-party warnings without hiding real issues."""
+    warnings.filterwarnings(
+        "ignore",
+        message=r'.*"is" with a literal.*Did you mean "=="\?',
+        category=SyntaxWarning,
+        module=r"allosaurus\.pm\.preprocess",
+    )
 
-    if ffmpeg_path is None:
-        # Common Windows install locations (winget / manual)
-        candidates = [
-            r"C:\ffmpeg\ffmpeg.exe",
-            r"C:\ProgramData\chocolatey\bin\ffmpeg.exe",
-            os.path.expandvars(r"%LOCALAPPDATA%\Microsoft\WinGet\Links\ffmpeg.exe"),
-        ]
-        for c in candidates:
-            if os.path.isfile(c):
-                ffmpeg_path = c
-                break
+
+def _configure_ffmpeg() -> None:
+    """Locate ffmpeg and log the resolved binary used by the backend."""
+    ffmpeg_path = find_ffmpeg_binary()
 
     if ffmpeg_path:
-        try:
-            from pydub import AudioSegment
-            AudioSegment.converter = ffmpeg_path
-            logger.info("ffmpeg configured: %s", ffmpeg_path)
-        except Exception:
-            pass
+        logger.info("ffmpeg configured: %s", ffmpeg_path)
     else:
         logger.warning(
             "ffmpeg not found. Audio format conversion (non-WAV) will be unavailable. "
-            "Install ffmpeg and add it to PATH: https://ffmpeg.org/download.html"
+            "Install imageio-ffmpeg or a system ffmpeg binary."
         )
 
 
 _configure_ffmpeg()
+_configure_runtime_warnings()
 
 
 class TimingMiddleware(BaseHTTPMiddleware):
@@ -106,52 +91,47 @@ def _register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(ValidationError)
     async def validation_exception_handler(request: Request, exc: ValidationError):
         logger.error("Validation error on %s: %s", request.url.path, exc)
-        content: dict[str, Any] = {
-            "detail": str(exc),
-            "type": "validation_error",
-            "code": 400,
-            "path": request.url.path,
-        }
-        if exc.error_code:
-            content["error_code"] = exc.error_code
-        if exc.context:
-            content["context"] = exc.context
-        return JSONResponse(status_code=400, content=content)
+        return validation_error_response(request, exc)
 
     @app.exception_handler(UnsupportedFormat)
     async def unsupported_exception_handler(request: Request, exc: UnsupportedFormat):
-        return JSONResponse(
+        return from_request(
+            request,
             status_code=415,
-            content={"detail": str(exc), "type": "unsupported_format", "code": 415},
+            detail=str(exc),
+            error_type="unsupported_format",
         )
 
     @app.exception_handler(FileNotFound)
     async def file_not_found_handler(request: Request, exc: FileNotFound):
-        return JSONResponse(
+        return from_request(
+            request,
             status_code=400,
-            content={"detail": str(exc), "type": "file_not_found", "code": 400},
+            detail=str(exc),
+            error_type="file_not_found",
         )
 
     @app.exception_handler(KeyError)
     async def plugin_not_found_handler(request: Request, exc: KeyError):
-        return JSONResponse(
+        return from_request(
+            request,
             status_code=400,
-            content={"detail": str(exc), "type": "plugin_not_found", "code": 400},
+            detail=str(exc),
+            error_type="plugin_not_found",
         )
 
     @app.exception_handler(NotReadyError)
     async def not_ready_exception_handler(request: Request, exc: NotReadyError):
-        return JSONResponse(
+        return from_request(
+            request,
             status_code=503,
-            content={"detail": str(exc), "type": "not_ready", "code": 503},
+            detail=str(exc),
+            error_type="not_ready",
         )
 
     @app.exception_handler(KernelError)
     async def kernel_exception_handler(request: Request, exc: KernelError):
-        return JSONResponse(
-            status_code=500,
-            content={"detail": str(exc), "type": "kernel_error", "code": 500},
-        )
+        return kernel_error_response(request, exc)
 
     @app.exception_handler(Exception)
     async def general_exception_handler(request: Request, exc: Exception):
@@ -159,14 +139,11 @@ def _register_exception_handlers(app: FastAPI) -> None:
 
         logger.error("Unhandled exception on %s: %s", request.url.path, exc)
         logger.error("Full traceback:\n%s", traceback.format_exc())
-        return JSONResponse(
+        return error_response(
             status_code=500,
-            content={
-                "detail": str(exc),
-                "type": type(exc).__name__,
-                "code": 500,
-                "path": request.url.path,
-            },
+            detail=str(exc),
+            error_type=type(exc).__name__,
+            path=request.url.path,
         )
 
 

@@ -12,11 +12,12 @@ from urllib.parse import quote
 
 import yaml
 from fastapi import APIRouter
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse
 
 from ipa_core.config import loader
 from ipa_core.plugins import registry
 from ipa_core.textref.g2p_generator import G2PExerciseGenerator
+from ipa_server.http_errors import error_response
 from ipa_server.models import SoundLesson
 
 router = APIRouter(prefix="/api", tags=["ipa-catalog"])
@@ -150,9 +151,11 @@ async def get_ipa_sounds(
     if lang:
         catalog_file = _CATALOG_DIR / f"{lang}.yaml"
         if not catalog_file.exists():
-            return JSONResponse(
+            return error_response(
                 status_code=404,
-                content={"error": f"Idioma no encontrado: {lang}", "available": ["es", "en"]},
+                detail=f"Idioma no encontrado: {lang}",
+                error_type="language_not_found",
+                extra={"available": ["es", "en"]},
             )
 
         with open(catalog_file, "r", encoding="utf-8") as f:
@@ -193,16 +196,19 @@ async def get_ipa_sound_audio(
     """Genera audio TTS para un sonido IPA específico."""
     parts = sound_id.split("/", 1)
     if len(parts) != 2:
-        return JSONResponse(
+        return error_response(
             status_code=400,
-            content={"error": "Invalid sound_id format. Expected: lang/ipa (e.g., es/r)"},
+            detail="Invalid sound_id format. Expected: lang/ipa (e.g., es/r)",
+            error_type="validation_error",
         )
 
     lang, ipa = parts
     catalog_file = _CATALOG_DIR / f"{lang}.yaml"
     if not catalog_file.exists():
-        return JSONResponse(
-            status_code=404, content={"error": f"Language catalog not found: {lang}"}
+        return error_response(
+            status_code=404,
+            detail=f"Language catalog not found: {lang}",
+            error_type="language_not_found",
         )
 
     with open(catalog_file, "r", encoding="utf-8") as f:
@@ -215,8 +221,10 @@ async def get_ipa_sound_audio(
             break
 
     if not sound_data:
-        return JSONResponse(
-            status_code=404, content={"error": f"Sound not found: {sound_id}"}
+        return error_response(
+            status_code=404,
+            detail=f"Sound not found: {sound_id}",
+            error_type="sound_not_found",
         )
 
     if not example:
@@ -227,9 +235,10 @@ async def get_ipa_sound_audio(
                 example = seeds[0].get("text")
                 break
         if not example:
-            return JSONResponse(
+            return error_response(
                 status_code=404,
-                content={"error": "No example text available for this sound"},
+                detail="No example text available for this sound",
+                error_type="example_not_found",
             )
 
     try:
@@ -256,9 +265,11 @@ async def get_ipa_sound_audio(
         finally:
             await tts.teardown()
     except Exception as e:
-        return JSONResponse(
+        return error_response(
             status_code=500,
-            content={"error": f"Failed to generate audio: {str(e)}", "text": example},
+            detail="Failed to generate audio",
+            error_type="audio_generation_failed",
+            extra={"backend_error": str(e), "text": example},
         )
 
 
@@ -273,9 +284,10 @@ async def get_ipa_learning_content(
     if not learning_file.exists():
         basic_file = _CATALOG_DIR / f"{lang}.yaml"
         if not basic_file.exists():
-            return JSONResponse(
+            return error_response(
                 status_code=404,
-                content={"error": f"No learning content for: {lang}"},
+                detail=f"No learning content for: {lang}",
+                error_type="learning_content_not_found",
             )
         with open(basic_file, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f)
@@ -292,8 +304,10 @@ async def get_ipa_learning_content(
         for sound in data.get("sounds", []):
             if sound.get("id") == sound_id:
                 return {"language": lang, "has_learning_content": True, "sound": sound}
-        return JSONResponse(
-            status_code=404, content={"error": f"Sound not found: {sound_id}"}
+        return error_response(
+            status_code=404,
+            detail=f"Sound not found: {sound_id}",
+            error_type="sound_not_found",
         )
 
     return {
@@ -358,8 +372,10 @@ async def get_sound_drills(
                 break
 
     if not sound_info:
-        return JSONResponse(
-            status_code=404, content={"error": f"Sound not found: {sound_id}"}
+        return error_response(
+            status_code=404,
+            detail=f"Sound not found: {sound_id}",
+            error_type="sound_not_found",
         )
 
     if drill_type:
@@ -429,9 +445,10 @@ async def get_sound_lesson(
         basic_data = _load_yaml(basic_file)
 
     if not learning_data and not basic_data:
-        return JSONResponse(
+        return error_response(
             status_code=404,
-            content={"error": f"Language catalog not found: {lang}"},
+            detail=f"Language catalog not found: {lang}",
+            error_type="language_not_found",
         )
 
     sound_info = None
@@ -446,8 +463,10 @@ async def get_sound_lesson(
             sound_info = base_sound_info
 
     if not sound_info:
-        return JSONResponse(
-            status_code=404, content={"error": f"Sound not found: {sound_id}"}
+        return error_response(
+            status_code=404,
+            detail=f"Sound not found: {sound_id}",
+            error_type="sound_not_found",
         )
 
     sound_info = copy.deepcopy(sound_info)

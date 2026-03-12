@@ -13,7 +13,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
-from typing import List, Optional
+from typing import Any, List, Optional
 
 
 def print_table(headers: List[str], rows: List[List[str]], widths: Optional[List[int]] = None) -> None:
@@ -224,8 +224,8 @@ async def cmd_quick_setup(args: argparse.Namespace) -> int:
 
 async def cmd_asr_engines(args: argparse.Namespace) -> int:
     """Listar y gestionar motores ASR con salida IPA."""
-    from ipa_core.backends.unified_ipa_backend import UnifiedIPABackend, ASREngine
     from ipa_core.config import loader
+    import importlib.util
     
     print("\n🎤 Motores ASR con salida IPA directa\n")
     
@@ -237,7 +237,7 @@ async def cmd_asr_engines(args: argparse.Namespace) -> int:
     except Exception:
         current_engine = "allosaurus"
     
-    engines_info = {
+    engines_info: dict[str, dict[str, Any]] = {
         "allosaurus": {
             "name": "Allosaurus (Universal IPA)",
             "desc": "ASR universal con 200+ idiomas. Ligero (~500MB), funciona bien en CPU.",
@@ -257,17 +257,29 @@ async def cmd_asr_engines(args: argparse.Namespace) -> int:
             "cons": ["Requiere torch/transformers"],
         },
     }
-    
-    for engine in ASREngine:
-        status = UnifiedIPABackend.check_engine_ready(engine)
-        info = engines_info.get(engine.value, {})
+
+    def _engine_ready(engine_id: str) -> dict[str, Any]:
+        missing: list[str] = []
+        if engine_id == "allosaurus":
+            if importlib.util.find_spec("allosaurus") is None:
+                missing.append("allosaurus")
+        else:
+            if importlib.util.find_spec("torch") is None:
+                missing.append("torch")
+            if importlib.util.find_spec("transformers") is None:
+                missing.append("transformers")
+        return {"ready": len(missing) == 0, "missing": missing}
+
+    for engine_id in engines_info.keys():
+        status = _engine_ready(engine_id)
+        info = engines_info.get(engine_id, {})
         
         # Indicador de activo
-        active = "→ " if engine.value == current_engine else "  "
+        active = "→ " if engine_id == current_engine else "  "
         icon = "✅" if status["ready"] else "❌"
         
-        print(f"{active}{icon} {engine.value}")
-        print(f"      {info.get('name', engine.value)}")
+        print(f"{active}{icon} {engine_id}")
+        print(f"      {info.get('name', engine_id)}")
         print(f"      {info.get('desc', '')}")
         
         if status["missing"]:
@@ -279,9 +291,9 @@ async def cmd_asr_engines(args: argparse.Namespace) -> int:
     print(f"🔧 Engine actual: {current_engine}")
     print(f"   Para cambiar, edita configs/local.yaml:")
     print(f"   backend:")
-    print(f"     name: unified_ipa")
+    print(f"     name: allosaurus")
     print(f"     params:")
-    print(f"       engine: <allosaurus|wav2vec2-ipa|xlsr-ipa>")
+    print(f"       lang: es")
     print()
     
     return 0

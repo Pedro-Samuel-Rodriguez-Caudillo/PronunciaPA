@@ -22,7 +22,7 @@ from typing import Any, List, Optional
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from ipa_server.routers.pipeline import _get_or_create_kernel
+from ipa_server.kernel_provider import get_or_create_kernel
 
 router = APIRouter(prefix="/v1/history", tags=["history"])
 
@@ -76,7 +76,7 @@ class SummaryOut(BaseModel):
 @router.post("/attempts", response_model=dict[str, str], status_code=201)
 async def record_attempt(body: RecordAttemptIn) -> dict[str, str]:
     """Registrar manualmente un intento de pronunciación."""
-    kernel = await _get_or_create_kernel()
+    kernel = await get_or_create_kernel()
     if kernel.history is None:
         raise HTTPException(status_code=503, detail="Historial no configurado en el servidor.")
     attempt_id = await kernel.history.record_attempt(
@@ -99,7 +99,7 @@ async def get_attempts(
     offset: int = Query(default=0, ge=0),
 ) -> list[dict[str, Any]]:
     """Obtener intentos de un usuario, más recientes primero."""
-    kernel = await _get_or_create_kernel()
+    kernel = await get_or_create_kernel()
     if kernel.history is None:
         raise HTTPException(status_code=503, detail="Historial no configurado en el servidor.")
     return await kernel.history.get_attempts(
@@ -113,7 +113,7 @@ async def get_phoneme_stats(
     lang: str = Query(..., description="Idioma para las estadísticas, ej: 'es'"),
 ) -> list[dict[str, Any]]:
     """Obtener estadísticas de maestría por fonema (primero los de más error)."""
-    kernel = await _get_or_create_kernel()
+    kernel = await get_or_create_kernel()
     if kernel.history is None:
         raise HTTPException(status_code=503, detail="Historial no configurado en el servidor.")
     return await kernel.history.get_phoneme_stats(user_id, lang)
@@ -122,7 +122,7 @@ async def get_phoneme_stats(
 @router.get("/{user_id}/summary", response_model=SummaryOut)
 async def get_summary(user_id: str) -> dict[str, Any]:
     """Obtener resumen global de progreso del usuario."""
-    kernel = await _get_or_create_kernel()
+    kernel = await get_or_create_kernel()
     if kernel.history is None:
         raise HTTPException(status_code=503, detail="Historial no configurado en el servidor.")
     return await kernel.history.get_summary(user_id)

@@ -116,34 +116,36 @@ def _register_defaults() -> None:
     
     # ASR - Allosaurus (IPA directo)
     try:
-        from ipa_plugin_allosaurus.backend import AllosaurusASR  # type: ignore[import-not-found]
+        from ipa_core.backends.allosaurus_backend import AllosaurusBackend
     except Exception as exc:
         logger.warning("Allosaurus ASR plugin unavailable: %s", exc)
     else:
-        register("asr", "allosaurus", lambda p: AllosaurusASR(p))
-    
-    # ASR - Backend IPA unificado (allosaurus, wav2vec2-ipa, xlsr-ipa)
+        register(
+            "asr",
+            "allosaurus",
+            lambda p: AllosaurusBackend(
+                model_name=p.get("model_name", "uni2005"),
+                lang=p.get("lang"),
+                device=p.get("device", "cpu"),
+                emit_timestamps=bool(p.get("emit_timestamps", False)),
+            ),
+        )
+
+    # ASR - Wav2Vec2 standalone backend
     try:
-        from ipa_core.backends.unified_ipa_backend import UnifiedIPABackend
+        from ipa_core.backends.wav2vec2_backend import Wav2Vec2Backend
     except Exception as exc:
-        logger.warning("Unified IPA backend unavailable: %s", exc)
+        logger.warning("Wav2Vec2 backend unavailable: %s", exc)
     else:
-        # Factory que crea y configura el backend
-        def create_unified_backend(p: dict):
-            engine = p.get("engine", "allosaurus")
-            device = p.get("device", "cpu")
-            allosaurus_lang = p.get("allosaurus_lang", "uni2005")
-            lang = p.get("lang")
-            return UnifiedIPABackend(
-                engine=engine,
-                device=device,
-                allosaurus_lang=allosaurus_lang,
-                lang=lang,
-            )
-        
-        register("asr", "unified_ipa", create_unified_backend)
-        register("asr", "wav2vec2-ipa", lambda p: UnifiedIPABackend(engine="wav2vec2-ipa", device=p.get("device", "cpu")))
-        register("asr", "xlsr-ipa", lambda p: UnifiedIPABackend(engine="xlsr-ipa", device=p.get("device", "cpu")))
+        register(
+            "asr",
+            "wav2vec2",
+            lambda p: Wav2Vec2Backend(
+                model_name=p.get("model_name", "facebook/wav2vec2-large-xlsr-53"),
+                device=p.get("device", "cpu"),
+                force_ipa=bool(p.get("force_ipa", False)),
+            ),
+        )
 
     # TextRef
     from ipa_core.textref.espeak import EspeakTextRef

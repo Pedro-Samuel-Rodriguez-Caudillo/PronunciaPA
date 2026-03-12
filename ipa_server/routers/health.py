@@ -8,20 +8,74 @@ from typing import Any, Dict
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
+from ipa_core.audio.ffmpeg import find_ffmpeg_binary
 from ipa_core.config import loader
 from ipa_core.errors import NotReadyError
+from ipa_core.kernel.core import _normalize_llm_name
 from ipa_core.plugins import registry
+from ipa_server.kernel_provider import peek_kernel
 
 router = APIRouter(tags=["health"])
 
 
+def _safe_component_ready(name: str, *, extra: dict[str, Any] | None = None) -> dict[str, Any]:
+    payload = {"name": name, "ready": True}
+    if extra:
+        payload.update(extra)
+    return payload
+
+
+def _safe_component_error(name: str, error: Exception | str) -> dict[str, Any]:
+    return {"name": name, "ready": False, "error": str(error)}
+
+
+def _diagnose_asr(cfg) -> dict[str, Any]:
+    backend_name = cfg.backend.name
+    active_kernel = peek_kernel()
+    if active_kernel is not None:
+        return _safe_component_ready(
+            backend_name,
+            extra={"output_type": getattr(active_kernel.asr, "output_type", "unknown"), "source": "kernel_cache"},
+        )
+    return _safe_component_ready(backend_name, extra={"source": "config_only"})
+
+
+def _diagnose_textref(cfg) -> dict[str, Any]:
+    active_kernel = peek_kernel()
+    if active_kernel is not None:
+        return _safe_component_ready(cfg.textref.name, extra={"source": "kernel_cache"})
+    return _safe_component_ready(cfg.textref.name, extra={"source": "config_only"})
+
+
+def _diagnose_llm(cfg) -> dict[str, Any]:
+    llm_name = cfg.llm.name
+    active_kernel = peek_kernel()
+    if active_kernel is not None and active_kernel.llm is not None:
+        return _safe_component_ready(llm_name, extra={"source": "kernel_cache"})
+
+    normalized = _normalize_llm_name((llm_name or "auto").lower())
+    if normalized == "auto":
+        return _safe_component_ready(llm_name, extra={"source": "config_auto"})
+    return _safe_component_ready(llm_name, extra={"source": "config_only"})
+
+
+def _diagnose_tts(cfg) -> dict[str, Any]:
+    tts_name = cfg.tts.name
+    active_kernel = peek_kernel()
+    if active_kernel is not None and active_kernel.tts is not None:
+        return _safe_component_ready(tts_name, extra={"source": "kernel_cache"})
+    return _safe_component_ready(tts_name, extra={"source": "config_only"})
+
+
 @router.get("/health")
 async def health() -> dict[str, Any]:
-    """Endpoint de salud con diagnóstico detallado de componentes."""
-    from ipa_core.packs.loader import DEFAULT_PACKS_DIR
-    from ipa_core.plugins.models import storage
+    """Endpoint de salud ligero y determinista para checks rápidos.
 
-    # Detectar language packs
+    Evita instanciar plugins pesados o escanear artefactos grandes.
+    Los detalles profundos de setup viven en `/api/setup-status`.
+    """
+    from ipa_core.packs.loader import DEFAULT_PACKS_DIR
+
     try:
         packs = [
             d.name
@@ -31,83 +85,25 @@ async def health() -> dict[str, Any]:
     except Exception:
         packs = []
 
-    # Detectar modelos locales
-    try:
-        models = storage.scan_models()
-    except Exception:
-        models = []
-
     # Diagnóstico de componentes
     components: dict[str, Any] = {}
     cfg = loader.load_config()
 
     # ASR Backend
-    try:
-        asr = registry.resolve_asr(cfg.backend.name, cfg.backend.params, strict_mode=True)
-        await asr.setup()
-        components["asr"] = {
-            "name": cfg.backend.name,
-            "ready": True,
-            "output_type": getattr(asr, "output_type", "unknown"),
-        }
-        await asr.teardown()
-    except (KeyError, NotReadyError) as e:
-        components["asr"] = {"name": cfg.backend.name, "ready": False, "error": str(e)}
-    except Exception as e:
-        components["asr"] = {
-            "name": cfg.backend.name,
-            "ready": False,
-            "error": f"Unexpected error: {str(e)}",
-        }
+    components["asr"] = _diagnose_asr(cfg)
 
     # TextRef
-    try:
-        textref = registry.resolve_textref(
-            cfg.textref.name, cfg.textref.params, strict_mode=True
-        )
-        await textref.setup()
-        components["textref"] = {"name": cfg.textref.name, "ready": True}
-        await textref.teardown()
-    except (KeyError, NotReadyError) as e:
-        components["textref"] = {"name": cfg.textref.name, "ready": False, "error": str(e)}
-    except Exception as e:
-        components["textref"] = {
-            "name": cfg.textref.name,
-            "ready": False,
-            "error": f"Unexpected error: {str(e)}",
-        }
+    components["textref"] = _diagnose_textref(cfg)
 
     # LLM (opcional)
     if cfg.llm and cfg.llm.name != "auto":
-        try:
-            llm = registry.resolve_llm(cfg.llm.name, cfg.llm.params, strict_mode=True)
-            await llm.setup()
-            components["llm"] = {"name": cfg.llm.name, "ready": True}
-            await llm.teardown()
-        except (KeyError, NotReadyError) as e:
-            components["llm"] = {"name": cfg.llm.name, "ready": False, "error": str(e)}
-        except Exception as e:
-            components["llm"] = {
-                "name": cfg.llm.name,
-                "ready": False,
-                "error": f"Unexpected error: {str(e)}",
-            }
+        components["llm"] = _diagnose_llm(cfg)
 
     # TTS (opcional)
     if cfg.tts and cfg.tts.name != "default":
-        try:
-            tts = registry.resolve_tts(cfg.tts.name, cfg.tts.params, strict_mode=True)
-            await tts.setup()
-            components["tts"] = {"name": cfg.tts.name, "ready": True}
-            await tts.teardown()
-        except (KeyError, NotReadyError) as e:
-            components["tts"] = {"name": cfg.tts.name, "ready": False, "error": str(e)}
-        except Exception as e:
-            components["tts"] = {
-                "name": cfg.tts.name,
-                "ready": False,
-                "error": f"Unexpected error: {str(e)}",
-            }
+        components["tts"] = _diagnose_tts(cfg)
+
+    ffmpeg_path = find_ffmpeg_binary()
 
     return {
         "status": "ok",
@@ -115,8 +111,9 @@ async def health() -> dict[str, Any]:
         "timestamp": datetime.now().isoformat(),
         "strict_mode": cfg.strict_mode,
         "components": components,
+        "ffmpeg": {"configured": bool(ffmpeg_path), "path": ffmpeg_path},
         "language_packs": packs,
-        "local_models": len(models),
+        "local_models": None,
     }
 
 

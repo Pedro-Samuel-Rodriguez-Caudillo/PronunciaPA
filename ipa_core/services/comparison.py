@@ -126,9 +126,14 @@ class ComparisonService:
         path: str,
         text: str,
         *,
+        target_ipa: Optional[str] = None,
         lang: Optional[str] = None,
+        lang_source: Optional[str] = None,
+        lang_target: Optional[str] = None,
         weights: Optional[CompareWeights] = None,
         evaluation_level: str = "phonemic",
+        force_phonetic: Optional[bool] = None,
+        allow_quality_downgrade: Optional[bool] = None,
         pack: Optional[str] = None,
         mode: str = "objective",
         user_id: Optional[str] = None,
@@ -136,9 +141,14 @@ class ComparisonService:
         payload = await self.compare_file_detail(
             path,
             text,
+            target_ipa=target_ipa,
             lang=lang,
+            lang_source=lang_source,
+            lang_target=lang_target,
             weights=weights,
             evaluation_level=evaluation_level,
+            force_phonetic=force_phonetic,
+            allow_quality_downgrade=allow_quality_downgrade,
             pack=pack,
             mode=mode,
             user_id=user_id,
@@ -151,9 +161,12 @@ class ComparisonService:
         *,
         filename: str = "stream.wav",
         text: str,
+        target_ipa: Optional[str] = None,
         lang: Optional[str] = None,
         weights: Optional[CompareWeights] = None,
         evaluation_level: str = "phonemic",
+        force_phonetic: Optional[bool] = None,
+        allow_quality_downgrade: Optional[bool] = None,
         pack: Optional[str] = None,
         mode: str = "objective",
         user_id: Optional[str] = None,
@@ -162,9 +175,12 @@ class ComparisonService:
             data,
             filename=filename,
             text=text,
+            target_ipa=target_ipa,
             lang=lang,
             weights=weights,
             evaluation_level=evaluation_level,
+            force_phonetic=force_phonetic,
+            allow_quality_downgrade=allow_quality_downgrade,
             pack=pack,
             mode=mode,
             user_id=user_id,
@@ -176,11 +192,16 @@ class ComparisonService:
         path: str,
         text: str,
         *,
+        target_ipa: Optional[str] = None,
         lang: Optional[str] = None,
+        lang_source: Optional[str] = None,
+        lang_target: Optional[str] = None,
         weights: Optional[CompareWeights] = None,
         allow_textref_fallback: bool = False,
         fallback_lang: Optional[str] = None,
         evaluation_level: str = "phonemic",
+        force_phonetic: Optional[bool] = None,
+        allow_quality_downgrade: Optional[bool] = None,
         pack: Optional[str] = None,
         mode: str = "objective",
         user_id: Optional[str] = None,
@@ -190,11 +211,16 @@ class ComparisonService:
             return await self._run_pipeline_detail(
                 wav_path,
                 text,
+                target_ipa=target_ipa,
                 lang=lang,
+                lang_source=lang_source,
+                lang_target=lang_target,
                 weights=weights,
                 allow_textref_fallback=allow_textref_fallback,
                 fallback_lang=fallback_lang,
                 evaluation_level=evaluation_level,
+                force_phonetic=force_phonetic,
+                allow_quality_downgrade=allow_quality_downgrade,
                 pack=pack,
                 mode=mode,
                 user_id=user_id,
@@ -209,11 +235,16 @@ class ComparisonService:
         *,
         filename: str = "stream.wav",
         text: str,
+        target_ipa: Optional[str] = None,
         lang: Optional[str] = None,
+        lang_source: Optional[str] = None,
+        lang_target: Optional[str] = None,
         weights: Optional[CompareWeights] = None,
         allow_textref_fallback: bool = False,
         fallback_lang: Optional[str] = None,
         evaluation_level: str = "phonemic",
+        force_phonetic: Optional[bool] = None,
+        allow_quality_downgrade: Optional[bool] = None,
         pack: Optional[str] = None,
         mode: str = "objective",
         user_id: Optional[str] = None,
@@ -224,11 +255,16 @@ class ComparisonService:
             return await self.compare_file_detail(
                 tmp_original,
                 text,
+                target_ipa=target_ipa,
                 lang=lang,
+                lang_source=lang_source,
+                lang_target=lang_target,
                 weights=weights,
                 allow_textref_fallback=allow_textref_fallback,
                 fallback_lang=fallback_lang,
                 evaluation_level=evaluation_level,
+                force_phonetic=force_phonetic,
+                allow_quality_downgrade=allow_quality_downgrade,
                 pack=pack,
                 mode=mode,
                 user_id=user_id,
@@ -241,16 +277,22 @@ class ComparisonService:
         wav_path: str,
         text: str,
         *,
+        target_ipa: Optional[str],
         lang: Optional[str],
+        lang_source: Optional[str],
+        lang_target: Optional[str],
         weights: Optional[CompareWeights],
         allow_textref_fallback: bool,
         fallback_lang: Optional[str],
         evaluation_level: str,
+        force_phonetic: Optional[bool],
+        allow_quality_downgrade: Optional[bool],
         pack: Optional[str],
         mode: str,
         user_id: Optional[str],
     ) -> ComparisonPayload:
-        effective_lang = lang or self._default_lang
+        effective_source_lang = lang_source or lang or self._default_lang
+        effective_target_lang = lang_target or lang or self._default_lang
         quality_res, quality_warnings, profile_meta = assess_audio_quality(
             wav_path,
             user_id=user_id,
@@ -265,23 +307,25 @@ class ComparisonService:
             requested_level=evaluation_level,
             quality=quality_res,
             profile=profile,
+            force_phonetic=force_phonetic,
+            allow_quality_downgrade=allow_quality_downgrade,
         )
         if allow_textref_fallback:
             raise ValidationError(
                 "allow_textref_fallback ya no está soportado en modo estricto"
             )
 
-        pipeline_lang = effective_lang
-        if fallback_lang and fallback_lang != effective_lang:
+        pipeline_target_lang = effective_target_lang
+        if fallback_lang and fallback_lang != effective_target_lang:
             try:
-                await self.textref.to_ipa(text, lang=effective_lang)
+                await self.textref.to_ipa(text, lang=effective_target_lang)
             except (ValidationError, NotReadyError):
-                pipeline_lang = fallback_lang
+                pipeline_target_lang = fallback_lang
 
         language_pack = None
         pack_id = None
         try:
-            language_pack, pack_id = await self._load_language_pack(pack, pipeline_lang)
+            language_pack, pack_id = await self._load_language_pack(pack, pipeline_target_lang)
             if effective_level == "phonetic" and language_pack is None:
                 warnings.append(
                     "Aviso: evaluation_level=phonetic sin language pack; comparación aproximada."
@@ -294,7 +338,10 @@ class ComparisonService:
                 self.comp,
                 audio=audio,  # type: ignore[arg-type]
                 text=text,
-                lang=pipeline_lang,
+                target_ipa=target_ipa,
+                lang=lang,
+                lang_source=effective_source_lang,
+                lang_target=pipeline_target_lang,
                 pack=language_pack,
                 mode=effective_mode,  # type: ignore[arg-type]
                 evaluation_level=effective_level,  # type: ignore[arg-type]
@@ -316,6 +363,8 @@ class ComparisonService:
                 "oov_count": 0,
             },
             "adaptive": adaptive_meta,
+            "lang_source": effective_source_lang,
+            "lang_target": pipeline_target_lang,
         }
         if quality_res:
             meta["audio_quality"] = quality_res.to_dict()

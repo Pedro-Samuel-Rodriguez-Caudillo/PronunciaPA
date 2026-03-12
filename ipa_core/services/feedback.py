@@ -1,6 +1,7 @@
 """Feedback service: compare + error report + LLM feedback."""
 from __future__ import annotations
 
+from dataclasses import dataclass
 import json
 import logging
 from pathlib import Path
@@ -19,6 +20,27 @@ from ipa_core.normalization.resolve import load_inventory_for
 from ipa_core.services.user_profile import UserAudioProfile
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class FeedbackGenerationAssets:
+    prompt: str
+    output_schema: dict[str, Any]
+    llm_params: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class FeedbackRuntimeContext:
+    quality_res: Any
+    profile_meta: Optional[dict[str, Any]]
+    inventory: Any
+    pack_id: Optional[str]
+    allophone_rules: Optional[dict[str, Any]]
+    effective_mode: str
+    effective_level: str
+    adaptive_meta: dict[str, Any]
+    context: dict[str, Any]
+    roadmap_progress: dict[str, Any]
 
 
 def build_error_report(
@@ -97,29 +119,30 @@ async def generate_feedback(
     if model_pack is None or model_pack_dir is None:
         raise ValidationError("model_pack y model_pack_dir son requeridos para LLM.")
 
-    prompt = _build_prompt(report, model_pack, model_pack_dir, prompt_path=prompt_path)
-    output_schema = _load_output_schema(
+    assets = _resolve_feedback_generation_assets(
+        report,
         model_pack,
         model_pack_dir,
+        prompt_path=prompt_path,
         output_schema_path=output_schema_path,
     )
-    raw = await llm.complete(prompt, params=model_pack.params)
+    raw = await llm.complete(assets.prompt, params=assets.llm_params)
     try:
         payload = _normalize_llm_payload(extract_json_object(raw))
-        validate_json_schema(payload, output_schema)
+        validate_json_schema(payload, assets.output_schema)
         return payload
     except ValidationError:
         if not retry:
             raise
     # Retry once with a stricter instruction.
-    fix_prompt = prompt + "\nReturn ONLY valid JSON. Fix any schema violations.\n"
-    raw = await llm.complete(fix_prompt, params=model_pack.params)
+    fix_prompt = assets.prompt + "\nReturn ONLY valid JSON. Fix any schema violations.\n"
+    raw = await llm.complete(fix_prompt, params=assets.llm_params)
     try:
         payload = _normalize_llm_payload(extract_json_object(raw))
-        validate_json_schema(payload, output_schema)
+        validate_json_schema(payload, assets.output_schema)
         return payload
     except ValidationError:
-        return generate_fallback_feedback(report, schema=output_schema)
+        return generate_fallback_feedback(report, schema=assets.output_schema)
 
 
 class FeedbackService:
@@ -134,128 +157,107 @@ class FeedbackService:
         audio: AudioInput,
         text: str,
         lang: str,
+        lang_source: Optional[str] = None,
+        lang_target: Optional[str] = None,
+        target_ipa: Optional[str] = None,
         mode: str = "objective",
         evaluation_level: str = "phonemic",
+        force_phonetic: Optional[bool] = None,
+        allow_quality_downgrade: Optional[bool] = None,
         feedback_level: Optional[str] = None,
         prompt_path: Optional[Path] = None,
         output_schema_path: Optional[Path] = None,
         user_id: Optional[str] = None,
     ) -> dict[str, Any]:
-        if not self._kernel.llm:
-            raise NotReadyError("LLM not configured.")
-        _is_rule_based = getattr(self._kernel.llm, "rule_based", False)
-        if not _is_rule_based and (
-            not self._kernel.model_pack or not self._kernel.model_pack_dir
-        ):
-            raise NotReadyError("LLM/model pack not configured.")
+        effective_source_lang = lang_source or lang
+        effective_target_lang = lang_target or lang
 
-        # Obtener contexto de roadmap si hay historial configurado
-        roadmap_progress: dict[str, Any] = {}
-        if user_id and self._kernel.history:
-            try:
-                roadmap_progress = await self._kernel.history.get_roadmap_progress(user_id, lang)
-            except Exception:
-                logger.debug("No se pudo obtener roadmap_progress para user=%s", user_id)
-
-        quality_res, quality_warnings, profile_meta = assess_audio_quality(
-            audio.get("path"),
+        _ensure_feedback_kernel_ready(self._kernel)
+        runtime = await _prepare_feedback_runtime_context(
+            kernel=self._kernel,
+            audio=audio,
             user_id=user_id,
-        )
-        profile = None
-        if profile_meta and isinstance(profile_meta.get("profile"), dict):
-            profile = UserAudioProfile.from_dict(profile_meta["profile"])
-        pack_hint = None
-        if self._kernel.language_pack:
-            pack_hint = getattr(self._kernel.language_pack, "id", None) or getattr(self._kernel.language_pack, "dialect", None)
-        inventory, pack_id = load_inventory_for(lang=lang, pack=pack_hint)
-        allophone_rules = inventory.allophone_collapse if inventory and evaluation_level == "phonemic" else None
-        effective_mode, effective_level, adaptive_meta = adapt_settings(
-            requested_mode=mode,
-            requested_level=evaluation_level,
-            quality=quality_res,
-            profile=profile,
-        )
-        if effective_level != evaluation_level and inventory:
-            allophone_rules = inventory.allophone_collapse if effective_level == "phonemic" else None
-        context = _build_feedback_context(
-            evaluation_level=effective_level,
+            lang=effective_target_lang,
+            mode=mode,
+            evaluation_level=evaluation_level,
+            force_phonetic=force_phonetic,
+            allow_quality_downgrade=allow_quality_downgrade,
             feedback_level=feedback_level,
-            pack_used=bool(inventory),
         )
-        if quality_warnings:
-            context["warnings"] = list(dict.fromkeys(context.get("warnings", []) + quality_warnings))
-        if quality_res and not quality_res.passed:
-            context["confidence"] = "low"
 
         pre_audio_res = await self._kernel.pre.process_audio(audio)
         processed_audio = pre_audio_res.get("audio", audio)
-        asr_result = await self._kernel.asr.transcribe(processed_audio, lang=lang)
+        asr_result = await self._kernel.asr.transcribe(processed_audio, lang=effective_source_lang)
         hyp_tokens = asr_result.get("tokens")
         if not hyp_tokens:
             raise ValidationError("ASR no devolvio tokens IPA.")
         hyp_pre_res = await self._kernel.pre.normalize_tokens(
             hyp_tokens,
-            inventory=inventory,
-            allophone_rules=allophone_rules,
+            inventory=runtime.inventory,
+            allophone_rules=runtime.allophone_rules,
         )
         hyp_tokens = hyp_pre_res.get("tokens", [])
         hyp_oov = hyp_pre_res.get("meta", {}).get("oov_tokens", [])
         if hyp_oov:
             preview = ", ".join(hyp_oov[:6])
-            context["warnings"] = list(dict.fromkeys((context.get("warnings") or []) + [
+            runtime.context["warnings"] = list(dict.fromkeys((runtime.context.get("warnings") or []) + [
                 f"Tokens IPA fuera del inventario: {preview}",
             ]))
 
-        tr_result = await self._kernel.textref.to_ipa(text, lang=lang)
+        if target_ipa and target_ipa.strip():
+            ref_tokens_raw = [tok for tok in target_ipa.strip().split() if tok]
+        else:
+            tr_result = await self._kernel.textref.to_ipa(text, lang=effective_target_lang)
+            ref_tokens_raw = tr_result.get("tokens", [])
+
         ref_pre_res = await self._kernel.pre.normalize_tokens(
-            tr_result.get("tokens", []),
-            inventory=inventory,
-            allophone_rules=allophone_rules,
+            ref_tokens_raw,
+            inventory=runtime.inventory,
+            allophone_rules=runtime.allophone_rules,
         )
         ref_tokens = ref_pre_res.get("tokens", [])
 
         compare_res = await self._kernel.comp.compare(ref_tokens, hyp_tokens)
-        compare_payload = dict(compare_res)
-        compare_payload.setdefault("meta", {})
-        if quality_res:
-            compare_payload["meta"]["audio_quality"] = quality_res.to_dict()
-        if inventory:
-            compare_payload["meta"]["normalization"] = {
-                "pack": pack_id,
-                "oov_tokens": hyp_pre_res.get("meta", {}).get("oov_tokens", []),
-            }
-        if context.get("warnings"):
-            compare_payload["meta"]["warnings"] = context["warnings"]
-        compare_payload["meta"]["adaptive"] = adaptive_meta
-        if profile_meta:
-            compare_payload["meta"]["user_profile"] = profile_meta
+        compare_payload = _build_compare_payload(
+            compare_result=compare_res,
+            hyp_tokens=hyp_tokens,
+            ref_tokens=ref_tokens,
+            mode=runtime.effective_mode,
+            evaluation_level=runtime.effective_level,
+            quality_res=runtime.quality_res,
+            inventory_used=bool(runtime.inventory),
+            pack_id=runtime.pack_id,
+            hyp_pre_meta=hyp_pre_res.get("meta", {}),
+            context=runtime.context,
+            adaptive_meta=runtime.adaptive_meta,
+            profile_meta=runtime.profile_meta,
+        )
 
         report = build_error_report(
             target_text=text,
             target_tokens=ref_tokens,
             hyp_tokens=hyp_tokens,
             compare_result=compare_res,
-            lang=lang,
-            mode=effective_mode,
-            evaluation_level=effective_level,
-            feedback_level=context["feedback_level"],
-            confidence=context["confidence"],
-            warnings=context.get("warnings"),
-            meta={
-                "asr": asr_result.get("meta", {}),
-                "feedback_level": context["feedback_level"],
-                "tone": context["tone"],
-                "confidence": context["confidence"],
-                "warnings": context.get("warnings"),
-                "audio_quality": quality_res.to_dict() if quality_res else {},
-                "normalization": {
-                    "pack": pack_id,
-                    "oov_tokens": hyp_pre_res.get("meta", {}).get("oov_tokens", []),
-                } if inventory else {},
-                "adaptive": adaptive_meta,
-                "user_profile": profile_meta or {},
-                "roadmap_context": roadmap_progress or {},
-            },
+            lang=effective_target_lang,
+            mode=runtime.effective_mode,
+            evaluation_level=runtime.effective_level,
+            feedback_level=runtime.context["feedback_level"],
+            confidence=runtime.context["confidence"],
+            warnings=runtime.context.get("warnings"),
+            meta=_build_report_meta(
+                asr_meta=asr_result.get("meta", {}),
+                context=runtime.context,
+                quality_res=runtime.quality_res,
+                inventory_used=bool(runtime.inventory),
+                pack_id=runtime.pack_id,
+                hyp_pre_meta=hyp_pre_res.get("meta", {}),
+                adaptive_meta=runtime.adaptive_meta,
+                profile_meta=runtime.profile_meta,
+                roadmap_progress=runtime.roadmap_progress,
+                lang_source=effective_source_lang,
+                lang_target=effective_target_lang,
+                target_ipa_manual=bool(target_ipa and target_ipa.strip()),
+            ),
         )
         feedback = await generate_feedback(
             report,
@@ -265,35 +267,19 @@ class FeedbackService:
             prompt_path=prompt_path,
             output_schema_path=output_schema_path,
         )
-        compare_payload.setdefault("mode", effective_mode)
-        compare_payload.setdefault("evaluation_level", effective_level)
-        compare_payload.setdefault("score", report.get("metrics", {}).get("score"))
-        feedback_payload = _apply_feedback_context(feedback, context=context)
+        feedback_payload = _apply_feedback_context(feedback, context=runtime.context)
 
-        # Auto-persistencia: guardar intento y actualizar roadmap
-        if user_id and self._kernel.history:
-            try:
-                score_val = float(compare_payload.get("score") or 0.0)
-                per_val = float(compare_res.get("per", 1.0))
-                ops_val: list[dict[str, Any]] = list(compare_res.get("ops", []))
-                await self._kernel.history.record_attempt(
-                    user_id=user_id,
-                    lang=lang,
-                    text=text,
-                    score=score_val,
-                    per=per_val,
-                    ops=ops_val,
-                    meta={
-                        "mode": effective_mode,
-                        "evaluation_level": effective_level,
-                        "feedback_level": context["feedback_level"],
-                    },
-                )
-                # Recalcular roadmap basado en los nuevos stats
-                from ipa_core.services.lesson import update_roadmap  # noqa: PLC0415
-                await update_roadmap(user_id, lang, self._kernel)
-            except Exception as exc:
-                logger.warning("Error en auto-persistencia de historial: %s", exc)
+        await _persist_feedback_attempt(
+            kernel=self._kernel,
+            user_id=user_id,
+            lang=effective_target_lang,
+            text=text,
+            compare_payload=compare_payload,
+            compare_result=compare_res,
+            effective_mode=runtime.effective_mode,
+            effective_level=runtime.effective_level,
+            feedback_level=runtime.context["feedback_level"],
+        )
 
         return {
             "report": report,
@@ -365,6 +351,248 @@ def _apply_feedback_context(
             elif not summary:
                 payload["summary"] = warning_text
     return payload
+
+
+def _ensure_feedback_kernel_ready(kernel: Kernel) -> None:
+    if not kernel.llm:
+        raise NotReadyError("LLM not configured.")
+    if not _is_rule_based_llm(kernel.llm) and (not kernel.model_pack or not kernel.model_pack_dir):
+        raise NotReadyError("LLM/model pack not configured.")
+
+
+def _is_rule_based_llm(llm: Any) -> bool:
+    return bool(getattr(llm, "rule_based", False))
+
+
+async def _prepare_feedback_runtime_context(
+    *,
+    kernel: Kernel,
+    audio: AudioInput,
+    user_id: Optional[str],
+    lang: str,
+    mode: str,
+    evaluation_level: str,
+    force_phonetic: Optional[bool],
+    allow_quality_downgrade: Optional[bool],
+    feedback_level: Optional[str],
+) -> FeedbackRuntimeContext:
+    roadmap_progress = await _load_roadmap_progress(kernel, user_id, lang)
+    quality_res, quality_warnings, profile_meta = assess_audio_quality(
+        audio.get("path"),
+        user_id=user_id,
+    )
+    profile = _profile_from_meta(profile_meta)
+    inventory, pack_id = _load_feedback_inventory(kernel, lang)
+    effective_mode, effective_level, adaptive_meta = adapt_settings(
+        requested_mode=mode,
+        requested_level=evaluation_level,
+        quality=quality_res,
+        profile=profile,
+        force_phonetic=force_phonetic,
+        allow_quality_downgrade=allow_quality_downgrade,
+    )
+    context = _build_feedback_context(
+        evaluation_level=effective_level,
+        feedback_level=feedback_level,
+        pack_used=bool(inventory),
+    )
+    context = _merge_feedback_warnings(
+        context,
+        quality_warnings=quality_warnings,
+        quality_res=quality_res,
+    )
+    return FeedbackRuntimeContext(
+        quality_res=quality_res,
+        profile_meta=profile_meta,
+        inventory=inventory,
+        pack_id=pack_id,
+        allophone_rules=_resolve_allophone_rules(inventory, effective_level),
+        effective_mode=effective_mode,
+        effective_level=effective_level,
+        adaptive_meta=adaptive_meta,
+        context=context,
+        roadmap_progress=roadmap_progress,
+    )
+
+
+async def _load_roadmap_progress(
+    kernel: Kernel,
+    user_id: Optional[str],
+    lang: str,
+) -> dict[str, Any]:
+    if not user_id or not kernel.history:
+        return {}
+    try:
+        return await kernel.history.get_roadmap_progress(user_id, lang)
+    except Exception:
+        logger.debug("No se pudo obtener roadmap_progress para user=%s", user_id)
+        return {}
+
+
+def _profile_from_meta(profile_meta: Optional[dict[str, Any]]) -> Optional[UserAudioProfile]:
+    if profile_meta and isinstance(profile_meta.get("profile"), dict):
+        return UserAudioProfile.from_dict(profile_meta["profile"])
+    return None
+
+
+def _load_feedback_inventory(kernel: Kernel, lang: str) -> tuple[Any, Optional[str]]:
+    pack_hint = None
+    if kernel.language_pack:
+        pack_hint = getattr(kernel.language_pack, "id", None) or getattr(kernel.language_pack, "dialect", None)
+    return load_inventory_for(lang=lang, pack=pack_hint)
+
+
+def _resolve_allophone_rules(inventory: Any, evaluation_level: str) -> Optional[dict[str, Any]]:
+    if inventory and evaluation_level == "phonemic":
+        return inventory.allophone_collapse
+    return None
+
+
+def _merge_feedback_warnings(
+    context: dict[str, Any],
+    *,
+    quality_warnings: list[str],
+    quality_res: Any,
+) -> dict[str, Any]:
+    merged = dict(context)
+    if quality_warnings:
+        merged["warnings"] = list(dict.fromkeys(merged.get("warnings", []) + quality_warnings))
+    if quality_res and not quality_res.passed:
+        merged["confidence"] = "low"
+    return merged
+
+
+async def _persist_feedback_attempt(
+    *,
+    kernel: Kernel,
+    user_id: Optional[str],
+    lang: str,
+    text: str,
+    compare_payload: dict[str, Any],
+    compare_result: CompareResult,
+    effective_mode: str,
+    effective_level: str,
+    feedback_level: str,
+) -> None:
+    if not user_id or not kernel.history:
+        return
+
+    try:
+        score_val = float(compare_payload.get("score") or 0.0)
+        per_val = float(compare_result.get("per", 1.0))
+        ops_val: list[dict[str, Any]] = list(compare_result.get("ops", []))
+        await kernel.history.record_attempt(
+            user_id=user_id,
+            lang=lang,
+            text=text,
+            score=score_val,
+            per=per_val,
+            ops=ops_val,
+            meta={
+                "mode": effective_mode,
+                "evaluation_level": effective_level,
+                "feedback_level": feedback_level,
+            },
+        )
+        from ipa_core.services.lesson import update_roadmap  # noqa: PLC0415
+        await update_roadmap(user_id, lang, kernel)
+    except Exception as exc:
+        logger.warning("Error en auto-persistencia de historial: %s", exc)
+
+
+def _resolve_feedback_generation_assets(
+    report: dict[str, Any],
+    model_pack: ModelPack,
+    base_dir: Path,
+    *,
+    prompt_path: Optional[Path] = None,
+    output_schema_path: Optional[Path] = None,
+) -> FeedbackGenerationAssets:
+    return FeedbackGenerationAssets(
+        prompt=_build_prompt(report, model_pack, base_dir, prompt_path=prompt_path),
+        output_schema=_load_output_schema(
+            model_pack,
+            base_dir,
+            output_schema_path=output_schema_path,
+        ),
+        llm_params=dict(model_pack.params or {}),
+    )
+
+
+def _build_compare_payload(
+    *,
+    compare_result: CompareResult,
+    hyp_tokens: list[Token],
+    ref_tokens: list[Token],
+    mode: str,
+    evaluation_level: str,
+    quality_res: Any,
+    inventory_used: bool,
+    pack_id: Optional[str],
+    hyp_pre_meta: dict[str, Any],
+    context: dict[str, Any],
+    adaptive_meta: dict[str, Any],
+    profile_meta: Optional[dict[str, Any]],
+) -> dict[str, Any]:
+    compare_payload = dict(compare_result)
+    compare_payload["ipa"] = " ".join(hyp_tokens)
+    compare_payload["tokens"] = list(hyp_tokens)
+    compare_payload["target_ipa"] = " ".join(ref_tokens)
+    compare_payload.setdefault("mode", mode)
+    compare_payload.setdefault("evaluation_level", evaluation_level)
+    compare_payload["score"] = max(
+        0.0,
+        (1.0 - float(compare_result.get("per", 0.0) or 0.0)) * 100.0,
+    )
+    compare_payload.setdefault("meta", {})
+    if quality_res:
+        compare_payload["meta"]["audio_quality"] = quality_res.to_dict()
+    if inventory_used:
+        compare_payload["meta"]["normalization"] = {
+            "pack": pack_id,
+            "oov_tokens": hyp_pre_meta.get("oov_tokens", []),
+        }
+    if context.get("warnings"):
+        compare_payload["meta"]["warnings"] = context["warnings"]
+    compare_payload["meta"]["adaptive"] = adaptive_meta
+    if profile_meta:
+        compare_payload["meta"]["user_profile"] = profile_meta
+    return compare_payload
+
+
+def _build_report_meta(
+    *,
+    asr_meta: dict[str, Any],
+    context: dict[str, Any],
+    quality_res: Any,
+    inventory_used: bool,
+    pack_id: Optional[str],
+    hyp_pre_meta: dict[str, Any],
+    adaptive_meta: dict[str, Any],
+    profile_meta: Optional[dict[str, Any]],
+    roadmap_progress: dict[str, Any],
+    lang_source: Optional[str] = None,
+    lang_target: Optional[str] = None,
+    target_ipa_manual: bool = False,
+) -> dict[str, Any]:
+    return {
+        "asr": asr_meta,
+        "feedback_level": context["feedback_level"],
+        "tone": context["tone"],
+        "confidence": context["confidence"],
+        "warnings": context.get("warnings"),
+        "audio_quality": quality_res.to_dict() if quality_res else {},
+        "normalization": {
+            "pack": pack_id,
+            "oov_tokens": hyp_pre_meta.get("oov_tokens", []),
+        } if inventory_used else {},
+        "adaptive": adaptive_meta,
+        "lang_source": lang_source,
+        "lang_target": lang_target,
+        "target_ipa_manual": target_ipa_manual,
+        "user_profile": profile_meta or {},
+        "roadmap_context": roadmap_progress or {},
+    }
 
 
 def _build_prompt(

@@ -10,6 +10,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from ipa_core.config import loader
 from ipa_core.errors import NotReadyError
 from ipa_core.plugins import registry
+from ipa_server.http_errors import error_response
 
 router = APIRouter(prefix="/api/tts", tags=["tts"])
 
@@ -22,8 +23,10 @@ async def tts_speak(
 ):
     """Sintetiza texto a audio usando TTS (eSpeak-NG por defecto)."""
     if not text or not text.strip():
-        return JSONResponse(
-            status_code=400, content={"error": "El texto no puede estar vacío"}
+        return error_response(
+            status_code=400,
+            detail="El texto no puede estar vacio",
+            error_type="validation_error",
         )
 
     try:
@@ -52,18 +55,21 @@ async def tts_speak(
             await tts.teardown()
 
     except NotReadyError as e:
-        return JSONResponse(
+        return error_response(
             status_code=503,
-            content={
-                "error": "TTS no disponible",
-                "detail": str(e),
+            detail="TTS no disponible",
+            error_type="tts_not_ready",
+            extra={
+                "backend_error": str(e),
                 "hint": "Instala eSpeak-NG: https://github.com/espeak-ng/espeak-ng/releases",
             },
         )
     except Exception as e:
-        return JSONResponse(
+        return error_response(
             status_code=500,
-            content={"error": f"Error generando audio: {str(e)}", "text": text[:100]},
+            detail="Error generando audio",
+            error_type="tts_error",
+            extra={"backend_error": str(e), "text": text[:100]},
         )
 
 

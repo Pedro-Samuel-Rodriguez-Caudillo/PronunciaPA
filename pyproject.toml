@@ -19,11 +19,13 @@ dependencies = [
     "panphon>=0.20",       # Distancias articulatorias IPA via Hayes 2009 (~6000 segmentos)
     "cachetools>=5.3,<6",  # LRU+TTL cache (textref)
     "pydantic-settings>=2.0,<3",  # Config env-var loading (prefijo PRONUNCIAPA_)
+    "imageio-ffmpeg>=0.5,<1",  # ffmpeg embebido; dependencia base para normalización de audio
 ]
 
 [project.optional-dependencies]
 asr = [
     "allosaurus>=1.0.0,<2",
+    "pyctcdecode>=0.5.0,<1",
 ]
 ollama = [
     "aiohttp>=3.9,<4",
@@ -34,11 +36,11 @@ dev = [
     "pytest-cov>=4.1,<6",
     "httpx>=0.27,<0.28",
     "mypy>=1.11,<2",
+    "hypothesis>=6.100,<7",   # Property-based testing: PER, IPA tokenisation invariants
 ]
 speech = [
     "sounddevice>=0.4.6,<1",
     "pydub>=0.25.1,<1",
-    "imageio-ffmpeg>=0.5,<1",  # bundled ffmpeg binary; auto-configures pydub
     "epitran>=1.24,<2",
     "librosa>=0.10,<1",      # SNR / calidad de audio (numpy vectorizado)
     "soundfile>=0.12,<1",   # Backend de lectura para librosa
@@ -86,6 +88,23 @@ warn_unused_ignores = true
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
+markers = [
+    # ── Niveles de prueba (ISO/IEC/IEEE 29119) ───────────────────────────────
+    "unit: L1 — componente aislado, sin modelos reales",
+    "integration: L2 — interacción entre módulos, modo stub",
+    "system: L3 — CLI + API HTTP completos, modo stub",
+    "e2e: L4 — flujos de usuario completos (Flutter / scripts)",
+    # ── Atributos de calidad (ISO/IEC 25010) ────────────────────────────────
+    "functional: corrección funcional del producto (§8.1)",
+    "performance: eficiencia de rendimiento — RTF, latencia, memoria (§8.4)",
+    "security: seguridad — validación de inputs, path traversal, injección (§8.5)",
+    "reliability: confiabilidad — idempotencia, degradación elegante (§8.3)",
+    "usability: usabilidad — códigos HTTP correctos, mensajes claros (§8.6)",
+    # ── Auxiliares ──────────────────────────────────────────────────────────
+    "flutter: tests del cliente móvil Flutter",
+    "slow: tests que tardan > 5 s (excluir con -m 'not slow')",
+    "benchmark: mediciones de rendimiento fuera del contrato funcional",
+]
 
 [tool.coverage.run]
 source = ["ipa_core"]

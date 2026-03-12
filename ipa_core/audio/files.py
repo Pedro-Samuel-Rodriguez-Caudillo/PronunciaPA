@@ -9,9 +9,11 @@ import wave
 from pathlib import Path
 from typing import Tuple
 
+from ipa_core.audio.ffmpeg import find_ffmpeg_binary
 from ipa_core.errors import FileNotFound, UnsupportedFormat
 
 logger = logging.getLogger(__name__)
+AudioSegment = None  # type: ignore[assignment]
 
 
 def _scan_wav_chunks(raw: bytes) -> dict:
@@ -87,10 +89,17 @@ def _fix_wav_data_chunk(path: str) -> None:
             f.write(struct.pack("<I", actual_data_size))
 
 
-try:  # Carga perezosa para evitar dependencia obligatoria en tests unitarios.
-    from pydub import AudioSegment
-except ImportError:  # pragma: no cover - ejecutado solo cuando falta la dependencia.
-    AudioSegment = None  # type: ignore[assignment]
+def _get_audio_segment_class():
+    """Carga pydub de forma perezosa solo si se necesita el fallback."""
+    global AudioSegment
+    if AudioSegment is not None:
+        return AudioSegment
+    try:
+        from pydub import AudioSegment as PydubAudioSegment  # type: ignore
+    except ImportError:  # pragma: no cover - depende del entorno
+        return None
+    AudioSegment = PydubAudioSegment
+    return AudioSegment
 
 
 def _convert_with_ffmpeg(
@@ -108,10 +117,14 @@ def _convert_with_ffmpeg(
     Retorna True si la conversión fue exitosa.
     """
     import subprocess
+    ffmpeg_binary = find_ffmpeg_binary()
+    if not ffmpeg_binary:
+        logger.debug("ffmpeg no encontrado via PATH ni imageio-ffmpeg")
+        return False
     try:
         result = subprocess.run(
             [
-                "ffmpeg", "-y",
+                ffmpeg_binary, "-y",
                 "-i", input_path,
                 "-ar", str(target_sample_rate),
                 "-ac", str(target_channels),
@@ -125,7 +138,7 @@ def _convert_with_ffmpeg(
             logger.debug("ffmpeg stderr: %s", result.stderr[-500:] if result.stderr else "")
         return result.returncode == 0
     except FileNotFoundError:
-        logger.debug("ffmpeg no encontrado en PATH")
+        logger.debug("ffmpeg no encontrado en %s", ffmpeg_binary)
         return False
 
 
@@ -171,6 +184,7 @@ def ensure_wav(
         _fix_wav_data_chunk(str(p))
 
     # ── ffmpeg (camino principal, igual que pruebaASR) ──────────────────────
+    ffmpeg_available = find_ffmpeg_binary() is not None
     tmp = tempfile.NamedTemporaryFile(
         prefix="pronunciapa_", suffix=".wav", delete=False
     )
@@ -186,15 +200,21 @@ def ensure_wav(
     except OSError:
         pass
 
+    if ffmpeg_available:
+        raise UnsupportedFormat(
+            f"Formato de audio no decodificable con ffmpeg: {path}"
+        )
+
     # ── pydub (fallback si ffmpeg no disponible) ────────────────────────────
-    if AudioSegment is None:
+    audio_segment_cls = _get_audio_segment_class()
+    if audio_segment_cls is None:
         raise UnsupportedFormat(
             "ffmpeg no encontrado y pydub no instalado. "
             "Instala ffmpeg (recomendado) o pydub: pip install pydub"
         )
 
     try:
-        audio = AudioSegment.from_file(path)
+        audio = audio_segment_cls.from_file(path)
     except Exception as pydub_exc:
         raise UnsupportedFormat(
             f"Formato de audio no decodificable: {path}"

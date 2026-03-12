@@ -1,73 +1,26 @@
-"""Backend ASR basado en Allosaurus."""
+"""Allosaurus plugin wrapper.
+
+This package exposes the entry point used by plugin discovery, while delegating
+all ASR logic to the core backend implementation.
+"""
 from __future__ import annotations
 
 from typing import Any, Optional
 
-from ipa_core.errors import NotReadyError, ValidationError
-from ipa_core.plugins.base import BasePlugin
-from ipa_core.types import ASRResult, AudioInput
-
-try:  # Carga diferida para evitar fallos en entornos sin el modelo.
-    from allosaurus.app import read_recognizer
-except (ImportError, TypeError):  # pragma: no cover
-    read_recognizer = None  # type: ignore[assignment]
-
-# Mapeo de códigos ISO 639-1 (2 letras) a ISO 639-3 (3 letras) que usa Allosaurus
-LANG_MAP = {
-    "es": "spa",  # Español
-    "en": "eng",  # Inglés
-    "fr": "fra",  # Francés
-    "de": "deu",  # Alemán
-    "it": "ita",  # Italiano
-    "pt": "por",  # Portugués
-    "zh": "cmn",  # Chino mandarín
-    "ja": "jpn",  # Japonés
-    "ko": "kor",  # Coreano
-    "ar": "ara",  # Árabe
-}
+from ipa_core.backends.allosaurus_backend import AllosaurusBackend
 
 
-class AllosaurusASR(BasePlugin):
-    """Implementación de `ASRBackend` usando el modelo Allosaurus."""
-    output_type = "ipa"
+class AllosaurusASR(AllosaurusBackend):
+    """Entry-point compatible wrapper around the core Allosaurus backend."""
 
-    def __init__(self, params: Optional[dict[str, Any]] = None, *, recognizer: Any | None = None) -> None:
-        super().__init__()
+    def __init__(self, params: Optional[dict[str, Any]] = None) -> None:
         params = params or {}
-        self._default_lang: str = params.get("lang", "spa")
-
-        self._model_dir: Optional[str] = params.get("model_dir")
-        self._recognizer = recognizer
-
-    def _load(self) -> Any:
-        if read_recognizer is None:
-            raise NotReadyError("Allosaurus no está instalado. Usa `pip install ipa-core[speech]`.")
-        # Allosaurus 1.0.x no acepta model_dir como keyword argument
-        if self._model_dir:
-            return read_recognizer(self._model_dir)
-        return read_recognizer()
-
-    async def setup(self) -> None:
-        """Cargar el modelo si no está listo."""
-        if self._recognizer is None:
-            self._recognizer = self._load()
-
-    async def transcribe(self, audio: AudioInput, *, lang: Optional[str] = None, **kw: Any) -> ASRResult:  # noqa: D401
-        """Transcribir audio de forma asíncrona."""
-        if self._recognizer is None:
-            await self.setup()
-
-        path = audio.get("path")
-        if not path:
-            raise ValidationError("AudioInput requiere 'path'")
-
-        current_lang = lang or self._default_lang
-        # Convertir código de idioma a formato ISO 639-3 si es necesario
-        allosaurus_lang = LANG_MAP.get(current_lang, current_lang)
-        # Allosaurus 1.0.x: recognize(path, lang_id) - lang_id es posicional
-        raw: str = self._recognizer.recognize(path, allosaurus_lang)  # type: ignore[attr-defined]
-        tokens = [tok for tok in raw.strip().split() if tok]
-        return {"tokens": tokens, "meta": {"backend": "allosaurus", "lang": current_lang}}
+        super().__init__(
+            model_name=str(params.get("model_name", "uni2005")),
+            lang=params.get("lang"),
+            device=str(params.get("device", "cpu")),
+            emit_timestamps=bool(params.get("emit_timestamps", False)),
+        )
 
 
 __all__ = ["AllosaurusASR"]

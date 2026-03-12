@@ -11,6 +11,8 @@ import os
 from pathlib import Path
 from typing import Any, Optional, TYPE_CHECKING
 
+import numpy as np
+
 logger = logging.getLogger(__name__)
 
 from ipa_core.errors import NotReadyError, ValidationError
@@ -267,6 +269,14 @@ class AllosaurusBackend(BasePlugin):
         self._device = device
         self._emit_timestamps = emit_timestamps
         self._model = None
+        self._pm = None
+        self._am = None
+        self._lm = None
+        self._ctc_decoder = None
+        self._ctc_labels: list[str] = []
+        self._active_mask = None
+        self._active_lang: Optional[str] = None
+        self._blank_index = 0
         self._ready = False
     
     async def setup(self) -> None:
@@ -284,11 +294,23 @@ class AllosaurusBackend(BasePlugin):
         
         loop = asyncio.get_running_loop()
         self._model = await loop.run_in_executor(None, load_model)
+        self._pm = getattr(self._model, "pm", None)
+        self._am = getattr(self._model, "am", None)
+        self._lm = getattr(self._model, "lm", None)
+        self._active_lang = self._resolve_lang(self._lang)
+        self._ensure_decoder_and_mask(self._active_lang)
         self._ready = True
     
     async def teardown(self) -> None:
         """Liberar recursos del modelo."""
         self._model = None
+        self._pm = None
+        self._am = None
+        self._lm = None
+        self._ctc_decoder = None
+        self._ctc_labels = []
+        self._active_mask = None
+        self._active_lang = None
         self._ready = False
     
     def _resolve_lang(self, lang: Optional[str]) -> Optional[str]:
@@ -347,6 +369,7 @@ class AllosaurusBackend(BasePlugin):
             raise ValidationError(f"Archivo de audio no existe: {audio_path}")
 
         resolved_lang = self._resolve_lang(lang)
+        self._ensure_decoder_and_mask(resolved_lang)
 
         # Garantizar WAV PCM 16 kHz mono antes de invocar Allosaurus.
         # Allosaurus internamente usa wave.open() y asume 16 kHz; cualquier
@@ -361,17 +384,20 @@ class AllosaurusBackend(BasePlugin):
         # Se añaden 150 ms de silencio al inicio Y al final (= +300 ms total).
         clean_path, is_tmp = self._pad_audio_if_short(clean_path, is_tmp, min_ms=700, pad_ms=150)
 
+        decoder_used = "pyctcdecode" if self._ctc_decoder is not None else "greedy"
         try:
-            raw_output = await self._run_recognize(clean_path, resolved_lang)
+            tokens, raw_output, timestamps = await self._run_logits_pipeline(clean_path, resolved_lang)
+            if not tokens:
+                # Safety fallback: if custom path could not decode, keep legacy behavior.
+                raw_output = await self._run_recognize(clean_path, resolved_lang)
+                tokens, timestamps = self._parse_output(raw_output)
+                decoder_used = "allosaurus-native"
         finally:
             if is_tmp:
                 try:
                     os.unlink(clean_path)
                 except OSError:
                     pass
-
-        # Parsear salida
-        tokens, timestamps = self._parse_output(raw_output)
 
         return {
             "tokens": tokens,
@@ -383,8 +409,221 @@ class AllosaurusBackend(BasePlugin):
                 "lang": resolved_lang,
                 "device": self._device,
                 "confidence_available": False,
+                "decoder": decoder_used,
             },
         }
+
+    def _ensure_decoder_and_mask(self, resolved_lang: Optional[str]) -> None:
+        """Ensure language-specific mask and CTC decoder are ready."""
+        if self._lm is None:
+            return
+        if self._active_lang == resolved_lang and self._active_mask is not None:
+            return
+
+        self._active_lang = resolved_lang
+        self._active_mask = self._build_inventory_mask(resolved_lang)
+        self._ctc_labels = self._extract_labels_from_inventory()
+        if self._ctc_labels:
+            self._blank_index = 0
+            self._ctc_labels[0] = ""
+        self._ctc_decoder = self._build_ctc_decoder(self._ctc_labels)
+
+    def _build_inventory_mask(self, resolved_lang: Optional[str]) -> Any:
+        """Build language mask from Allosaurus inventory internals."""
+        if self._lm is None:
+            return None
+        inventory = getattr(self._lm, "inventory", None)
+        if inventory is None or not hasattr(inventory, "get_mask"):
+            return None
+        try:
+            return inventory.get_mask(resolved_lang, approximation=False)
+        except TypeError:
+            return inventory.get_mask(resolved_lang)
+        except Exception:
+            return None
+
+    def _extract_labels_from_inventory(self) -> list[str]:
+        """Extract CTC label list aligned with acoustic model vocabulary."""
+        if self._lm is None:
+            return []
+
+        inventory = getattr(self._lm, "inventory", None)
+        unit_obj = getattr(inventory, "unit", None)
+        if unit_obj is None:
+            return []
+
+        id_to_unit = getattr(unit_obj, "id_to_unit", None)
+        if not isinstance(id_to_unit, dict) or not id_to_unit:
+            return []
+
+        max_idx = max(int(k) for k in id_to_unit.keys())
+        labels = [""] * (max_idx + 1)
+        for idx, symbol in id_to_unit.items():
+            try:
+                labels[int(idx)] = str(symbol or "")
+            except Exception:
+                continue
+        return labels
+
+    def _build_ctc_decoder(self, labels: list[str]) -> Any:
+        """Build pyctcdecode beam-search decoder if available."""
+        if len(labels) < 2:
+            return None
+        try:
+            from pyctcdecode import build_ctcdecoder  # type: ignore
+        except Exception:
+            logger.warning("pyctcdecode no disponible; usando decodificación greedy")
+            return None
+
+        try:
+            return build_ctcdecoder(labels)
+        except Exception as exc:
+            logger.warning("No se pudo inicializar pyctcdecode: %s", exc)
+            return None
+
+    async def _run_logits_pipeline(
+        self,
+        audio_path: str,
+        resolved_lang: Optional[str],
+    ) -> tuple[list[str], str, Optional[list[tuple[float, float]]]]:
+        """Run logits interception + masking + CTC decode pipeline."""
+        logits = await self._extract_logits(audio_path, resolved_lang)
+        if logits is None:
+            return [], "", None
+
+        masked_logits = self._apply_mask(logits)
+        tokens = self._decode_with_ctc(masked_logits)
+        raw_text = " ".join(tokens)
+        return tokens, raw_text, None
+
+    async def _extract_logits(self, audio_path: str, resolved_lang: Optional[str]) -> Optional[np.ndarray]:
+        """Extract raw logits tensor (T x V).
+
+        Tries direct AM forward pass first. If internals are not available,
+        falls back to intercepting logits from lm.compute during recognize().
+        """
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, self._extract_logits_sync, audio_path, resolved_lang)
+
+    def _extract_logits_sync(self, audio_path: str, resolved_lang: Optional[str]) -> Optional[np.ndarray]:
+        if self._model is None:
+            return None
+
+        # Preferred path: direct forward pass over AM.
+        direct = self._extract_logits_direct(audio_path)
+        if direct is not None:
+            return direct
+
+        # Fallback path: intercept logits right before internal decode.
+        return self._extract_logits_via_intercept(audio_path, resolved_lang)
+
+    def _extract_logits_direct(self, audio_path: str) -> Optional[np.ndarray]:
+        if self._pm is None or self._am is None:
+            return None
+        try:
+            import torch  # type: ignore
+            from allosaurus.audio import read_audio  # type: ignore
+
+            sample_rate = 16000
+            pm_cfg = getattr(self._pm, "config", None)
+            if pm_cfg is not None:
+                sample_rate = int(getattr(pm_cfg, "sample_rate", 16000))
+
+            audio = read_audio(audio_path, sample_rate)
+            feat = self._pm.compute(audio)
+            if feat is None:
+                return None
+
+            feat_np = np.asarray(feat)
+            if feat_np.ndim != 2:
+                return None
+
+            # Allosaurus AM expects (T, B, F) with lengths for packed sequence.
+            feat_tensor = torch.from_numpy(feat_np).float().unsqueeze(1)
+            feat_len = torch.tensor([feat_np.shape[0]], dtype=torch.long)
+
+            with torch.no_grad():
+                output = self._am(feat_tensor, feat_len)
+
+            logits = np.asarray(output[0].cpu().numpy())
+            return logits if logits.ndim == 2 else None
+        except Exception:
+            return None
+
+    def _extract_logits_via_intercept(self, audio_path: str, resolved_lang: Optional[str]) -> Optional[np.ndarray]:
+        if self._model is None or self._lm is None:
+            return None
+
+        compute_fn = getattr(self._lm, "compute", None)
+        if compute_fn is None:
+            return None
+
+        captured: dict[str, np.ndarray] = {}
+
+        def wrapped_compute(logits: Any, *args: Any, **kwargs: Any) -> Any:
+            try:
+                captured["logits"] = np.asarray(logits).copy()
+            except Exception:
+                pass
+            return compute_fn(logits, *args, **kwargs)
+
+        setattr(self._lm, "compute", wrapped_compute)
+        try:
+            if resolved_lang:
+                self._model.recognize(audio_path, lang_id=resolved_lang, timestamp=self._emit_timestamps)
+            else:
+                self._model.recognize(audio_path, timestamp=self._emit_timestamps)
+        except Exception:
+            return None
+        finally:
+            setattr(self._lm, "compute", compute_fn)
+
+        logits = captured.get("logits")
+        return logits if isinstance(logits, np.ndarray) and logits.ndim == 2 else None
+
+    def _apply_mask(self, logits: np.ndarray) -> np.ndarray:
+        if self._active_mask is None:
+            return logits
+        try:
+            return np.asarray(self._active_mask.mask_logits(logits.copy()))
+        except Exception:
+            return logits
+
+    def _decode_with_ctc(self, logits: np.ndarray) -> list[str]:
+        if logits.size == 0:
+            return []
+
+        if self._ctc_decoder is not None:
+            try:
+                decoded = self._ctc_decoder.decode(logits)
+                tokens = [tok for tok in decoded.strip().split() if tok]
+                if tokens:
+                    return tokens
+            except Exception as exc:
+                logger.warning("CTC beam decoding falló, usando greedy: %s", exc)
+
+        return self._decode_greedy_ctc(logits)
+
+    def _decode_greedy_ctc(self, logits: np.ndarray) -> list[str]:
+        labels = self._ctc_labels
+        if not labels:
+            return []
+        ids = np.argmax(logits, axis=1)
+        tokens: list[str] = []
+        prev = -1
+        for idx in ids:
+            i = int(idx)
+            if i == self._blank_index:
+                prev = i
+                continue
+            if i == prev:
+                continue
+            prev = i
+            if 0 <= i < len(labels):
+                token = labels[i]
+                if token:
+                    tokens.append(token)
+        return tokens
 
     @staticmethod
     def _pad_audio_if_short(

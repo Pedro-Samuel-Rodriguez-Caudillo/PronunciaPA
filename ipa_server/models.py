@@ -122,6 +122,11 @@ class CompareResponse(BaseModel):
         description="Transcripción IPA detectada (hipótesis)",
         json_schema_extra={"example": "o l a"},
     )
+    target_ipa: Optional[str] = Field(
+        default=None,
+        description="Transcripción IPA objetivo (referencia)",
+        json_schema_extra={"example": "o l a"},
+    )
     tokens: List[str] = Field(
         default_factory=list,
         description="Tokens IPA detectados (hipótesis)",

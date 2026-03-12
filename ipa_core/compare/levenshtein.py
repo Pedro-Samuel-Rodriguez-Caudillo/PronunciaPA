@@ -41,7 +41,7 @@ class LevenshteinComparator(BasePlugin):
         self,
         *,
         use_articulatory: bool = True,
-        articulatory_min_cost: float = 0.3,
+        articulatory_min_cost: float = 0.4,
     ) -> None:
         self._use_articulatory = use_articulatory
         self._articulatory_min_cost = articulatory_min_cost
@@ -76,6 +76,8 @@ class LevenshteinComparator(BasePlugin):
         """Comparación asíncrona de secuencias IPA."""
         ref_tokens = list(ref)
         hyp_tokens = list(hyp)
+        if not ref_tokens and not hyp_tokens:
+            raise ValueError("Cannot compare empty reference and hypothesis sequences")
         n, m = len(ref_tokens), len(hyp_tokens)
         w = _Weights.from_dict(weights)
         dp = [[0.0] * (m + 1) for _ in range(n + 1)]

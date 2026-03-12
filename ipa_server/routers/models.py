@@ -7,6 +7,7 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
 from ipa_core.config import loader
+from ipa_server.http_errors import error_response
 
 router = APIRouter(prefix="/api", tags=["models"])
 
@@ -50,8 +51,10 @@ async def install_model(model_id: str):
     from ipa_core.services.model_installer import MODEL_CATALOG, get_installer
 
     if model_id not in MODEL_CATALOG:
-        return JSONResponse(
-            status_code=404, content={"error": f"Modelo no encontrado: {model_id}"}
+        return error_response(
+            status_code=404,
+            detail=f"Modelo no encontrado: {model_id}",
+            error_type="model_not_found",
         )
 
     installer = get_installer()
@@ -59,9 +62,11 @@ async def install_model(model_id: str):
         result = await installer.install(model_id)
         return {"success": True, "model": result.to_dict()}
     except Exception as e:
-        return JSONResponse(
+        return error_response(
             status_code=500,
-            content={"success": False, "error": str(e), "model_id": model_id},
+            detail="Error instalando modelo",
+            error_type="model_install_error",
+            extra={"success": False, "backend_error": str(e), "model_id": model_id},
         )
 
 
@@ -119,37 +124,80 @@ async def quick_setup_endpoint():
 # ============ ASR ENGINE MANAGEMENT ============
 
 
+def _check_asr_engine_ready(engine_id: str) -> dict[str, Any]:
+    missing: list[str] = []
+    if engine_id == "allosaurus":
+        try:
+            import allosaurus.app  # noqa: F401
+        except Exception:
+            missing.append("allosaurus")
+    elif engine_id in {"wav2vec2-ipa", "xlsr-ipa"}:
+        try:
+            import torch  # noqa: F401
+        except Exception:
+            missing.append("torch")
+        try:
+            import transformers  # noqa: F401
+        except Exception:
+            missing.append("transformers")
+    else:
+        return {
+            "ready": False,
+            "missing": ["unknown_engine"],
+            "message": f"Engine no válido: {engine_id}",
+        }
+
+    return {
+        "ready": len(missing) == 0,
+        "missing": missing,
+        "message": "OK" if not missing else f"Faltan dependencias: {', '.join(missing)}",
+    }
+
+
 @router.get("/asr/engines")
 async def list_asr_engines():
     """Lista los motores ASR disponibles con salida IPA."""
-    from ipa_core.backends.unified_ipa_backend import ASREngine, UnifiedIPABackend
+    engines_catalog = [
+        {
+            "id": "allosaurus",
+            "name": "Allosaurus (Universal IPA)",
+            "description": "ASR universal con 200+ idiomas. Ligero (~500MB), funciona en CPU.",
+        },
+        {
+            "id": "wav2vec2-ipa",
+            "name": "Wav2Vec2 Large IPA",
+            "description": "Alta precisión fonética. Requiere ~1.2GB y GPU para velocidad óptima.",
+        },
+        {
+            "id": "xlsr-ipa",
+            "name": "XLS-R 300M IPA (Multilingüe)",
+            "description": "Multilingüe (128 idiomas). Buen balance precisión/velocidad.",
+        },
+    ]
 
     engines = []
-    for engine in ASREngine:
-        status = UnifiedIPABackend.check_engine_ready(engine)
+    for engine in engines_catalog:
+        status = _check_asr_engine_ready(engine["id"])
         engines.append(
             {
-                "id": engine.value,
-                "name": {
-                    "allosaurus": "Allosaurus (Universal IPA)",
-                    "wav2vec2-ipa": "Wav2Vec2 Large IPA",
-                    "xlsr-ipa": "XLS-R 300M IPA (Multilingüe)",
-                }.get(engine.value, engine.value),
+                "id": engine["id"],
+                "name": engine["name"],
                 "ready": status["ready"],
                 "missing": status["missing"],
                 "message": status["message"],
-                "description": {
-                    "allosaurus": "ASR universal con 200+ idiomas. Ligero (~500MB), funciona en CPU.",
-                    "wav2vec2-ipa": "Alta precisión fonética. Requiere ~1.2GB y GPU para velocidad óptima.",
-                    "xlsr-ipa": "Multilingüe (128 idiomas). Buen balance precisión/velocidad.",
-                }.get(engine.value, ""),
+                "description": engine["description"],
             }
         )
 
     try:
         cfg = loader.load_config()
-        backend_params = cfg.backend.params if cfg.backend.params else {}
-        current_engine = backend_params.get("engine", "allosaurus")
+        if cfg.backend.name == "allosaurus":
+            current_engine = "allosaurus"
+        elif cfg.backend.name == "wav2vec2":
+            current_engine = "wav2vec2-ipa"
+        else:
+            backend_params = cfg.backend.params if cfg.backend.params else {}
+            current_engine = backend_params.get("engine", cfg.backend.name)
     except Exception:
         current_engine = "allosaurus"
 
@@ -163,25 +211,22 @@ async def list_asr_engines():
 @router.post("/asr/engine/{engine_id}", response_model=None)
 async def set_asr_engine(engine_id: str):
     """Cambiar el motor ASR activo."""
-    from ipa_core.backends.unified_ipa_backend import ASREngine, UnifiedIPABackend
-
-    try:
-        engine = ASREngine(engine_id)
-    except ValueError:
-        return JSONResponse(
+    valid_engines = ["allosaurus", "wav2vec2-ipa", "xlsr-ipa"]
+    if engine_id not in valid_engines:
+        return error_response(
             status_code=400,
-            content={
-                "error": f"Engine no válido: {engine_id}",
-                "valid_engines": [e.value for e in ASREngine],
-            },
+            detail=f"Engine no valido: {engine_id}",
+            error_type="invalid_engine",
+            extra={"valid_engines": valid_engines},
         )
 
-    status = UnifiedIPABackend.check_engine_ready(engine)
+    status = _check_asr_engine_ready(engine_id)
     if not status["ready"]:
-        return JSONResponse(
+        return error_response(
             status_code=400,
-            content={
-                "error": f"Engine {engine_id} no está listo",
+            detail=f"Engine {engine_id} no esta listo",
+            error_type="engine_not_ready",
+            extra={
                 "missing": status["missing"],
                 "install_command": f"pip install {' '.join(status['missing'])}",
             },
@@ -193,8 +238,8 @@ async def set_asr_engine(engine_id: str):
         "message": f"Engine cambiado a {engine_id}. Para hacer el cambio permanente, edita configs/local.yaml",
         "config_example": {
             "backend": {
-                "name": "unified_ipa",
-                "params": {"engine": engine_id, "device": "cpu"},
+                "name": "allosaurus" if engine_id == "allosaurus" else "wav2vec2",
+                "params": {"device": "cpu", "lang": "es"},
             }
         },
     }
@@ -203,7 +248,6 @@ async def set_asr_engine(engine_id: str):
 @router.post("/asr/install/{engine_id}", response_model=None)
 async def install_asr_engine(engine_id: str):
     """Instalar las dependencias para un motor ASR."""
-    from ipa_core.backends.unified_ipa_backend import ASREngine
     from ipa_core.services.model_installer import get_installer
 
     engine_to_models: dict[str, list[str]] = {
@@ -213,12 +257,11 @@ async def install_asr_engine(engine_id: str):
     }
 
     if engine_id not in engine_to_models:
-        return JSONResponse(
+        return error_response(
             status_code=400,
-            content={
-                "error": f"Engine no válido: {engine_id}",
-                "valid_engines": list(engine_to_models.keys()),
-            },
+            detail=f"Engine no valido: {engine_id}",
+            error_type="invalid_engine",
+            extra={"valid_engines": list(engine_to_models.keys())},
         )
 
     installer = get_installer()
@@ -249,8 +292,10 @@ def _check_espeak_available() -> bool:
 
 
 def _check_nltk_cmudict() -> bool:
+    import importlib
+
     try:
-        import nltk
+        nltk = importlib.import_module("nltk")
         nltk.data.find("corpora/cmudict")
         return True
     except Exception:

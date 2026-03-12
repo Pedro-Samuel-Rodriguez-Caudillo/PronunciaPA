@@ -1,7 +1,6 @@
 """Core pipeline endpoints: transcribe, textref, compare, feedback."""
 from __future__ import annotations
 
-import asyncio
 import logging
 import tempfile
 from pathlib import Path
@@ -14,6 +13,7 @@ from ipa_core.audio.markers import mark_audio_preprocessed
 from ipa_core.audio.files import cleanup_temp, ensure_wav
 from ipa_core.backends.audio_io import to_audio_input
 from ipa_core.config import loader
+from ipa_core.config.resolution import resolve_request_lang
 from ipa_core.config.overrides import apply_overrides
 from ipa_core.errors import ValidationError
 from ipa_core.kernel.core import Kernel, create_kernel
@@ -32,6 +32,8 @@ from ipa_core.services.feedback_store import FeedbackStore
 from ipa_core.services.transcription import TranscriptionService
 from ipa_core.types import AudioInput
 from ipa_core.display.ipa_display import build_display, DisplayMode
+from ipa_server.http_errors import error_response
+from ipa_server.kernel_provider import get_kernel as _get_kernel, get_or_create_kernel
 from ipa_server.models import (
     CompareResponse,
     FeedbackResponse,
@@ -44,98 +46,6 @@ from ipa_server.models import (
 logger = logging.getLogger("ipa_server")
 
 router = APIRouter(prefix="/v1", tags=["pipeline"])
-
-
-# ── Kernel singleton cache ────────────────────────────────────────────
-_cached_kernel: Optional[Kernel] = None
-_kernel_ready: bool = False
-_kernel_lock: Optional[asyncio.Lock] = None
-
-
-def _get_kernel_lock() -> asyncio.Lock:
-    """Lazy-init the lock (must be created inside an event loop)."""
-    global _kernel_lock
-    if _kernel_lock is None:
-        _kernel_lock = asyncio.Lock()
-    return _kernel_lock
-
-
-async def _get_or_create_kernel() -> Kernel:
-    """Return a warm, already-setup kernel (singleton).
-
-    The first call creates + sets up the kernel.  Subsequent calls reuse it.
-    An asyncio Lock prevents the race condition where multiple concurrent
-    startup requests each see _cached_kernel=None and all create their own
-    full kernel (loading Allosaurus 7+ times).
-    """
-    global _cached_kernel, _kernel_ready
-    # Fast path – already ready, no lock needed.
-    if _cached_kernel is not None and _kernel_ready:
-        return _cached_kernel
-    async with _get_kernel_lock():
-        # Re-check inside the lock (another coroutine may have set it up
-        # while we were waiting).
-        if _cached_kernel is not None and _kernel_ready:
-            return _cached_kernel
-        cfg = loader.load_config()
-        _cached_kernel = create_kernel(cfg)
-        await _cached_kernel.setup()
-        _kernel_ready = True
-        logger.info("Kernel singleton created and ready")
-        return _cached_kernel
-
-
-async def teardown_kernel_singleton() -> None:
-    """Tear down the cached kernel singleton.
-
-    Must be called on application shutdown to release model memory and any
-    open file handles held by the singleton.  Without this the process leaks
-    resources and the kernel state can bleed between test runs.
-
-    Wire this into the FastAPI lifespan or ``@app.on_event("shutdown")``.
-    """
-    global _cached_kernel, _kernel_ready
-    if _cached_kernel is not None:
-        try:
-            await _cached_kernel.teardown()
-            logger.info("Kernel singleton torn down")
-        except Exception as exc:  # pragma: no cover
-            logger.warning("Error tearing down kernel singleton: %s", exc)
-        finally:
-            _cached_kernel = None
-            _kernel_ready = False
-
-
-def _get_kernel() -> Kernel:
-    """Carga la configuración y crea el kernel (Inyectable — legacy).
-
-    NOTE: Endpoints that depend on this still run setup()/teardown() per
-    request.  Prefer _get_or_create_kernel() for fast-path endpoints.
-    """
-    cfg = loader.load_config()
-    return create_kernel(cfg)
-
-
-def _default_lang_from_config() -> str:
-    """Obtiene idioma por defecto desde config con fallback seguro."""
-    try:
-        cfg = loader.load_config()
-        opt_lang = getattr(cfg.options, "lang", None)
-        if isinstance(opt_lang, str) and opt_lang.strip():
-            return opt_lang.strip().lower()
-        backend_lang = cfg.backend.params.get("lang")
-        if isinstance(backend_lang, str) and backend_lang.strip():
-            return backend_lang.strip().lower()
-    except Exception as exc:  # pragma: no cover - fallback defensivo
-        logger.debug("No se pudo resolver idioma por defecto desde config: %s", exc)
-    return "es"
-
-
-def _resolve_request_lang(lang: Optional[str]) -> str:
-    """Normaliza lang de request; si falta, usa config."""
-    if isinstance(lang, str) and lang.strip():
-        return lang.strip().lower()
-    return _default_lang_from_config()
 
 
 def _build_kernel(
@@ -168,15 +78,13 @@ def _asr_unavailable_response(*, backend_name: str, reason: str) -> JSONResponse
         f"Backend detectado: '{backend_name}'. Motivo: {reason}. "
         "Para corregirlo: (1) elimina PRONUNCIAPA_ASR=stub en el entorno, "
         "(2) configura un backend IPA real en configs/local.yaml "
-        "(ej. unified_ipa/allosaurus), (3) verifica disponibilidad en /api/asr/engines."
+        "(ej. allosaurus), (3) verifica disponibilidad en /api/asr/engines."
     )
-    return JSONResponse(
+    return error_response(
         status_code=503,
-        content={
-            "detail": detail,
-            "type": "asr_unavailable",
-            "backend": backend_name,
-        },
+        detail=detail,
+        error_type="asr_unavailable",
+        extra={"backend": backend_name},
     )
 
 
@@ -215,6 +123,34 @@ def _cleanup_uploaded_file(path: Path) -> None:
         cleanup_temp(str(path))
 
 
+def _resolve_safe_client_path(raw_path: Optional[str], *, label: str) -> Optional[Path]:
+    """Valida rutas opcionales provistas por el cliente.
+
+    Política de seguridad:
+    - solo se aceptan rutas relativas al workspace actual
+    - se rechazan rutas absolutas y traversal (`..`)
+    - si la ruta resultante no existe, se rechaza con mensaje descriptivo
+    """
+    if not raw_path:
+        return None
+
+    candidate = Path(raw_path)
+    if candidate.is_absolute() or ".." in candidate.parts:
+        raise ValidationError(f"{label} file not found or path not allowed: {candidate}")
+
+    workspace_root = Path.cwd().resolve()
+    resolved = (workspace_root / candidate).resolve(strict=False)
+    try:
+        resolved.relative_to(workspace_root)
+    except ValueError as exc:
+        raise ValidationError(f"{label} file not found or path not allowed: {candidate}") from exc
+
+    if not resolved.exists():
+        raise ValidationError(f"{label} file not found: {resolved}")
+
+    return resolved
+
+
 @router.post("/transcribe", response_model=TranscriptionResponse)
 async def transcribe(
     audio: UploadFile = File(..., description="Archivo de audio a transcribir"),
@@ -226,7 +162,7 @@ async def transcribe(
     kernel: Kernel = Depends(_get_kernel),
 ) -> Union[dict[str, Any], JSONResponse]:
     """Transcripción de audio a IPA usando el microkernel."""
-    lang_resolved = _resolve_request_lang(lang)
+    lang_resolved = resolve_request_lang(lang)
     tmp_path = await _process_upload(audio)
     try:
         if backend:
@@ -273,7 +209,7 @@ async def textref_endpoint(
     kernel: Kernel = Depends(_get_kernel),
 ) -> Union[dict[str, Any], JSONResponse]:
     """Convierte texto a IPA usando el proveedor TextRef."""
-    lang_resolved = _resolve_request_lang(lang)
+    lang_resolved = resolve_request_lang(lang)
     try:
         if textref:
             kernel.textref = registry.resolve_textref(
@@ -297,9 +233,20 @@ async def textref_endpoint(
 async def compare(
     audio: UploadFile = File(..., description="Archivo de audio a comparar"),
     text: str = Form(..., description="Texto de referencia"),
+    target_ipa: Optional[str] = Form(None, description="IPA objetivo manual (tokens separados por espacios)"),
     lang: Optional[str] = Form(None, description="Idioma del audio"),
+    lang_source: Optional[str] = Form(None, description="Idioma origen (audio/ASR)"),
+    lang_target: Optional[str] = Form(None, description="Idioma destino (texto/TextRef)"),
     mode: str = Form("objective", description="Modo: casual, objective, phonetic, auto"),
     evaluation_level: str = Form("phonemic", description="Nivel: phonemic, phonetic, auto"),
+    force_phonetic: Optional[bool] = Form(
+        None,
+        description="Forzar modo y nivel fonético, sin degradación automática",
+    ),
+    allow_quality_downgrade: Optional[bool] = Form(
+        None,
+        description="Permitir degradación automática por calidad de audio",
+    ),
     backend: Optional[str] = Form(None, description="Nombre del backend ASR"),
     textref: Optional[str] = Form(None, description="Nombre del proveedor texto→IPA"),
     comparator: Optional[str] = Form(None, description="Nombre del comparador"),
@@ -314,12 +261,14 @@ async def compare(
     kernel: Kernel = Depends(_get_kernel),
 ) -> Union[dict[str, Any], JSONResponse]:
     """Comparación de audio contra texto de referencia."""
-    lang_resolved = _resolve_request_lang(lang)
+    lang_source_resolved = resolve_request_lang(lang_source or lang)
+    lang_target_resolved = resolve_request_lang(lang_target or lang)
     logger.info("=== /v1/compare REQUEST ===")
     logger.info(
-        "text: %s, lang: %s, mode: %s, evaluation_level: %s",
+        "text: %s, lang_source: %s, lang_target: %s, mode: %s, evaluation_level: %s",
         text,
-        lang_resolved,
+        lang_source_resolved,
+        lang_target_resolved,
         mode,
         evaluation_level,
     )
@@ -328,11 +277,11 @@ async def compare(
     try:
         if backend:
             kernel.asr = registry.resolve_asr(
-                backend.lower(), {"lang": lang_resolved}, strict_mode=True
+                backend.lower(), {"lang": lang_source_resolved}, strict_mode=True
             )
         if textref:
             kernel.textref = registry.resolve_textref(
-                textref.lower(), {"default_lang": lang_resolved}, strict_mode=True
+                textref.lower(), {"default_lang": lang_target_resolved}, strict_mode=True
             )
         if comparator:
             kernel.comp = registry.resolve_comparator(
@@ -350,13 +299,18 @@ async def compare(
             asr=kernel.asr,
             textref=kernel.textref,
             comparator=kernel.comp,
-            default_lang=lang_resolved,
+            default_lang=lang_target_resolved,
         )
         compare_payload = await service.compare_file_detail(
             str(tmp_path),
             text,
-            lang=lang_resolved,
+            target_ipa=target_ipa,
+            lang=lang,
+            lang_source=lang_source_resolved,
+            lang_target=lang_target_resolved,
             evaluation_level=evaluation_level,
+            force_phonetic=force_phonetic,
+            allow_quality_downgrade=allow_quality_downgrade,
             pack=pack,
             mode=mode,
             user_id=user_id,
@@ -399,7 +353,10 @@ async def compare(
 async def quick_compare(
     audio: UploadFile = File(..., description="Archivo de audio a comparar"),
     text: str = Form(..., description="Texto de referencia"),
+    target_ipa: Optional[str] = Form(None, description="IPA objetivo manual (tokens separados por espacios)"),
     lang: Optional[str] = Form(None, description="Idioma del audio"),
+    lang_source: Optional[str] = Form(None, description="Idioma origen (audio/ASR)"),
+    lang_target: Optional[str] = Form(None, description="Idioma destino (texto/TextRef)"),
     mode: str = Form("objective", description="Modo: casual, objective, phonetic, auto"),
     evaluation_level: str = Form("phonemic", description="Nivel: phonemic, phonetic, auto"),
 ) -> Union[dict[str, Any], JSONResponse]:
@@ -409,8 +366,9 @@ async def quick_compare(
     setup/teardown.  No ejecuta quality assessment ni adaptation.
     Ideal para revisiones rápidas durante la práctica.
     """
-    kernel = await _get_or_create_kernel()
-    lang_resolved = _resolve_request_lang(lang)
+    kernel = await get_or_create_kernel()
+    lang_source_resolved = resolve_request_lang(lang_source or lang)
+    lang_target_resolved = resolve_request_lang(lang_target or lang)
     asr_guard = _assert_real_ipa_asr(kernel.asr)
     if asr_guard:
         return asr_guard
@@ -426,7 +384,7 @@ async def quick_compare(
         pre_result = await kernel.pre.process_audio(cast(AudioInput, audio_pre))
         processed = pre_result.get("audio", audio_in)
 
-        asr_result = await kernel.asr.transcribe(processed, lang=lang_resolved)
+        asr_result = await kernel.asr.transcribe(processed, lang=lang_source_resolved)
         hyp_tokens = asr_result.get("tokens", [])
         if not hyp_tokens:
             raw_text = asr_result.get("raw_text", "")
@@ -444,15 +402,18 @@ async def quick_compare(
             raise ValidationError(no_speech_hint)
 
         # Limpieza IPA unificada para quick-compare
-        hyp_tokens = clean_asr_tokens(hyp_tokens, lang=lang_resolved)
+        hyp_tokens = clean_asr_tokens(hyp_tokens, lang=lang_source_resolved)
         if not hyp_tokens:
             raise ValidationError(
                 "ASR no devolvió tokens IPA válidos tras limpieza. "
                 "El audio podría ser muy corto o contener sólo ruido."
             )
 
-        tr_result = await kernel.textref.to_ipa(text, lang=lang_resolved)
-        ref_tokens = clean_textref_tokens(tr_result.get("tokens", []), lang=lang_resolved)
+        if target_ipa and target_ipa.strip():
+            ref_tokens = clean_textref_tokens(target_ipa.strip().split(), lang=lang_target_resolved)
+        else:
+            tr_result = await kernel.textref.to_ipa(text, lang=lang_target_resolved)
+            ref_tokens = clean_textref_tokens(tr_result.get("tokens", []), lang=lang_target_resolved)
 
         result = await kernel.comp.compare(ref_tokens, hyp_tokens)
 
@@ -473,6 +434,8 @@ async def quick_compare(
                 "asr": asr_result.get("meta", {}),
                 "asr_confidences": asr_result.get("confidences"),
                 "compare": result.get("meta", {}),
+                "lang_source": lang_source_resolved,
+                "lang_target": lang_target_resolved,
                 "quick": True,
             },
         }
@@ -486,10 +449,21 @@ async def quick_compare(
 async def feedback(
     audio: UploadFile = File(..., description="Archivo de audio a analizar"),
     text: str = Form(..., description="Texto de referencia"),
+    target_ipa: Optional[str] = Form(None, description="IPA objetivo manual (tokens separados por espacios)"),
     lang: Optional[str] = Form(None, description="Idioma del audio"),
+    lang_source: Optional[str] = Form(None, description="Idioma origen (audio/ASR)"),
+    lang_target: Optional[str] = Form(None, description="Idioma destino (texto/TextRef)"),
     mode: str = Form("objective", description="Modo: casual, objective, phonetic, auto"),
     evaluation_level: str = Form(
         "phonemic", description="Nivel: phonemic, phonetic, auto"
+    ),
+    force_phonetic: Optional[bool] = Form(
+        None,
+        description="Forzar modo y nivel fonético, sin degradación automática",
+    ),
+    allow_quality_downgrade: Optional[bool] = Form(
+        None,
+        description="Permitir degradación automática por calidad de audio",
     ),
     feedback_level: Optional[str] = Form(
         None, description="Nivel de feedback: casual (amigable) o precise (tecnico)"
@@ -506,13 +480,14 @@ async def feedback(
     user_id: Optional[str] = Form(None, description="ID de usuario (opcional)"),
 ) -> Union[dict[str, Any], JSONResponse]:
     """Analiza la pronunciacion y genera feedback con LLM local."""
-    lang_resolved = _resolve_request_lang(lang)
+    lang_source_resolved = resolve_request_lang(lang_source or lang)
+    lang_target_resolved = resolve_request_lang(lang_target or lang)
     tmp_path = await _process_upload(audio)
     # Use the singleton kernel when no per-request overrides are needed.
     # _build_kernel creates a fresh kernel (+ full Allosaurus load) each call.
     use_singleton = model_pack is None and llm is None
     if use_singleton:
-        kernel = await _get_or_create_kernel()
+        kernel = await get_or_create_kernel()
     else:
         kernel = _build_kernel(model_pack=model_pack, llm_name=llm)
     try:
@@ -528,18 +503,19 @@ async def feedback(
             "channels": 1,
         }
         service = FeedbackService(kernel)
-        prompt_file = Path(prompt_path) if prompt_path else None
-        schema_file = Path(output_schema_path) if output_schema_path else None
-        if prompt_file and not prompt_file.exists():
-            raise ValidationError(f"Prompt file not found: {prompt_file}")
-        if schema_file and not schema_file.exists():
-            raise ValidationError(f"Output schema not found: {schema_file}")
+        prompt_file = _resolve_safe_client_path(prompt_path, label="Prompt")
+        schema_file = _resolve_safe_client_path(output_schema_path, label="Output schema")
         result = await service.analyze(
             audio=audio_in,
             text=text,
-            lang=lang_resolved,
+            lang=lang_target_resolved,
+            lang_source=lang_source_resolved,
+            lang_target=lang_target_resolved,
+            target_ipa=target_ipa,
             mode=mode,
             evaluation_level=evaluation_level,
+            force_phonetic=force_phonetic,
+            allow_quality_downgrade=allow_quality_downgrade,
             feedback_level=feedback_level,
             prompt_path=prompt_file,
             output_schema_path=schema_file,
@@ -548,7 +524,14 @@ async def feedback(
         if persist:
             store = FeedbackStore()
             store.append(
-                result, audio=dict(audio_in), meta={"text": text, "lang": lang_resolved}
+                result,
+                audio=dict(audio_in),
+                meta={
+                    "text": text,
+                    "lang": lang_target_resolved,
+                    "lang_source": lang_source_resolved,
+                    "lang_target": lang_target_resolved,
+                },
             )
         return result
     finally:

@@ -22,7 +22,7 @@ from ipa_server.models import (
     RoadmapProgressResponse,
     RoadmapTopicProgress,
 )
-from ipa_server.routers.pipeline import _get_or_create_kernel
+from ipa_server.kernel_provider import get_or_create_kernel
 
 router = APIRouter(prefix="/v1/lessons", tags=["lessons"])
 
@@ -41,7 +41,7 @@ router = APIRouter(prefix="/v1/lessons", tags=["lessons"])
     ),
 )
 async def get_lesson_plan(body: LessonPlanRequest) -> LessonPlanResponse:
-    kernel = await _get_or_create_kernel()
+    kernel = await get_or_create_kernel()
 
     if not kernel.llm:
         raise HTTPException(
@@ -84,7 +84,7 @@ async def get_lesson_plan(body: LessonPlanRequest) -> LessonPlanResponse:
     ),
 )
 async def get_roadmap_progress(user_id: str, lang: str) -> RoadmapProgressResponse:
-    kernel = await _get_or_create_kernel()
+    kernel = await get_or_create_kernel()
 
     if not kernel.history:
         raise HTTPException(
@@ -132,7 +132,7 @@ async def get_roadmap_progress(user_id: str, lang: str) -> RoadmapProgressRespon
     ),
 )
 async def generate_lesson_for_sound(lang: str, sound_id: str) -> LessonPlanResponse:
-    kernel = await _get_or_create_kernel()
+    kernel = await get_or_create_kernel()
 
     if not kernel.llm:
         raise HTTPException(

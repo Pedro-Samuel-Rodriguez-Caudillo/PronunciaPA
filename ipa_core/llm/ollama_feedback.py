@@ -153,11 +153,16 @@ class OllamaFeedbackAdapter(OllamaAdapter):
     def __init__(self, params: Optional[dict[str, Any]] = None) -> None:
         params = params or {}
         self._fallback_on_error = params.pop("fallback_on_error", True)
+        self._max_retries = int(params.pop("max_retries", 2))
+        self._base_delay = float(params.pop("retry_base_delay", 0.8))
+        self._request_timeout = int(params.get("timeout", 35))
         # Default to better models for pronunciation feedback
         if "model" not in params:
             params = {**params, "model": "qwen3.5:4b"}
         if "temperature" not in params:
             params = {**params, "temperature": 0.4}
+        if "timeout" not in params:
+            params = {**params, "timeout": self._request_timeout}
         super().__init__(params)
 
     async def setup(self) -> None:
@@ -213,12 +218,14 @@ class OllamaFeedbackAdapter(OllamaAdapter):
         import asyncio
         from ipa_core.errors import LLMAPIError
 
-        max_retries = 3
-        base_delay = 1.0
+        max_retries = max(1, self._max_retries)
+        base_delay = max(0.1, self._base_delay)
 
         for attempt in range(1, max_retries + 1):
             try:
-                raw = await super().complete(ollama_prompt, params=params, **kw)
+                runtime_params = dict(params or {})
+                runtime_params.setdefault("timeout", self._request_timeout)
+                raw = await super().complete(ollama_prompt, params=runtime_params, **kw)
                 feedback = _extract_feedback(raw, report)
                 if feedback:
                     # Asegurarnos de que el resultado tiene todos los campos requeridos

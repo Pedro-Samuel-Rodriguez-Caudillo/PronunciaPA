@@ -12,6 +12,7 @@ Pasos del pipeline según ipa_core/TODO.md:
 from __future__ import annotations
 
 import logging
+import warnings
 import wave
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -254,6 +255,19 @@ _SILERO_MODEL: Optional[Any] = None
 _SILERO_AVAILABLE: Optional[bool] = None  # None = no comprobado aún
 
 
+def _load_silero_vad_model() -> Any:
+    """Cargar Silero VAD suprimiendo solo la deprecación transitoria de torch del proveedor."""
+    from silero_vad import load_silero_vad
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message=r"`torch\.jit\.load` is deprecated\. Please switch to `torch\.export`\.",
+            category=DeprecationWarning,
+        )
+        return load_silero_vad()
+
+
 def _get_silero_model() -> Any:
     """Obtener (o cargar) el modelo Silero VAD (singleton thread-safe)."""
     global _SILERO_MODEL, _SILERO_AVAILABLE
@@ -262,8 +276,7 @@ def _get_silero_model() -> Any:
     with _SILERO_MODEL_LOCK:
         if _SILERO_MODEL is None:
             try:
-                from silero_vad import load_silero_vad
-                _SILERO_MODEL = load_silero_vad()
+                _SILERO_MODEL = _load_silero_vad_model()
                 _SILERO_AVAILABLE = True
                 logger.info("Silero VAD model cargado")
             except ImportError:
