@@ -44,6 +44,30 @@ The OpenAPI schema is automatically generated at `/openapi.json` when the server
     *   `persist`: Optional boolean to save locally
 *   **Response:** `FeedbackResponse`
 
+## Error Contract
+
+Los endpoints HTTP deben devolver errores estructurados con el mismo shape base:
+
+```json
+{
+  "detail": "Human readable message",
+  "type": "error-category",
+  "code": "optional-machine-code"
+}
+```
+
+Notas operativas:
+- `detail` es obligatorio y debe ser apto para logs y UI.
+- `type` clasifica el origen (`validation_error`, `kernel_error`, `audio_error`, etc.).
+- `code` es opcional y sirve para clientes que necesiten decisiones mas estables que el texto.
+- Los cambios en este contrato deben actualizar las pruebas HTTP de `ipa_server/tests/` antes de tocar el frontend.
+
+## Operational Notes
+
+- `GET /health` es un chequeo de disponibilidad liviano: no debe forzar cargas pesadas de modelos para responder.
+- El backend asume `ffmpeg` disponible como dependencia operativa base para normalizacion de audio.
+- La resolucion de idioma solicitada se centraliza para que `transcribe`, `compare` y `feedback` compartan el mismo comportamiento.
+
 ## Data Structures (TypeScript)
 Located in `frontend/src/types/api.ts`.
 
@@ -121,6 +145,7 @@ When a change is needed in the data structures:
     cd frontend
     npx tsc src/verify_contracts.ts --noEmit --esModuleInterop --skipLibCheck --target esnext --moduleResolution node --resolveJsonModule
     ```
+  5.  **Error Paths:** If the change affects error handling, verify that the response keeps the shared `detail/type/code` contract and update API smoke tests if needed.
 
 ## Mock Data
 Example JSONs for development are located in `frontend/src/mocks/`:

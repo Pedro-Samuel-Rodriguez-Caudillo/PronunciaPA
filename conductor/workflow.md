@@ -138,15 +138,80 @@ All tasks follow a strict lifecycle:
 
 Before marking any task complete, verify:
 
-- [ ] All tests pass
-- [ ] Code coverage meets requirements (>80%)
-- [ ] Code follows project's code style guidelines (as defined in `code_styleguides/`)
-- [ ] All public functions/methods are documented (e.g., docstrings, JSDoc, GoDoc)
-- [ ] Type safety is enforced (e.g., type hints, TypeScript types, Go types)
-- [ ] No linting or static analysis errors (using the project's configured tools)
-- [ ] Works correctly on mobile (if applicable)
-- [ ] Documentation updated if needed
-- [ ] No security vulnerabilities introduced
+- [ ] Todos los tests L1 (unit) del módulo modificado pasan (`make test-l1`)
+- [ ] El requisito funcional cubierto está registrado en `docs/TRACEABILITY_MATRIX.md`
+- [ ] Cobertura de código ≥ 80 % para código nuevo (`make test-quality-report`)
+- [ ] Sin errores mypy en código nuevo (`mypy ipa_core`)
+- [ ] Sin errores de linting
+- [ ] APIs públicas documentadas con docstring
+- [ ] Type hints en funciones públicas
+- [ ] Funciona en móvil (si aplica)
+- [ ] Sin vulnerabilidades OWASP Top 10 introducidas
+
+### Criterios de Entrada / Salida por Nivel de Prueba (IEEE 1012 + ISO/IEC/IEEE 29119)
+
+> Ver [docs/TEST_PLAN.md](../docs/TEST_PLAN.md) para descripción completa.  
+> Ver [docs/TRACEABILITY_MATRIX.md](../docs/TRACEABILITY_MATRIX.md) para cobertura de requisitos.  
+> Ver [docs/QUALITY_SLA.md](../docs/QUALITY_SLA.md) para umbrales medibles.
+
+#### L1 — Pruebas Unitarias
+
+**Entrada:**
+- Función/protocolo tiene firma documentada
+- Stubs/mocks para dependencias externas definidos
+- Comportamiento esperado **confirmado con el equipo** antes de escribir el test (protocolo de especificación)
+
+**Salida:**
+- `make test-l1` pasa 100 %
+- Cobertura de código ≥ 80 % en módulos cubiertos
+- Sin errores mypy
+
+#### L2 — Pruebas de Integración
+
+**Entrada:**
+- Todos los L1 pasan
+- Fixtures de integración disponibles (`conftest.py`, `tests/utils/audio.py`)
+- Kernel levantable en modo stub sin errores
+
+**Salida:**
+- Pipeline completo `audio → IPA → PER` retorna resultado sin excepción
+- `CompareResult` contiene `per`, `ops`, `alignment`, `meta`
+- `make test-l2` pasa 100 %
+
+#### L3 — Pruebas de Sistema
+
+**Entrada:**
+- Todos los L2 pasan
+- API levantable con `PRONUNCIAPA_ASR=stub`
+- Endpoints documentados en `docs/api_contracts.md`
+
+**Salida:**
+- Todos los endpoints retornan código HTTP correcto
+- Inputs inválidos retornan 422, nunca 500
+- `make test-l3` pasa 100 %
+
+#### L4 — Pruebas E2E / Aceptación
+
+**Entrada:**
+- Todos los L3 pasan
+- Device/emulador disponible
+- User journeys documentados en `conductor/product.md`
+
+**Salida:**
+- Journeys UJ-01..UJ-06 verificados
+- SLAs de `docs/QUALITY_SLA.md` verificados (RTF, latencia, seguridad)
+
+### Protocolo de Especificación de Tests
+
+**OBLIGATORIO** antes de escribir cualquier test nuevo:
+
+1. Identificar función/endpoint: nombre, módulo, firma
+2. Mostrar inputs concretos del código real
+3. Proponer ≥ 3 opciones de salida esperada (incluyendo comportamiento actual y el ideal)
+4. **Confirmar con el equipo** qué salida debe producir el sistema
+5. Escribir el test assertando EXACTAMENTE lo confirmado
+
+> Este protocolo evita tests que validan código accidentalmente correcto en lugar de calidad deseada.
 
 ## Development Commands
 

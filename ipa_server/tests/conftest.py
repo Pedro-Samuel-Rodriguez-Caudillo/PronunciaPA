@@ -9,6 +9,7 @@ from typing import Optional
 from ipa_core.plugins import registry
 from ipa_core.plugins.base import BasePlugin
 from ipa_core.types import ASRResult, AudioInput
+from ipa_server import kernel_provider
 from ipa_server.routers import pipeline as pipeline_router
 
 
@@ -75,8 +76,15 @@ def reset_kernel_singleton():
     pipeline_router._cached_kernel = None
     pipeline_router._kernel_ready = False
     pipeline_router._kernel_lock = None
+    kernel_provider._cached_kernel = None
+    kernel_provider._kernel_ready = False
+    kernel_provider._kernel_lock = None
     yield
     pipeline_router._cached_kernel = None
     pipeline_router._kernel_ready = False
     pipeline_router._kernel_lock = None
+    kernel_provider._cached_kernel = None
+    kernel_provider._kernel_ready = False
+    kernel_provider._kernel_lock = None
+
 

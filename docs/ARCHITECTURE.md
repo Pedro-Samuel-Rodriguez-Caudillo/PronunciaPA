@@ -20,6 +20,14 @@ Consumidores del Kernel que exponen la funcionalidad al exterior.
 - **CLI (`ipa_core.interfaces.cli`):** Interfaz de línea de comandos incluida en el paquete base para depuración.
 - **HTTP Server (`ipa_server`):** Servidor FastAPI independiente que consume el core.
 
+## Decisiones operativas recientes
+
+- **Kernel compartido en HTTP:** `ipa_server/kernel_provider.py` centraliza la creacion, cache y liberacion del kernel para evitar duplicacion de ciclo de vida entre routers.
+- **Resolucion de idioma unificada:** `ipa_core/config/resolution.py` concentra el idioma por defecto y la resolucion del idioma solicitado para reducir divergencias entre API y pipeline.
+- **Errores HTTP consistentes:** `ipa_server/http_errors.py` normaliza el formato de errores (`detail`, `type`, `code`) y evita respuestas heterogeneas entre endpoints.
+- **Health liviano:** `GET /health` ya no ejecuta `setup()` de componentes pesados salvo que exista un kernel cacheado; diagnostica disponibilidad sin forzar cargas repetidas de modelos.
+- **ffmpeg como dependencia operativa base:** la normalizacion de audio depende de `imageio-ffmpeg` y de la resolucion centralizada en `ipa_core/audio/ffmpeg.py`, con menos acoplamiento a `pydub`.
+
 ## Flujo de Datos
 
 ```mermaid
@@ -63,3 +71,4 @@ flowchart LR
 - **Portabilidad:** El paquete `ipa_core` es extremadamente ligero y puede ser portado a dispositivos móviles o compilado a WASM.
 - **Extensibilidad:** Se pueden añadir nuevos idiomas o motores de ASR simplemente instalando un nuevo paquete de Python que registre el entry point adecuado.
 - **Testabilidad:** Los stubs permiten probar el flujo completo del sistema en CI sin necesidad de descargar modelos de GBs.
+- **Estabilidad operativa:** La separacion entre diagnostico, inicializacion y ejecucion reduce efectos laterales en health checks y simplifica la observabilidad del servidor.

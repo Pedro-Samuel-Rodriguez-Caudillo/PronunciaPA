@@ -1,5 +1,7 @@
-.PHONY: test-unit test-int sync-types dev dev-web server flutter \
-        install install-full install-espeak install-nltk setup test-bench bench \
+.PHONY: test-l1 test-l2 test-l3 test-l4 test-functional test-performance \
+        test-security test-reliability test-quality-report test-all \
+        sync-types dev dev-web server flutter \
+        install install-full install-espeak install-nltk setup bench \
         debug debug-json
 
 PYTHON := python
@@ -77,22 +79,52 @@ flutter:
 vite:
 	@powershell -ExecutionPolicy Bypass -File ./dev.ps1 -UI vite -UIOnly
 
-# ── Tests ────────────────────────────────────────────────
-test-unit:
-	PRONUNCIAPA_ASR=stub PYTHONPATH=. $(PYTHON) -m pytest \
-		ipa_core/audio/tests/test_files.py \
-		ipa_core/compare/tests/test_levenshtein.py \
-		ipa_core/pipeline/tests/test_runner.py \
-		ipa_core/textref/tests/test_epitran_provider.py \
-		ipa_core/textref/tests/test_espeak_provider.py \
-		ipa_core/services/tests/test_transcription_service.py \
-		tests/utils
+# ── Tests (ISO/IEC/IEEE 29119 + ISO/IEC 25010) ────────────────────────
 
-test-int:
+## L1 — Pruebas Unitarias: componentes aislados, sin modelos reales
+test-l1:
+	PRONUNCIAPA_ASR=stub PYTHONPATH=. $(PYTHON) -m pytest -m unit -v
+
+## L2 — Pruebas de Integración: pipeline extremo a extremo en modo stub
+test-l2:
+	PRONUNCIAPA_ASR=stub PYTHONPATH=. $(PYTHON) -m pytest -m integration -v
+
+## L3 — Pruebas de Sistema: CLI + API HTTP en modo stub
+test-l3:
+	PRONUNCIAPA_ASR=stub PYTHONPATH=. $(PYTHON) -m pytest -m system -v
+
+## L4 — Pruebas E2E: flujos de usuario completos (requiere dispositivo/emulador)
+test-l4:
+	PRONUNCIAPA_ASR=stub PYTHONPATH=. $(PYTHON) -m pytest -m e2e -v
+
+## Atributo Funcional (ISO 25010 §8.1): correción funcional
+test-functional:
+	PRONUNCIAPA_ASR=stub PYTHONPATH=. $(PYTHON) -m pytest -m functional -v
+
+## Atributo Rendimiento (ISO 25010 §8.4): RTF, latencia
+test-performance:
+	PRONUNCIAPA_ASR=stub PYTHONPATH=. $(PYTHON) -m pytest -m performance -v
+
+## Atributo Seguridad (ISO 25010 §8.5 + OWASP): path traversal, inputs
+test-security:
+	PRONUNCIAPA_ASR=stub PYTHONPATH=. $(PYTHON) -m pytest -m security -v
+
+## Atributo Confiabilidad (ISO 25010 §8.3): idempotencia, degradación elegante
+test-reliability:
+	PRONUNCIAPA_ASR=stub PYTHONPATH=. $(PYTHON) -m pytest -m reliability -v
+
+## Suite completa L1+L2+L3 (sin e2e/flutter que requieren device)
+test-all:
+	PRONUNCIAPA_ASR=stub PYTHONPATH=. $(PYTHON) -m pytest -m "unit or integration or system" -v
+
+## Reporte HTML de cobertura — verifica ≥ 80 % y genera docs/coverage/
+test-quality-report:
 	PRONUNCIAPA_ASR=stub PYTHONPATH=. $(PYTHON) -m pytest \
-		ipa_core/api/tests/test_http_transcription.py \
-		scripts/tests/test_cli_transcribe_stub.py \
-		scripts/tests/test_cli_transcribe_errors.py
+		-m "unit or integration or system" \
+		--cov=ipa_core --cov-report=html:docs/coverage --cov-report=term-missing \
+		--cov-fail-under=80 -q
+	@echo ""
+	@echo "✔ Reporte en docs/coverage/index.html"
 
 sync-types:
 	@echo "Synchronizing TypeScript API types from OpenAPI schema..."

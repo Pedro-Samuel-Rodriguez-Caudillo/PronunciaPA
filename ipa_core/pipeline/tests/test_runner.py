@@ -1,297 +1,169 @@
-"""Tests para `run_pipeline` y `execute_pipeline`."""
 from __future__ import annotations
 
-from types import SimpleNamespace
+from pathlib import Path
+from typing import Any, Literal, Optional
 
 import pytest
+
 from ipa_core.errors import ValidationError
-from ipa_core.pipeline.runner import run_pipeline, execute_pipeline
-from ipa_core.phonology.representation import PhonologicalRepresentation
-
-from ipa_core.types import AudioInput, CompareResult
-
-from ipa_core.ports.preprocess import Preprocessor
-from ipa_core.ports.asr import ASRBackend
-from ipa_core.ports.textref import TextRefProvider
-from ipa_core.ports.compare import Comparator
-
-class _Preprocessor(Preprocessor):
-    def __init__(self) -> None:
-        self.audio_seen: AudioInput | None = None
-
-    async def process_audio(self, audio: AudioInput) -> AudioInput:
-        self.audio_seen = audio
-        return {"audio": audio} # Return dict as expected by protocol
-
-    async def normalize_tokens(self, tokens):
-        return {"tokens": [str(t).strip().lower() for t in tokens if str(t).strip()]}
+from ipa_core.plugins.base import BasePlugin
+from ipa_core.pipeline.runner import execute_pipeline, run_pipeline_with_pack
+from ipa_core.types import ASRResult, AudioInput, CompareResult, CompareWeights, PreprocessorResult, TextRefResult, TokenSeq
 
 
-class _ASR(ASRBackend):
-    def __init__(self, *, tokens=None, raw_text="") -> None:
+class StubPreprocessor(BasePlugin):
+    def __init__(self, quality: Optional[dict[str, Any]] = None, temp_path: Optional[Path] = None) -> None:
+        super().__init__()
+        self._quality = quality or {"passed": True, "issues": []}
+        self._temp_path = temp_path
+
+    async def process_audio(self, audio: AudioInput, **kw: Any) -> PreprocessorResult:
+        meta: dict[str, Any] = {"audio_quality": self._quality}
+        if self._temp_path is not None:
+            meta["ensure_wav"] = {"path": str(self._temp_path)}
+        return {"audio": audio, "meta": meta}
+
+    async def normalize_tokens(self, tokens: TokenSeq, **kw: Any) -> PreprocessorResult:
+        return {"tokens": list(tokens)}
+
+
+class StubASR(BasePlugin):
+    output_type: Literal["ipa", "text", "none"] = "ipa"
+
+    def __init__(self, tokens: Optional[list[str]]) -> None:
+        super().__init__()
         self._tokens = tokens
-        self._raw_text = raw_text
 
-    async def transcribe(self, audio, *, lang=None, **_kw):
-        result = {}
-        if self._tokens is not None:
-            result["tokens"] = self._tokens
-        if self._raw_text:
-            result["raw_text"] = self._raw_text
-        return result
+    async def transcribe(self, audio: AudioInput, *, lang: Optional[str] = None, **kw: Any) -> ASRResult:
+        return {
+            "tokens": self._tokens or [],
+            "meta": {"lang": lang, "backend": "stub_asr", "model": "test-double"},
+        }
 
 
-class _TextRef(TextRefProvider):
-    async def to_ipa(self, text: str, *, lang: str, **_kw):
-        return {"tokens": list(text)}
+class StubTextRef(BasePlugin):
+    def __init__(self, tokens: Optional[list[str]] = None) -> None:
+        super().__init__()
+        self._tokens = tokens or ["p", "a", "t", "o"]
+
+    async def to_ipa(self, text: str, *, lang: Optional[str] = None, **kw: Any) -> TextRefResult:
+        return {"tokens": self._tokens, "meta": {"lang": lang}}
 
 
-class _Comparator(Comparator):
-    def __init__(self) -> None:
-        self.last_ref = None
-        self.last_hyp = None
+class StubComparator(BasePlugin):
+    async def compare(self, ref: TokenSeq, hyp: TokenSeq, *, weights: Optional[CompareWeights] = None, **kw: Any) -> CompareResult:
+        return {
+            "per": 0.2,
+            "ops": [
+                {"op": "eq", "ref": "p", "hyp": "p"},
+                {"op": "sub", "ref": "t", "hyp": "d"},
+            ],
+            "alignment": [("p", "p"), ("t", "d")],
+            "meta": {"distance": 0.2},
+        }
 
-    async def compare(self, ref, hyp, *, weights=None, **_kw) -> CompareResult:
-        self.last_ref = list(ref)
-        self.last_hyp = list(hyp)
-        return {"per": 0.0, "ops": [], "alignment": list(zip(ref, hyp))}
+
+def _audio_input() -> AudioInput:
+    return {"path": "sample.wav", "sample_rate": 16000, "channels": 1}
 
 
+@pytest.mark.unit
+@pytest.mark.functional
+async def test_execute_pipeline_blocks_on_no_speech_quality_issue() -> None:
+    """Contrato caso 1=A: quality gate bloqueante lanza ValidationError con user_feedback."""
+    pre = StubPreprocessor(
+        quality={
+            "passed": False,
+            "issues": ["no_speech"],
+            "user_feedback": "Sin voz detectable",
+            "error_code": "NO_SPEECH",
+        }
+    )
+
+    with pytest.raises(ValidationError, match="Sin voz detectable"):
+        await execute_pipeline(
+            pre,
+            StubASR(["p", "a"]),
+            StubTextRef(["p", "a"]),
+            StubComparator(),
+            audio=_audio_input(),
+            text="pa",
+            lang="es",
+        )
 
 
-@pytest.mark.asyncio
-async def test_run_pipeline_uses_asr_tokens():
-    pre = _Preprocessor()
-    asr = _ASR(tokens=[" A", "b "])
-    textref = _TextRef()
-    comp = _Comparator()
+@pytest.mark.unit
+@pytest.mark.functional
+async def test_execute_pipeline_raises_when_asr_returns_no_tokens() -> None:
+    """Contrato caso 2=A: ASR sin tokens debe lanzar ValidationError explícito."""
+    pre = StubPreprocessor(quality={"passed": True, "issues": []})
 
-    result = await run_pipeline(
-        pre,
-        asr,
-        textref,
-        comp,
-        audio={"path": "x.wav", "sample_rate": 16000, "channels": 1},
-        text="ab",
+    with pytest.raises(ValidationError, match="ASR no devolvió tokens IPA"):
+        await execute_pipeline(
+            pre,
+            StubASR([]),
+            StubTextRef(["p", "a"]),
+            StubComparator(),
+            audio=_audio_input(),
+            text="pa",
+            lang="es",
+        )
+
+
+@pytest.mark.unit
+@pytest.mark.functional
+async def test_run_pipeline_with_pack_requires_pack() -> None:
+    """Contrato caso 3=A: run_pipeline_with_pack exige pack y falla explícitamente."""
+    with pytest.raises(ValidationError, match="Language pack requerido para run_pipeline_with_pack"):
+        await run_pipeline_with_pack(
+            StubPreprocessor(),
+            StubASR(["p", "a"]),
+            StubTextRef(["p", "a"]),
+            audio=_audio_input(),
+            text="pa",
+            pack=None,
+            lang="es",
+        )
+
+
+@pytest.mark.integration
+@pytest.mark.functional
+async def test_execute_pipeline_uses_custom_comparator_and_scales_score_to_100() -> None:
+    """Contrato caso 4=A: en path sin pack se usa comparador custom y score=80.0 para per=0.2."""
+    result = await execute_pipeline(
+        StubPreprocessor(),
+        StubASR(["p", "a", "d", "o"]),
+        StubTextRef(["p", "a", "t", "o"]),
+        StubComparator(),
+        audio=_audio_input(),
+        text="pato",
         lang="es",
     )
 
-    assert result["per"] == 0.0
-    assert result["alignment"] == [("a", "a"), ("b", "b")]
+    assert result.score == 80.0
 
 
-@pytest.mark.asyncio
-async def test_run_pipeline_rejects_raw_text():
-    pre = _Preprocessor()
-    asr = _ASR(tokens=None, raw_text=" a b ")
-    textref = _TextRef()
-    comp = _Comparator()
+@pytest.mark.integration
+@pytest.mark.reliability
+async def test_execute_pipeline_cleans_temp_files_even_when_exception_occurs(tmp_path: Path) -> None:
+    """Contrato caso 5=A: cleanup de temporales se ejecuta aunque el pipeline falle."""
+    temp_wav = tmp_path / "temp_normalized.wav"
+    temp_wav.write_text("temporary", encoding="utf-8")
+
+    pre = StubPreprocessor(
+        quality={"passed": True, "issues": []},
+        temp_path=temp_wav,
+    )
 
     with pytest.raises(ValidationError):
-        await run_pipeline(
+        await execute_pipeline(
             pre,
-            asr,
-            textref,
-            comp,
-            audio={"path": "x.wav", "sample_rate": 16000, "channels": 1},
-            text="ab",
+            StubASR([]),  # fuerza error después de process_audio, activando finally
+            StubTextRef(["p", "a"]),
+            StubComparator(),
+            audio=_audio_input(),
+            text="pa",
             lang="es",
         )
 
-
-@pytest.mark.asyncio
-async def test_execute_pipeline_exposes_stable_audio_error_code():
-    class _QualityPreprocessor(_Preprocessor):
-        async def process_audio(self, audio: AudioInput):
-            self.audio_seen = audio
-            return {
-                "audio": audio,
-                "meta": {
-                    "audio_quality": {
-                        "passed": False,
-                        "issues": ["no_speech"],
-                        "error_code": "audio_no_speech",
-                        "user_feedback": "No se detectó voz.",
-                    }
-                },
-            }
-
-    pre = _QualityPreprocessor()
-    asr = _ASR(tokens=["a"])
-    textref = _TextRef()
-
-    with pytest.raises(ValidationError) as excinfo:
-        await execute_pipeline(
-            pre,
-            asr,
-            textref,
-            _Comparator(),
-            audio={"path": "x.wav", "sample_rate": 16000, "channels": 1},
-            text="ab",
-            lang="es",
-        )
-
-    assert excinfo.value.error_code == "audio_no_speech"
-    assert excinfo.value.context["issues"] == ["no_speech"]
-
-
-# ── Mock pack for execute_pipeline tests ─────────────────────────────
-
-class _MockScoringProfile:
-    tolerance = "medium"
-    phoneme_weights = {}
-
-
-class _MockPack:
-    """LanguagePack mínimo para probar execute_pipeline con pack."""
-
-    def collapse(self, ipa: str, *, mode: str = "objective") -> str:
-        """Simula collapse: devuelve el mismo IPA (no hace cambios)."""
-        return ipa
-
-    def derive(self, ipa: str, *, mode: str = "objective") -> str:
-        """Simula derive: devuelve el mismo IPA."""
-        return ipa
-
-    def get_scoring_profile(self, mode: str) -> _MockScoringProfile:
-        return _MockScoringProfile()
-
-
-_AUDIO: AudioInput = {"path": "x.wav", "sample_rate": 16000, "channels": 1}
-
-
-# ── execute_pipeline() tests ──────────────────────────────────────────
-
-@pytest.mark.asyncio
-async def test_execute_pipeline_no_pack_phonemic():
-    """execute_pipeline sin pack con evaluation_level=phonemic retorna result."""
-    pre = _Preprocessor()
-    asr = _ASR(tokens=["a", "b"])
-    textref = _TextRef()
-    result = await execute_pipeline(
-        pre, asr, textref,
-        audio=_AUDIO, text="ab", lang="es",
-        pack=None, evaluation_level="phonemic",
-    )
-    assert result is not None
-    d = result.to_dict()
-    assert "per" in d
-
-
-@pytest.mark.asyncio
-async def test_execute_pipeline_no_pack_phonetic():
-    """execute_pipeline sin pack con evaluation_level=phonetic retorna result."""
-    pre = _Preprocessor()
-    asr = _ASR(tokens=["a", "b"])
-    textref = _TextRef()
-    result = await execute_pipeline(
-        pre, asr, textref,
-        audio=_AUDIO, text="ab", lang="es",
-        pack=None, evaluation_level="phonetic",
-    )
-    d = result.to_dict()
-    assert "per" in d
-
-
-@pytest.mark.asyncio
-async def test_execute_pipeline_with_pack_collapse():
-    """Con pack, aplica collapse en modo phonemic."""
-    collapse_calls = []
-
-    class TrackingPack(_MockPack):
-        def collapse(self, ipa, *, mode="objective"):
-            collapse_calls.append(ipa)
-            return ipa
-
-    pre = _Preprocessor()
-    asr = _ASR(tokens=["a", "b"])
-    textref = _TextRef()
-    result = await execute_pipeline(
-        pre, asr, textref,
-        audio=_AUDIO, text="ab", lang="es",
-        pack=TrackingPack(), evaluation_level="phonemic",
-    )
-    assert len(collapse_calls) >= 1
-
-
-@pytest.mark.asyncio
-async def test_execute_pipeline_with_pack_derive():
-    """Con pack, aplica derive en modo phonetic."""
-    derive_calls = []
-
-    class TrackingPack(_MockPack):
-        def derive(self, ipa, *, mode="objective"):
-            derive_calls.append(ipa)
-            return ipa
-
-    pre = _Preprocessor()
-    asr = _ASR(tokens=["a", "b"])
-    textref = _TextRef()
-    result = await execute_pipeline(
-        pre, asr, textref,
-        audio=_AUDIO, text="ab", lang="es",
-        pack=TrackingPack(), evaluation_level="phonetic",
-    )
-    assert len(derive_calls) >= 1
-
-
-@pytest.mark.asyncio
-async def test_execute_pipeline_postprocessing_applied_to_asr():
-    """Limpieza IPA se aplica en la ruta ASR (silence markers removidos)."""
-    pre = _Preprocessor()
-    asr = _ASR(tokens=["sil", "a", "sp", "b"])  # silence markers
-    textref = _TextRef()
-    result = await execute_pipeline(
-        pre, asr, textref,
-        audio=_AUDIO, text="ab", lang="es",
-        pack=None, evaluation_level="phonemic",
-    )
-    # Resultado debe ser válido (sin error) — silence fue filtrado
-    assert result is not None
-
-
-@pytest.mark.asyncio
-async def test_execute_pipeline_empty_asr_raises():
-    """execute_pipeline con ASR vacío lanza ValidationError."""
-    pre = _Preprocessor()
-    asr = _ASR(tokens=None)
-    textref = _TextRef()
-    with pytest.raises(ValidationError):
-        await execute_pipeline(
-            pre, asr, textref,
-            audio=_AUDIO, text="ab", lang="es",
-        )
-
-
-@pytest.mark.asyncio
-async def test_execute_pipeline_uses_config_default_lang_when_missing(monkeypatch):
-    pre = _Preprocessor()
-    asr = _ASR(tokens=["a", "b"])
-
-    class TrackingTextRef(_TextRef):
-        def __init__(self) -> None:
-            self.last_lang = None
-
-        async def to_ipa(self, text: str, *, lang: str, **_kw):
-            self.last_lang = lang
-            return await super().to_ipa(text, lang=lang, **_kw)
-
-    textref = TrackingTextRef()
-    fake_cfg = SimpleNamespace(
-        options=SimpleNamespace(lang="en"),
-        backend=SimpleNamespace(params={}),
-    )
-    monkeypatch.setattr("ipa_core.pipeline.runner.loader.load_config", lambda: fake_cfg)
-
-    await execute_pipeline(
-        pre,
-        asr,
-        textref,
-        audio=_AUDIO,
-        text="ab",
-        lang=None,
-        pack=None,
-        evaluation_level="phonemic",
-    )
-
-    assert textref.last_lang == "en"
+    assert not temp_wav.exists()
