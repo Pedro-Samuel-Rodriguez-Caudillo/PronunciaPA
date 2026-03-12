@@ -18,6 +18,7 @@ export '../../domain/entities/transcription_result.dart' show TranscriptionResul
 
 class PronunciaApiService {
   static const Duration _requestTimeout = Duration(seconds: 60);
+  static const Duration _feedbackTimeout = Duration(seconds: 130);
   static const Duration _fileRetryDelay = Duration(milliseconds: 120);
   static const int _fileRetryAttempts = 3;
   static const int _minWavBytes = 46;
@@ -145,8 +146,13 @@ class PronunciaApiService {
     String filePath,
     String referenceText, {
     String lang = 'es',
+    String? langSource,
+    String? langTarget,
+    String? targetIpa,
     String? evaluationLevel,
     String? mode,
+    bool? forcePhonetic,
+    bool? allowQualityDowngrade,
   }) async {
     final file = await _ensureAudioFile(filePath);
     _log('Checking file at: ${file.absolute.path}');
@@ -161,11 +167,26 @@ class PronunciaApiService {
     if (lang.isNotEmpty) {
       request.fields['lang'] = lang;
     }
+    if (langSource != null && langSource.isNotEmpty) {
+      request.fields['lang_source'] = langSource;
+    }
+    if (langTarget != null && langTarget.isNotEmpty) {
+      request.fields['lang_target'] = langTarget;
+    }
+    if (targetIpa != null && targetIpa.trim().isNotEmpty) {
+      request.fields['target_ipa'] = targetIpa.trim();
+    }
     if (evaluationLevel != null && evaluationLevel.isNotEmpty) {
       request.fields['evaluation_level'] = evaluationLevel;
     }
     if (mode != null && mode.isNotEmpty) {
       request.fields['mode'] = mode;
+    }
+    if (forcePhonetic != null) {
+      request.fields['force_phonetic'] = forcePhonetic.toString();
+    }
+    if (allowQualityDowngrade != null) {
+      request.fields['allow_quality_downgrade'] = allowQualityDowngrade.toString();
     }
 
     final response = await _client.send(request).timeout(_requestTimeout);
@@ -195,8 +216,13 @@ class PronunciaApiService {
     String filePath,
     String referenceText, {
     String lang = 'es',
+    String? langSource,
+    String? langTarget,
+    String? targetIpa,
     String? evaluationLevel,
     String? mode,
+    bool? forcePhonetic,
+    bool? allowQualityDowngrade,
   }) async {
     final file = await _ensureAudioFile(filePath);
     _log('Quick compare: ${file.absolute.path}');
@@ -211,11 +237,26 @@ class PronunciaApiService {
     if (lang.isNotEmpty) {
       request.fields['lang'] = lang;
     }
+    if (langSource != null && langSource.isNotEmpty) {
+      request.fields['lang_source'] = langSource;
+    }
+    if (langTarget != null && langTarget.isNotEmpty) {
+      request.fields['lang_target'] = langTarget;
+    }
+    if (targetIpa != null && targetIpa.trim().isNotEmpty) {
+      request.fields['target_ipa'] = targetIpa.trim();
+    }
     if (evaluationLevel != null && evaluationLevel.isNotEmpty) {
       request.fields['evaluation_level'] = evaluationLevel;
     }
     if (mode != null && mode.isNotEmpty) {
       request.fields['mode'] = mode;
+    }
+    if (forcePhonetic != null) {
+      request.fields['force_phonetic'] = forcePhonetic.toString();
+    }
+    if (allowQualityDowngrade != null) {
+      request.fields['allow_quality_downgrade'] = allowQualityDowngrade.toString();
     }
 
     final response = await _client.send(request).timeout(const Duration(seconds: 30));
@@ -270,8 +311,13 @@ class PronunciaApiService {
     String filePath,
     String referenceText, {
     String lang = 'es',
+    String? langSource,
+    String? langTarget,
+    String? targetIpa,
     String? evaluationLevel,
     String? mode,
+    bool? forcePhonetic,
+    bool? allowQualityDowngrade,
     String? feedbackLevel,
     bool persist = false,
   }) async {
@@ -288,11 +334,26 @@ class PronunciaApiService {
     if (lang.isNotEmpty) {
       request.fields['lang'] = lang;
     }
+    if (langSource != null && langSource.isNotEmpty) {
+      request.fields['lang_source'] = langSource;
+    }
+    if (langTarget != null && langTarget.isNotEmpty) {
+      request.fields['lang_target'] = langTarget;
+    }
+    if (targetIpa != null && targetIpa.trim().isNotEmpty) {
+      request.fields['target_ipa'] = targetIpa.trim();
+    }
     if (evaluationLevel != null && evaluationLevel.isNotEmpty) {
       request.fields['evaluation_level'] = evaluationLevel;
     }
     if (mode != null && mode.isNotEmpty) {
       request.fields['mode'] = mode;
+    }
+    if (forcePhonetic != null) {
+      request.fields['force_phonetic'] = forcePhonetic.toString();
+    }
+    if (allowQualityDowngrade != null) {
+      request.fields['allow_quality_downgrade'] = allowQualityDowngrade.toString();
     }
     if (feedbackLevel != null && feedbackLevel.isNotEmpty) {
       request.fields['feedback_level'] = feedbackLevel;
@@ -301,7 +362,7 @@ class PronunciaApiService {
       request.fields['persist'] = 'true';
     }
 
-    final response = await _client.send(request).timeout(_requestTimeout);
+    final response = await _client.send(request).timeout(_feedbackTimeout);
     final body = await response.stream.bytesToString();
     _log('Response status: ${response.statusCode}');
     if (response.statusCode == 200) {
@@ -329,6 +390,11 @@ class ApiState {
   final FeedbackResult? feedbackResult;
   final String? lastAudioPath;
   final String? lastReferenceText;
+  final String? lastTargetIpa;
+  final String? lastLangSource;
+  final String? lastLangTarget;
+  final bool? lastForcePhonetic;
+  final bool? lastAllowQualityDowngrade;
   final bool isQuickResult;
 
   ApiState({
@@ -338,6 +404,11 @@ class ApiState {
     this.feedbackResult,
     this.lastAudioPath,
     this.lastReferenceText,
+    this.lastTargetIpa,
+    this.lastLangSource,
+    this.lastLangTarget,
+    this.lastForcePhonetic,
+    this.lastAllowQualityDowngrade,
     this.isQuickResult = false,
   });
 
@@ -350,6 +421,11 @@ class ApiState {
     bool clearFeedback = false,
     String? lastAudioPath,
     String? lastReferenceText,
+    String? lastTargetIpa,
+    String? lastLangSource,
+    String? lastLangTarget,
+    bool? lastForcePhonetic,
+    bool? lastAllowQualityDowngrade,
     bool? isQuickResult,
   }) {
     return ApiState(
@@ -359,6 +435,12 @@ class ApiState {
       feedbackResult: clearFeedback ? null : (feedbackResult ?? this.feedbackResult),
       lastAudioPath: lastAudioPath ?? this.lastAudioPath,
       lastReferenceText: lastReferenceText ?? this.lastReferenceText,
+      lastTargetIpa: lastTargetIpa ?? this.lastTargetIpa,
+      lastLangSource: lastLangSource ?? this.lastLangSource,
+      lastLangTarget: lastLangTarget ?? this.lastLangTarget,
+      lastForcePhonetic: lastForcePhonetic ?? this.lastForcePhonetic,
+      lastAllowQualityDowngrade:
+          lastAllowQualityDowngrade ?? this.lastAllowQualityDowngrade,
       isQuickResult: isQuickResult ?? this.isQuickResult,
     );
   }
@@ -372,9 +454,14 @@ class ApiNotifier extends StateNotifier<ApiState> {
   Future<void> processAudio(
     String? path, {
     String? referenceText,
+    String? targetIpa,
     String? lang,
+    String? langSource,
+    String? langTarget,
     String? evaluationLevel,
     String? mode,
+    bool? forcePhonetic,
+    bool? allowQualityDowngrade,
     bool quick = true,
   }) async {
     if (path == null || path.trim().isEmpty) {
@@ -396,22 +483,37 @@ class ApiNotifier extends StateNotifier<ApiState> {
     try {
       TranscriptionResult result;
       final trimmedReference = referenceText?.trim();
-      if (trimmedReference != null && trimmedReference.isNotEmpty) {
+      final trimmedTargetIpa = targetIpa?.trim();
+      final hasReferenceText = trimmedReference != null && trimmedReference.isNotEmpty;
+      final hasTargetIpa = trimmedTargetIpa != null && trimmedTargetIpa.isNotEmpty;
+      final effectiveReference = hasReferenceText ? trimmedReference : (hasTargetIpa ? '__manual_ipa__' : null);
+
+      if (effectiveReference != null) {
         if (quick) {
           result = await _service.quickCompare(
             path,
-            trimmedReference,
+            effectiveReference,
             lang: lang ?? 'es',
+            langSource: langSource,
+            langTarget: langTarget,
+            targetIpa: trimmedTargetIpa,
             evaluationLevel: evaluationLevel,
             mode: mode,
+            forcePhonetic: forcePhonetic,
+            allowQualityDowngrade: allowQualityDowngrade,
           );
         } else {
           result = await _service.compare(
             path,
-            trimmedReference,
+            effectiveReference,
             lang: lang ?? 'es',
+            langSource: langSource,
+            langTarget: langTarget,
+            targetIpa: trimmedTargetIpa,
             evaluationLevel: evaluationLevel,
             mode: mode,
+            forcePhonetic: forcePhonetic,
+            allowQualityDowngrade: allowQualityDowngrade,
           );
         }
       } else {
@@ -428,8 +530,13 @@ class ApiNotifier extends StateNotifier<ApiState> {
         result: result,
         error: noSpeechWarning,
         lastAudioPath: path,
-        lastReferenceText: trimmedReference,
-        isQuickResult: quick && trimmedReference != null && trimmedReference.isNotEmpty,
+        lastReferenceText: effectiveReference,
+        lastTargetIpa: trimmedTargetIpa,
+        lastLangSource: langSource,
+        lastLangTarget: langTarget,
+        lastForcePhonetic: forcePhonetic,
+        lastAllowQualityDowngrade: allowQualityDowngrade,
+        isQuickResult: quick && effectiveReference != null,
       );
     } on TimeoutException catch (e) {
       AppLogger.w('ApiNotifier', 'Timeout error: $e');
@@ -465,28 +572,47 @@ class ApiNotifier extends StateNotifier<ApiState> {
   Future<void> processFeedback({
     String? path,
     String? referenceText,
+    String? targetIpa,
     String? lang,
+    String? langSource,
+    String? langTarget,
     String? evaluationLevel,
     String? mode,
+    bool? forcePhonetic,
+    bool? allowQualityDowngrade,
     String? feedbackLevel,
   }) async {
     final audioPath = path ?? state.lastAudioPath;
     final ref = referenceText ?? state.lastReferenceText;
-    if (audioPath == null || ref == null || ref.isEmpty) return;
+    final activeTargetIpa = targetIpa ?? state.lastTargetIpa;
+    final activeLangSource = langSource ?? state.lastLangSource;
+    final activeLangTarget = langTarget ?? state.lastLangTarget;
+    final activeForcePhonetic = forcePhonetic ?? state.lastForcePhonetic;
+    final activeAllowQualityDowngrade =
+      allowQualityDowngrade ?? state.lastAllowQualityDowngrade;
+    final hasReference = ref != null && ref.isNotEmpty;
+    final hasTargetIpa = activeTargetIpa != null && activeTargetIpa.trim().isNotEmpty;
+    if (audioPath == null || (!hasReference && !hasTargetIpa)) return;
+    final effectiveReference = hasReference ? ref! : '__manual_ipa__';
 
     state = state.copyWith(
       isLoading: true,
       error: null,
-      clearResult: true,
+      clearResult: false,
       clearFeedback: true,
     );
     try {
       final result = await _service.feedback(
         audioPath,
-        ref,
+        effectiveReference,
         lang: lang ?? 'es',
+        langSource: activeLangSource,
+        langTarget: activeLangTarget,
+        targetIpa: activeTargetIpa,
         evaluationLevel: evaluationLevel,
         mode: mode,
+        forcePhonetic: activeForcePhonetic,
+        allowQualityDowngrade: activeAllowQualityDowngrade,
         feedbackLevel: feedbackLevel,
       );
       _logAudioChainToOverlay(result.compare.meta);
@@ -495,15 +621,20 @@ class ApiNotifier extends StateNotifier<ApiState> {
         result: result.compare,
         feedbackResult: result,
         lastAudioPath: audioPath,
-        lastReferenceText: ref,
+        lastReferenceText: effectiveReference,
+        lastTargetIpa: activeTargetIpa,
+        lastLangSource: activeLangSource,
+        lastLangTarget: activeLangTarget,
+        lastForcePhonetic: activeForcePhonetic,
+        lastAllowQualityDowngrade: activeAllowQualityDowngrade,
         isQuickResult: false,
       );
     } on TimeoutException catch (e) {
       AppLogger.w('ApiNotifier', 'Timeout error: $e');
       state = state.copyWith(
         isLoading: false,
-        error: 'Timeout: El servidor tardó demasiado en responder.',
-        clearResult: true,
+        error: 'El feedback avanzado tardó demasiado. Conservamos tu comparación rápida; vuelve a intentar en unos segundos.',
+        clearResult: false,
         clearFeedback: true,
       );
     } on SocketException catch (e) {
@@ -511,7 +642,7 @@ class ApiNotifier extends StateNotifier<ApiState> {
       state = state.copyWith(
         isLoading: false,
         error: 'Error de red: No se pudo conectar a ${_service.baseUrl}. ¿Está el backend encendido?',
-        clearResult: true,
+        clearResult: false,
         clearFeedback: true,
       );
     } catch (e, stack) {
@@ -521,7 +652,7 @@ class ApiNotifier extends StateNotifier<ApiState> {
       state = state.copyWith(
         isLoading: false,
         error: msg,
-        clearResult: true,
+        clearResult: false,
         clearFeedback: true,
       );
     }
@@ -530,14 +661,24 @@ class ApiNotifier extends StateNotifier<ApiState> {
   /// Re-process the last recording with full LLM feedback analysis.
   Future<void> reprocessFull({
     String? lang,
+    String? langSource,
+    String? langTarget,
+    String? targetIpa,
     String? evaluationLevel,
     String? mode,
+    bool? forcePhonetic,
+    bool? allowQualityDowngrade,
     String? feedbackLevel,
   }) async {
     await processFeedback(
       lang: lang,
+      langSource: langSource,
+      langTarget: langTarget,
+      targetIpa: targetIpa,
       evaluationLevel: evaluationLevel,
       mode: mode,
+      forcePhonetic: forcePhonetic,
+      allowQualityDowngrade: allowQualityDowngrade,
       feedbackLevel: feedbackLevel,
     );
   }

@@ -137,7 +137,7 @@ class DrillsPage extends StatelessWidget {
                       child: Center(
                         child: Column(
                           children: [
-                            Icon(
+                            const Icon(
                               Icons.check_circle_outline,
                               size: 48,
                               color: AppTheme.success,

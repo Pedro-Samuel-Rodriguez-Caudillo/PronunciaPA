@@ -6,63 +6,87 @@ import '../widgets/mode_selector_widget.dart';
 /// User preferences for the app
 class UserPreferences {
   final String lang;
+  final String langSource;
+  final String langTarget;
   final TranscriptionMode mode;
   final String feedbackLevel; // 'casual' or 'precise'
   final String comparisonMode; // 'casual', 'objective', or 'phonetic'
   final bool darkMode;
   final bool hapticFeedback;
   final bool audioFeedback;
+  final bool forcePhonetic;
+  final bool allowQualityDowngrade;
   /// Model ID to pass as ?voice= to /api/tts/speak. null = server default.
   final String? selectedTtsVoice;
 
   const UserPreferences({
     this.lang = 'en',
+    this.langSource = 'en',
+    this.langTarget = 'en',
     this.mode = TranscriptionMode.phonemic,
     this.feedbackLevel = 'casual',
     this.comparisonMode = 'objective',
     this.darkMode = false,
     this.hapticFeedback = true,
     this.audioFeedback = true,
+    this.forcePhonetic = false,
+    this.allowQualityDowngrade = true,
     this.selectedTtsVoice,
   });
 
   UserPreferences copyWith({
     String? lang,
+    String? langSource,
+    String? langTarget,
     TranscriptionMode? mode,
     String? feedbackLevel,
     String? comparisonMode,
     bool? darkMode,
     bool? hapticFeedback,
     bool? audioFeedback,
+    bool? forcePhonetic,
+    bool? allowQualityDowngrade,
     String? selectedTtsVoice,
     bool clearTtsVoice = false,
   }) {
     return UserPreferences(
       lang: lang ?? this.lang,
+      langSource: langSource ?? this.langSource,
+      langTarget: langTarget ?? this.langTarget,
       mode: mode ?? this.mode,
       feedbackLevel: feedbackLevel ?? this.feedbackLevel,
       comparisonMode: comparisonMode ?? this.comparisonMode,
       darkMode: darkMode ?? this.darkMode,
       hapticFeedback: hapticFeedback ?? this.hapticFeedback,
       audioFeedback: audioFeedback ?? this.audioFeedback,
+      forcePhonetic: forcePhonetic ?? this.forcePhonetic,
+      allowQualityDowngrade:
+          allowQualityDowngrade ?? this.allowQualityDowngrade,
       selectedTtsVoice: clearTtsVoice ? null : (selectedTtsVoice ?? this.selectedTtsVoice),
     );
   }
 
   Map<String, dynamic> toJson() => {
         'lang': lang,
+      'langSource': langSource,
+      'langTarget': langTarget,
         'mode': mode.name,
         'feedbackLevel': feedbackLevel,
         'comparisonMode': comparisonMode,
         'darkMode': darkMode,
         'hapticFeedback': hapticFeedback,
         'audioFeedback': audioFeedback,
+        'forcePhonetic': forcePhonetic,
+        'allowQualityDowngrade': allowQualityDowngrade,
         if (selectedTtsVoice != null) 'selectedTtsVoice': selectedTtsVoice,
       };
 
   factory UserPreferences.fromJson(Map<String, dynamic> json) {
+    final resolvedLang = (json['lang'] ?? 'en') as String;
     return UserPreferences(
-      lang: json['lang'] ?? 'en',
+      lang: resolvedLang,
+      langSource: (json['langSource'] ?? resolvedLang) as String,
+      langTarget: (json['langTarget'] ?? resolvedLang) as String,
       mode: TranscriptionMode.values.firstWhere(
         (m) => m.name == json['mode'],
         orElse: () => TranscriptionMode.phonemic,
@@ -72,6 +96,8 @@ class UserPreferences {
       darkMode: json['darkMode'] ?? false,
       hapticFeedback: json['hapticFeedback'] ?? true,
       audioFeedback: json['audioFeedback'] ?? true,
+      forcePhonetic: json['forcePhonetic'] ?? false,
+      allowQualityDowngrade: json['allowQualityDowngrade'] ?? true,
       selectedTtsVoice: json['selectedTtsVoice'] as String?,
     );
   }
@@ -136,7 +162,17 @@ class PreferencesNotifier extends StateNotifier<UserPreferences> {
   }
 
   void setLang(String lang) {
-    state = state.copyWith(lang: lang);
+    state = state.copyWith(lang: lang, langSource: lang, langTarget: lang);
+    _save();
+  }
+
+  void setLangSource(String lang) {
+    state = state.copyWith(langSource: lang);
+    _save();
+  }
+
+  void setLangTarget(String lang) {
+    state = state.copyWith(langTarget: lang, lang: lang);
     _save();
   }
 
@@ -167,6 +203,16 @@ class PreferencesNotifier extends StateNotifier<UserPreferences> {
 
   void setAudioFeedback(bool enabled) {
     state = state.copyWith(audioFeedback: enabled);
+    _save();
+  }
+
+  void setForcePhonetic(bool enabled) {
+    state = state.copyWith(forcePhonetic: enabled);
+    _save();
+  }
+
+  void setAllowQualityDowngrade(bool enabled) {
+    state = state.copyWith(allowQualityDowngrade: enabled);
     _save();
   }
 

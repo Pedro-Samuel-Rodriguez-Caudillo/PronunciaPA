@@ -1,12 +1,12 @@
-/// Entidades de dominio para la visualización dual de IPA.
-///
-/// Corresponde a los modelos [IPADisplay] e [IPADisplayToken] del backend
-/// (`ipa_server/models.py`).
-///
-/// Soporta:
-/// - Nivel fonémico (`phonemic`) y fonético (`phonetic`).
-/// - Modo técnico (IPA puro) y casual (transliteración coloquial).
-/// - Tokens coloreados según distancia articulatoria.
+// Entidades de dominio para la visualización dual de IPA.
+//
+// Corresponde a los modelos IPADisplay e IPADisplayToken del backend
+// (`ipa_server/models.py`).
+//
+// Soporta:
+// - Nivel fonémico (`phonemic`) y fonético (`phonetic`).
+// - Modo técnico (IPA puro) y casual (transliteración coloquial).
+// - Tokens coloreados según distancia articulatoria.
 
 // ---------------------------------------------------------------------------
 // Color semántico de token

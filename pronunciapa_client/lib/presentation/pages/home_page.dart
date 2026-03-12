@@ -2,14 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import '../widgets/recorder_widget.dart';
-import '../widgets/ipa_display_widget.dart';
-import '../widgets/diff_viewer_widget.dart';
 import '../providers/api_provider.dart';
 import '../providers/preferences_provider.dart';
 import '../../domain/entities/ipa_cli.dart';
 import 'settings_page.dart';
 import 'results_page.dart';
-import '../../domain/entities/feedback_result.dart';
 import 'ipa_practice_page.dart';
 import 'ipa_learn_page.dart';
 import 'models_page.dart';
@@ -26,11 +23,13 @@ class HomePage extends ConsumerStatefulWidget {
 
 class _HomePageState extends ConsumerState<HomePage> {
   final TextEditingController _textController = TextEditingController();
+  final TextEditingController _targetIpaController = TextEditingController();
   IpaCliPayload? _ipaPayload;
 
   @override
   void dispose() {
     _textController.dispose();
+    _targetIpaController.dispose();
     super.dispose();
   }
 
@@ -108,6 +107,9 @@ class _HomePageState extends ConsumerState<HomePage> {
                       referenceText: _textController.text.isNotEmpty
                           ? _textController.text
                           : null,
+                      targetIpa: _targetIpaController.text.isNotEmpty
+                          ? _targetIpaController.text
+                          : null,
                     ),
                   ),
 
@@ -133,8 +135,8 @@ class _HomePageState extends ConsumerState<HomePage> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showIpaImportDialog(context),
-        child: const Icon(Icons.upload_file),
         tooltip: 'Import Practice Set',
+        child: const Icon(Icons.upload_file),
       ),
     );
   }
@@ -202,12 +204,22 @@ class _HomePageState extends ConsumerState<HomePage> {
                 final notifier = ref.read(apiNotifierProvider.notifier);
                 final prefs = ref.read(preferencesProvider);
                 await notifier.reprocessFull(
-                  lang: prefs.lang,
+                  lang: prefs.langTarget,
+                  langSource: prefs.langSource,
+                  langTarget: prefs.langTarget,
+                  targetIpa: _targetIpaController.text.trim().isEmpty
+                      ? null
+                      : _targetIpaController.text.trim(),
                   evaluationLevel: prefs.mode.name,
                   mode: prefs.comparisonMode,
+                  forcePhonetic: prefs.forcePhonetic,
+                  allowQualityDowngrade: prefs.allowQualityDowngrade,
                 );
+                if (!context.mounted) {
+                  return;
+                }
                 final updatedState = ref.read(apiNotifierProvider);
-                if (updatedState.result != null && mounted) {
+                if (updatedState.result != null) {
                   _navigateToResults(context, updatedState.result!);
                 }
               } else {
@@ -215,9 +227,9 @@ class _HomePageState extends ConsumerState<HomePage> {
               }
             },
             gradient: AppTheme.coolGradient,
-            child: Row(
+            child: const Row(
               mainAxisAlignment: MainAxisAlignment.center,
-              children: const [
+              children: [
                 Icon(Icons.insights, color: Colors.white),
                 SizedBox(width: 8),
                 Text(
@@ -283,11 +295,71 @@ class _HomePageState extends ConsumerState<HomePage> {
   }
 
   Widget _buildTargetCard(ThemeData theme) {
+    final prefs = ref.watch(preferencesProvider);
+    final prefsNotifier = ref.read(preferencesProvider.notifier);
+
     return GlassCard(
       padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Text(
+            'Lengua hablada y lengua objetivo',
+            style: theme.textTheme.labelLarge?.copyWith(
+              color: theme.colorScheme.primary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  value: prefs.langSource,
+                  decoration: const InputDecoration(
+                    labelText: 'Hablo',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  items: availableLanguages.map((lang) {
+                    final tempPrefs = UserPreferences(lang: lang);
+                    return DropdownMenuItem(
+                      value: lang,
+                      child: Text('${tempPrefs.langFlag} ${tempPrefs.langDisplayName}'),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    if (value != null) {
+                      prefsNotifier.setLangSource(value);
+                    }
+                  },
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  value: prefs.langTarget,
+                  decoration: const InputDecoration(
+                    labelText: 'Quiero hablar',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  items: availableLanguages.map((lang) {
+                    final tempPrefs = UserPreferences(lang: lang);
+                    return DropdownMenuItem(
+                      value: lang,
+                      child: Text('${tempPrefs.langFlag} ${tempPrefs.langDisplayName}'),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    if (value != null) {
+                      prefsNotifier.setLangTarget(value);
+                    }
+                  },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
           Text(
             'Frase objetivo',
             style: theme.textTheme.labelLarge?.copyWith(
@@ -300,6 +372,27 @@ class _HomePageState extends ConsumerState<HomePage> {
             style: theme.textTheme.headlineSmall,
             decoration: InputDecoration(
               hintText: 'Escribe lo que vas a decir...',
+              hintStyle: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            maxLines: null,
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'IPA objetivo (opcional, manual)',
+            style: theme.textTheme.labelLarge?.copyWith(
+              color: theme.colorScheme.primary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _targetIpaController,
+            style: theme.textTheme.titleMedium?.copyWith(fontFamily: 'monospace'),
+            decoration: InputDecoration(
+              hintText: 'Ej: h o l a',
+              helperText: 'Si lo completas, se usara como IPA objetivo en la comparación.',
               hintStyle: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -363,96 +456,6 @@ class _HomePageState extends ConsumerState<HomePage> {
     );
   }
 
-  Widget _buildResultCard(ThemeData theme, TranscriptionResult result) {
-    final score = result.score ?? 0.0; // Backend now returns 0-100
-    final isGood = score > 80;
-
-    return GlassCard(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text("Resultado", style: theme.textTheme.titleMedium),
-                  if (result.score != null)
-                    Text(
-                      "${score.toStringAsFixed(0)}% Match",
-                      style: theme.textTheme.headlineMedium?.copyWith(
-                        color: isGood ? AppTheme.success : AppTheme.warning,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                ],
-              ),
-              Icon(
-                isGood ? Icons.check_circle : Icons.warning_amber,
-                size: 48,
-                color: isGood ? AppTheme.success : AppTheme.warning,
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          Text("Phonetic Breakdown", style: theme.textTheme.labelLarge),
-          const SizedBox(height: 12),
-
-          if (result.ops != null && result.ops!.isNotEmpty)
-            DiffViewerWidget(
-              tokens: result.ops!.map((op) {
-                DiffTag tag;
-                switch (op.op) {
-                  case 'eq':
-                    tag = DiffTag.match;
-                    break;
-                  case 'sub':
-                    tag = DiffTag.substitution;
-                    break;
-                  case 'del':
-                    tag = DiffTag.deletion;
-                    break;
-                  case 'ins':
-                    tag = DiffTag.insertion;
-                    break;
-                  default:
-                    tag = DiffTag.match;
-                }
-                return DiffToken(op.hyp ?? op.ref ?? '', tag);
-              }).toList(),
-            )
-          else if (result.alignment != null)
-            _buildLegacyAlignment(result.alignment!)
-          else
-            IpaDisplayWidget(label: "Raw IPA", ipa: result.ipa),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLegacyAlignment(List<List<String?>> alignment) {
-    // Fallback for old-style alignment display
-    return Wrap(
-      spacing: 8,
-      runSpacing: 12,
-      alignment: WrapAlignment.center,
-      children: alignment.map((pair) {
-        final ref = pair[0];
-        final hyp = pair[1];
-        final match = ref == hyp;
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(
-            color: match ? Colors.green.withOpacity(0.15) : Colors.red.withOpacity(0.15),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Text(hyp ?? ref ?? '', style: const TextStyle(fontFamily: 'monospace')),
-        );
-      }).toList(),
-    );
-  }
-
   Future<void> _showIpaImportDialog(BuildContext context) async {
     final controller = TextEditingController();
     final result = await showDialog<String?>(
@@ -484,17 +487,18 @@ class _HomePageState extends ConsumerState<HomePage> {
         ],
       ),
     );
+    if (!context.mounted) {
+      return;
+    }
 
     if (result != null && result.isNotEmpty) {
       try {
         final payload = parseIpaCliPayload(result);
         setState(() => _ipaPayload = payload);
       } catch (e) {
-        if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text("Invalid JSON: $e")),
-            );
-        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Invalid JSON: $e")),
+        );
       }
     }
   }

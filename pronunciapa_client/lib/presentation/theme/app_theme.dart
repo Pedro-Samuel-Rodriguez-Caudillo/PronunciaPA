@@ -222,7 +222,6 @@ class AppTheme {
       seedColor: primaryStart,
       brightness: brightness,
       surface: isDark ? darkSurface : lightSurface,
-      background: isDark ? darkBg : lightBg,
     ).copyWith(
       secondary: coolStart,
       tertiary: accentStart,
@@ -318,33 +317,33 @@ class AppTheme {
       ),
       segmentedButtonTheme: SegmentedButtonThemeData(
         style: ButtonStyle(
-          backgroundColor: MaterialStateProperty.resolveWith<Color?>((states) {
-            if (states.contains(MaterialState.selected)) {
+          backgroundColor: WidgetStateProperty.resolveWith<Color?>((states) {
+            if (states.contains(WidgetState.selected)) {
               return scheme.primary;
             }
             return glass.surface;
           }),
-          foregroundColor: MaterialStateProperty.resolveWith<Color?>((states) {
-            if (states.contains(MaterialState.selected)) {
+          foregroundColor: WidgetStateProperty.resolveWith<Color?>((states) {
+            if (states.contains(WidgetState.selected)) {
               return scheme.onPrimary;
             }
             return scheme.onSurfaceVariant;
           }),
-          side: MaterialStateProperty.all(BorderSide(color: glass.border)),
-          shape: MaterialStateProperty.all(
+          side: WidgetStatePropertyAll(BorderSide(color: glass.border)),
+          shape: WidgetStatePropertyAll(
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         ),
       ),
       switchTheme: SwitchThemeData(
-        thumbColor: MaterialStateProperty.resolveWith<Color?>((states) {
-          if (states.contains(MaterialState.selected)) {
+        thumbColor: WidgetStateProperty.resolveWith<Color?>((states) {
+          if (states.contains(WidgetState.selected)) {
             return scheme.primary;
           }
           return scheme.surfaceContainerHighest;
         }),
-        trackColor: MaterialStateProperty.resolveWith<Color?>((states) {
-          if (states.contains(MaterialState.selected)) {
+        trackColor: WidgetStateProperty.resolveWith<Color?>((states) {
+          if (states.contains(WidgetState.selected)) {
             return scheme.primary.withOpacity(0.35);
           }
           return glass.surfaceStrong;

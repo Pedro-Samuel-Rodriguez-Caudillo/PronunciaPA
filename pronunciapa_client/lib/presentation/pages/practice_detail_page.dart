@@ -7,7 +7,6 @@ import '../theme/app_theme.dart';
 import '../widgets/app_background.dart';
 import '../widgets/diff_viewer_widget.dart';
 import '../widgets/feedback_level_selector.dart';
-import '../../domain/entities/feedback_result.dart';
 
 /// Practice detail page for a specific IPA sound
 class PracticeDetailPage extends ConsumerStatefulWidget {
@@ -259,7 +258,7 @@ class _PracticeDetailPageState extends ConsumerState<PracticeDetailPage> {
                     ),
                   ],
                   // Backend warnings (e.g. out-of-vocabulary IPA tokens)
-                  if (reportWarnings.isNotEmpty) ...[  
+                  if (reportWarnings.isNotEmpty) ...[
                     const SizedBox(height: 8),
                     Container(
                       padding: const EdgeInsets.all(10),
@@ -288,11 +287,11 @@ class _PracticeDetailPageState extends ConsumerState<PracticeDetailPage> {
                   // LLM Feedback — summary + advice
                   const Divider(),
                   const SizedBox(height: 4),
-                  Row(
+                  const Row(
                     children: [
-                      const Icon(Icons.lightbulb_outline, size: 16, color: Colors.amber),
-                      const SizedBox(width: 6),
-                      const Text(
+                      Icon(Icons.lightbulb_outline, size: 16, color: Colors.amber),
+                      SizedBox(width: 6),
+                      Text(
                         'Retroalimentación IA',
                         style: TextStyle(fontWeight: FontWeight.bold),
                       ),

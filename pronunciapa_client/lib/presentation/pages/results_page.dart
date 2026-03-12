@@ -99,7 +99,7 @@ class ResultsPage extends ConsumerWidget {
                         children: [
                           Row(
                             children: [
-                              Icon(Icons.lightbulb_outline, color: AppTheme.warning),
+                              const Icon(Icons.lightbulb_outline, color: AppTheme.warning),
                               const SizedBox(width: 8),
                               Text('Sugerencias IA', style: theme.textTheme.titleLarge),
                             ],
@@ -128,7 +128,7 @@ class ResultsPage extends ConsumerWidget {
                             ...feedbackPayload!.warnings!.map(
                               (w) => Row(
                                 children: [
-                                  Icon(Icons.warning_amber_outlined,
+                                  const Icon(Icons.warning_amber_outlined,
                                       size: 16, color: AppTheme.warning),
                                   const SizedBox(width: 6),
                                   Expanded(

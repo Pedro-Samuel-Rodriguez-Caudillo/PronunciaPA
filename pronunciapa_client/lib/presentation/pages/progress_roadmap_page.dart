@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/lesson_plan_provider.dart';
-import '../theme/app_theme.dart';
 import '../widgets/app_background.dart';
 
 /// Roadmap progress page — shows topic-by-topic progress and the next
@@ -88,7 +87,7 @@ class _ProgressRoadmapPageState extends ConsumerState<ProgressRoadmapPage> {
       children: [
         // ── Next lesson card ─────────────────────────────────────────────
         if (state.plan != null) ...[
-          _SectionHeader(title: 'Próxima lección', icon: Icons.auto_awesome),
+          const _SectionHeader(title: 'Próxima lección', icon: Icons.auto_awesome),
           const SizedBox(height: 8),
           _LessonCard(plan: state.plan!, theme: theme),
           const SizedBox(height: 24),

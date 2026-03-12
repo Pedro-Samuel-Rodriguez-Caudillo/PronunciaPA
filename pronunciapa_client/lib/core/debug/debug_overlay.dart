@@ -1,10 +1,10 @@
 import 'dart:io';
 
-import 'package:just_audio/just_audio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../audio/audio_playback_controller.dart';
 import '../../presentation/providers/recorder_provider.dart';
 import 'debug_log_store.dart';
 
@@ -156,20 +156,15 @@ class _AudioDebugTab extends ConsumerStatefulWidget {
 }
 
 class _AudioDebugTabState extends ConsumerState<_AudioDebugTab> {
-  late final AudioPlayer _player;
-  bool _isPlaying = false;
-  bool _isCompleted = false;
+  late final AudioPlaybackController _player;
 
   @override
   void initState() {
     super.initState();
-    _player = AudioPlayer();
-    _player.playerStateStream.listen((s) {
+    _player = AudioPlaybackController();
+    _player.addListener(() {
       if (mounted) {
-        setState(() {
-          _isPlaying = s.playing && s.processingState != ProcessingState.completed;
-          _isCompleted = s.processingState == ProcessingState.completed;
-        });
+        setState(() {});
       }
     });
   }
@@ -181,11 +176,13 @@ class _AudioDebugTabState extends ConsumerState<_AudioDebugTab> {
   }
 
   Future<void> _togglePlay(String path) async {
-    if (_isPlaying) {
+    if (!_player.isSupported) {
+      return;
+    }
+    if (_player.state.isPlaying) {
       await _player.stop();
     } else {
-      await _player.setFilePath(path);
-      await _player.play();
+      await _player.playFile(path);
     }
   }
 
@@ -207,8 +204,23 @@ class _AudioDebugTabState extends ConsumerState<_AudioDebugTab> {
       );
     }
 
-    final isPlaying = _isPlaying;
-    final isDone = _isCompleted;
+    if (!_player.isSupported) {
+      return const Center(
+        child: Text(
+          'Audio playback is not available on this platform.',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: Colors.grey,
+            fontSize: 12,
+            fontFamily: 'monospace',
+          ),
+        ),
+      );
+    }
+
+    final playbackState = _player.state;
+    final isPlaying = playbackState.isPlaying;
+    final isDone = playbackState.isCompleted;
 
     return Padding(
       padding: const EdgeInsets.all(16),
@@ -269,6 +281,19 @@ class _AudioDebugTabState extends ConsumerState<_AudioDebugTab> {
               onPressed: () => _togglePlay(lastPath),
             ),
           ),
+          if (playbackState.errorMessage != null &&
+              playbackState.status == AudioPlaybackStatus.error)
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Text(
+                playbackState.errorMessage!,
+                style: const TextStyle(
+                  color: Colors.orangeAccent,
+                  fontSize: 11,
+                  fontFamily: 'monospace',
+                ),
+              ),
+            ),
           if (isDone)
             const Padding(
               padding: EdgeInsets.only(top: 12),

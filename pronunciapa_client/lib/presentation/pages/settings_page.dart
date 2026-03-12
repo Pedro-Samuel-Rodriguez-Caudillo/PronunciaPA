@@ -38,10 +38,10 @@ class SettingsPage extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Idioma de práctica'),
+                      const Text('Lengua que hablas (audio)'),
                       const SizedBox(height: 12),
                       DropdownButtonFormField<String>(
-                        value: prefs.lang,
+                        value: prefs.langSource,
                         decoration: const InputDecoration(
                           border: OutlineInputBorder(),
                           isDense: true,
@@ -56,9 +56,61 @@ class SettingsPage extends ConsumerWidget {
                         }).toList(),
                         onChanged: (value) {
                           if (value != null) {
-                            prefsNotifier.setLang(value);
+                            prefsNotifier.setLangSource(value);
                           }
                         },
+                      ),
+                      const SizedBox(height: 16),
+                      const Text('Lengua objetivo (a practicar)'),
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<String>(
+                        value: prefs.langTarget,
+                        decoration: const InputDecoration(
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        items: availableLanguages.map((lang) {
+                          final tempPrefs = UserPreferences(lang: lang);
+                          return DropdownMenuItem(
+                            value: lang,
+                            child:
+                                Text('${tempPrefs.langFlag} ${tempPrefs.langDisplayName}'),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          if (value != null) {
+                            prefsNotifier.setLangTarget(value);
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // Fidelity Policy Section
+                _buildSectionHeader(context, '🧪 Política de fidelidad'),
+                GlassCard(
+                  padding: EdgeInsets.zero,
+                  child: Column(
+                    children: [
+                      SwitchListTile(
+                        title: const Text('Forzar modo fonético'),
+                        subtitle: const Text(
+                          'Mantiene análisis fonético detallado aunque la calidad del audio sea baja.',
+                        ),
+                        value: prefs.forcePhonetic,
+                        onChanged: prefsNotifier.setForcePhonetic,
+                      ),
+                      const Divider(height: 1),
+                      SwitchListTile(
+                        title: const Text('Permitir degradación por calidad'),
+                        subtitle: const Text(
+                          'Si está activo, el sistema puede bajar de fonético a fonémico cuando detecta audio débil.',
+                        ),
+                        value: prefs.allowQualityDowngrade,
+                        onChanged: prefsNotifier.setAllowQualityDowngrade,
                       ),
                     ],
                   ),

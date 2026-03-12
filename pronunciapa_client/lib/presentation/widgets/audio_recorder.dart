@@ -6,10 +6,10 @@ class AudioRecorder extends StatefulWidget {
   final Function(String error)? onError;
 
   const AudioRecorder({
-    Key? key,
+    super.key,
     required this.onRecordingComplete,
     this.onError,
-  }) : super(key: key);
+  });
 
   @override
   State<AudioRecorder> createState() => _AudioRecorderState();
@@ -78,7 +78,7 @@ class _AudioRecorderState extends State<AudioRecorder> {
     try {
       // Note: Get the recorded audio file path here
       // For now, this is a placeholder
-      final audioPath = '/path/to/recorded/audio.wav';
+      const audioPath = '/path/to/recorded/audio.wav';
       widget.onRecordingComplete(audioPath);
     } catch (e) {
       setState(() {

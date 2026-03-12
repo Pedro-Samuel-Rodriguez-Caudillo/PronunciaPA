@@ -1,6 +1,7 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:just_audio/just_audio.dart';
+
+import '../../core/audio/audio_playback_controller.dart';
+import '../../core/audio/audio_playback_support.dart';
 
 /// Button widget that plays audio from a URL.
 /// Pass [voice] to append `?voice=<id>` to TTS endpoint URLs.
@@ -27,29 +28,21 @@ class AudioPlayerButton extends StatefulWidget {
 }
 
 class _AudioPlayerButtonState extends State<AudioPlayerButton> {
-  final AudioPlayer _audioPlayer = AudioPlayer();
-  StreamSubscription? _stateSubscription;
-  bool _isPlaying = false;
-  bool _isLoading = false;
+  late final AudioPlaybackController _audioPlayer;
 
   @override
   void initState() {
     super.initState();
-
-    // Listen to player state changes; store subscription to cancel on dispose.
-    _stateSubscription = _audioPlayer.playerStateStream.listen((state) {
+    _audioPlayer = AudioPlaybackController();
+    _audioPlayer.addListener(() {
       if (mounted) {
-        setState(() {
-          _isPlaying = state.playing && state.processingState != ProcessingState.completed;
-          _isLoading = state.processingState == ProcessingState.loading || state.processingState == ProcessingState.buffering;
-        });
+        setState(() {});
       }
     });
   }
 
   @override
   void dispose() {
-    _stateSubscription?.cancel();
     _audioPlayer.dispose();
     super.dispose();
   }
@@ -57,18 +50,23 @@ class _AudioPlayerButtonState extends State<AudioPlayerButton> {
   Future<void> _playAudio() async {
     if (widget.audioUrl == null) return;
 
+    if (!_audioPlayer.isSupported) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(unsupportedAudioPlaybackMessage),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
     try {
-      setState(() {
-        _isLoading = true;
-      });
+      final playbackState = _audioPlayer.state;
 
       // Stop if already playing
-      if (_isPlaying) {
+      if (playbackState.isPlaying) {
         await _audioPlayer.stop();
-        setState(() {
-          _isPlaying = false;
-          _isLoading = false;
-        });
         return;
       }
 
@@ -82,16 +80,9 @@ class _AudioPlayerButtonState extends State<AudioPlayerButton> {
       }
 
       // Play audio from URL
-      await _audioPlayer.setUrl(fullUrl);
-      await _audioPlayer.play();
-
+      await _audioPlayer.playUrl(fullUrl);
     } catch (e) {
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _isPlaying = false;
-        });
-        
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error al reproducir audio: ${e.toString()}'),
@@ -108,19 +99,27 @@ class _AudioPlayerButtonState extends State<AudioPlayerButton> {
       return const SizedBox.shrink();
     }
 
+    final playbackState = _audioPlayer.state;
+    final isLoading = playbackState.isLoading;
+    final isPlaying = playbackState.isPlaying;
+    final supportsPlayback = _audioPlayer.isSupported;
+
     return IconButton(
-      icon: _isLoading
+      icon: isLoading
           ? SizedBox(
               width: widget.iconSize,
               height: widget.iconSize,
               child: const CircularProgressIndicator(strokeWidth: 2),
             )
           : Icon(
-              _isPlaying ? Icons.stop : widget.playIcon,
+              isPlaying ? Icons.stop : widget.playIcon,
               size: widget.iconSize,
+              color: supportsPlayback ? null : Colors.grey,
             ),
-      onPressed: _isLoading ? null : _playAudio,
-      tooltip: _isPlaying ? 'Detener audio' : 'Reproducir audio',
+      onPressed: isLoading ? null : _playAudio,
+      tooltip: supportsPlayback
+          ? (isPlaying ? 'Detener audio' : 'Reproducir audio')
+          : unsupportedAudioPlaybackMessage,
     );
   }
 }

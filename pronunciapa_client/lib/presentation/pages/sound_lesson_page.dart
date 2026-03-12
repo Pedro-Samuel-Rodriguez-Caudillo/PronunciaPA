@@ -1,6 +1,7 @@
-import 'package:just_audio/just_audio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/audio/audio_playback_controller.dart';
+import '../../core/audio/audio_playback_support.dart';
 import '../providers/ipa_learning_provider.dart';
 import '../providers/progress_provider.dart';
 import '../providers/repository_provider.dart';
@@ -33,11 +34,12 @@ class _SoundLessonPageState extends ConsumerState<SoundLessonPage>
   bool _isLoading = true;
   int _sessionPracticeCount = 0;
   // Single player for minimal-pair audio so old playback stops on new tap.
-  final AudioPlayer _pairPlayer = AudioPlayer();
+  late final AudioPlaybackController _pairPlayer;
 
   @override
   void initState() {
     super.initState();
+    _pairPlayer = AudioPlaybackController();
     _tabController = TabController(length: 3, vsync: this);
     _loadDrills();
   }
@@ -80,11 +82,19 @@ class _SoundLessonPageState extends ConsumerState<SoundLessonPage>
 
   Future<void> _playPairAudio(String? audioUrl) async {
     if (audioUrl == null) return;
+    if (!_pairPlayer.isSupported) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(unsupportedAudioPlaybackMessage),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
     final baseUrl = ref.read(baseUrlProvider);
     final fullUrl = audioUrl.startsWith('http') ? audioUrl : '$baseUrl$audioUrl';
-    await _pairPlayer.stop();
-    await _pairPlayer.setUrl(fullUrl);
-    await _pairPlayer.play();
+    await _pairPlayer.playUrl(fullUrl);
   }
 
   @override

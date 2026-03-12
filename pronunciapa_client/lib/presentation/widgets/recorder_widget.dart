@@ -7,7 +7,17 @@ import '../theme/app_theme.dart';
 
 class RecorderWidget extends ConsumerWidget {
   final String? referenceText;
-  const RecorderWidget({super.key, this.referenceText});
+  final String? targetIpa;
+  final String? langSource;
+  final String? langTarget;
+
+  const RecorderWidget({
+    super.key,
+    this.referenceText,
+    this.targetIpa,
+    this.langSource,
+    this.langTarget,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -36,9 +46,14 @@ class RecorderWidget extends ConsumerWidget {
               await apiNotifier.processAudio(
                 path,
                 referenceText: referenceText,
-                lang: prefs.lang,
+                targetIpa: targetIpa,
+                lang: prefs.langTarget,
+                langSource: langSource ?? prefs.langSource,
+                langTarget: langTarget ?? prefs.langTarget,
                 evaluationLevel: prefs.mode.name,
                 mode: compareMode,
+                forcePhonetic: prefs.forcePhonetic,
+                allowQualityDowngrade: prefs.allowQualityDowngrade,
                 quick: true, // Trigger quick analysis first, LLM later dynamically via the button
               );
               return;

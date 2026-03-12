@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
@@ -49,7 +50,7 @@ class DebugHttpClient extends http.BaseClient {
 
       // Buffer the body so we can inspect it AND still return it.
       final bytes = await streamed.stream.toBytes();
-      final bodyStr = String.fromCharCodes(bytes);
+      final bodyStr = utf8.decode(bytes, allowMalformed: true);
       final preview =
           bodyStr.length > 500 ? '${bodyStr.substring(0, 500)}…' : bodyStr;
 

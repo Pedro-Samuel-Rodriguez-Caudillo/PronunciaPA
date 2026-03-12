@@ -546,20 +546,4 @@ class _IpaLearnPageState extends ConsumerState<IpaLearnPage> {
     }
   }
 
-  String _getDifficultyLabel(int difficulty) {
-    switch (difficulty) {
-      case 1:
-        return 'Easy';
-      case 2:
-        return 'Simple';
-      case 3:
-        return 'Moderate';
-      case 4:
-        return 'Challenging';
-      case 5:
-        return 'Advanced';
-      default:
-        return 'Unknown';
-    }
-  }
 }
