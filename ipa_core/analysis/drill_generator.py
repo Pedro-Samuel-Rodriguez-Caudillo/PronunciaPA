@@ -49,17 +49,29 @@ def _build_hints(phone: str) -> list[str]:
     """Genera hints de articulación para un fonema."""
     feats = get_phone_features(phone)
     hints: list[str] = []
-    manner = feats.get("manner", "")
-    place = feats.get("place", "")
+    
+    _add_manner_hint(hints, feats.get("manner", ""))
+    _add_place_hint(hints, feats.get("place", ""))
+    _add_voicing_hint(hints, feats)
+    
+    return hints
+
+
+def _add_manner_hint(hints: list[str], manner: str) -> None:
     if manner in _HINTS_BY_MANNER:
         hints.append(_HINTS_BY_MANNER[manner])
+
+
+def _add_place_hint(hints: list[str], place: str) -> None:
     if place in _HINTS_BY_PLACE:
         hints.append(_HINTS_BY_PLACE[place])
+
+
+def _add_voicing_hint(hints: list[str], feats: dict[str, Any]) -> None:
     if feats.get("voice") is True:
         hints.append("Activa la vibración de las cuerdas vocales (sonoro).")
     elif feats.get("voice") is False and feats.get("type") == "consonant":
         hints.append("No vibres las cuerdas vocales (sordo).")
-    return hints
 
 
 def extract_confusion_pairs(
@@ -67,50 +79,43 @@ def extract_confusion_pairs(
     *,
     min_distance: float = 0.0,
 ) -> list[dict[str, Any]]:
-    """Extrae pares de confusión (ref→hyp) ordenados por frecuencia × distancia.
-
-    Parameters
-    ----------
-    ops : list[EditOp]
-        Operaciones de edición del comparador.
-    min_distance : float
-        Distancia articulatoria mínima para considerar (filtra ruido).
-
-    Returns
-    -------
-    list[dict]
-        Pares con ``ref``, ``hyp``, ``count``, ``distance``, ``impact``.
-    """
-    counter: Counter[tuple[str, str]] = Counter()
-    for op in ops:
-        if op.get("op") == "sub":
-            ref = op.get("ref") or ""
-            hyp = op.get("hyp") or ""
-            if ref and hyp:
-                counter[(ref, hyp)] += 1
-        elif op.get("op") == "del":
-            ref = op.get("ref") or ""
-            if ref:
-                counter[(ref, "_")] += 1
-        elif op.get("op") == "ins":
-            hyp = op.get("hyp") or ""
-            if hyp:
-                counter[("_", hyp)] += 1
-
+    """Extrae pares de confusión (ref→hyp) ordenados por frecuencia × distancia."""
+    counter = _count_edit_ops(ops)
+    
     pairs: list[dict[str, Any]] = []
     for (ref, hyp), count in counter.items():
-        dist = calculate_articulatory_distance(ref, hyp) if ref != "_" and hyp != "_" else 1.0
+        dist = _calculate_pair_distance(ref, hyp)
         if dist < min_distance:
             continue
         pairs.append({
-            "ref": ref,
-            "hyp": hyp,
-            "count": count,
+            "ref": ref, "hyp": hyp, "count": count,
             "distance": round(dist, 3),
             "impact": round(count * dist, 3),
         })
     pairs.sort(key=lambda p: p["impact"], reverse=True)
     return pairs
+
+
+def _count_edit_ops(ops: list[EditOp]) -> Counter[tuple[str, str]]:
+    counter: Counter[tuple[str, str]] = Counter()
+    for op in ops:
+        kind = op.get("op")
+        ref = op.get("ref") or ""
+        hyp = op.get("hyp") or ""
+        
+        if kind == "sub" and ref and hyp:
+            counter[(ref, hyp)] += 1
+        elif kind == "del" and ref:
+            counter[(ref, "_")] += 1
+        elif kind == "ins" and hyp:
+            counter[("_", hyp)] += 1
+    return counter
+
+
+def _calculate_pair_distance(ref: str, hyp: str) -> float:
+    if ref == "_" or hyp == "_":
+        return 1.0
+    return calculate_articulatory_distance(ref, hyp)
 
 
 def generate_drills_from_errors(
@@ -120,90 +125,78 @@ def generate_drills_from_errors(
     max_drills: int = 5,
     max_pairs: int = 4,
 ) -> DrillSet:
-    """Genera un DrillSet focalizado en los errores más impactantes.
-
-    Parameters
-    ----------
-    ops : list[EditOp]
-        Operaciones de edición (de CompareResult.ops).
-    lang : str
-        Código de idioma base (``es`` o ``en``).
-    max_drills : int
-        Máximo de DrillItems a generar.
-    max_pairs : int
-        Máximo de MinimalPairs por confusión.
-
-    Returns
-    -------
-    DrillSet
-        Conjunto de ejercicios listos para el frontend.
-    """
+    """Genera un DrillSet focalizado en los errores más impactantes."""
     confusions = extract_confusion_pairs(ops)
     if not confusions:
-        return DrillSet(
-            name="Sin errores detectados",
-            description="¡Excelente! No se detectaron errores de pronunciación.",
-            lang=lang,
-        )
+        return _empty_drill_set(lang)
 
-    target_phones: list[str] = []
     items: list[DrillItem] = []
     minimal_pairs: list[MinimalPair] = []
+    target_phones: list[str] = []
 
-    lang_base = lang.split("-")[0]  # en-us → en
+    lang_base = lang.split("-")[0]
     mp_db = _MINIMAL_PAIRS.get(lang_base, {})
 
     for confusion in confusions[:max_drills]:
-        ref_phone = confusion["ref"]
-        hyp_phone = confusion["hyp"]
-
-        if ref_phone != "_":
-            target_phones.append(ref_phone)
-
-        # Generar DrillItem con hints articulatorios
-        if ref_phone == "_":
-            desc = f"Evita insertar [{hyp_phone}] donde no corresponde."
-        elif hyp_phone == "_":
-            desc = f"Pronuncia [{ref_phone}] — no lo omitas."
-        else:
-            desc = f"Diferencia [{ref_phone}] de [{hyp_phone}]."
-
-        hints = _build_hints(ref_phone) if ref_phone != "_" else _build_hints(hyp_phone)
-        difficulty = _confusion_difficulty(confusion["distance"])
-
-        items.append(DrillItem(
-            text=desc,
-            ipa=ref_phone if ref_phone != "_" else hyp_phone,
-            target_phones=[ref_phone] if ref_phone != "_" else [hyp_phone],
-            difficulty=difficulty,
-            hints=hints,
-        ))
-
-        # Buscar pares mínimos en la base de datos
-        if ref_phone in mp_db:
-            for entry in mp_db[ref_phone][:max_pairs]:
-                word_a, word_b, contrast, position = entry
-                minimal_pairs.append(MinimalPair(
-                    word_a=word_a,
-                    word_b=word_b,
-                    ipa_a="",  # Se llenaría con TextRef en producción
-                    ipa_b="",
-                    target_phone=ref_phone,
-                    contrast_phone=contrast,
-                    position=position,
-                ))
+        _process_confusion(confusion, items, minimal_pairs, target_phones, mp_db, max_pairs)
 
     unique_targets = list(dict.fromkeys(target_phones))
-
-    drill_set = DrillSet(
+    return DrillSet(
         name=f"Práctica: {', '.join(unique_targets[:3])}",
-        description=f"Ejercicios generados a partir de {len(confusions)} confusión(es) detectada(s).",
+        description=f"Ejercicios generados a partir de {len(confusions)} confusión(es).",
         lang=lang,
         target_phones=unique_targets,
         items=items,
         minimal_pairs=minimal_pairs,
     )
-    return drill_set
+
+
+def _empty_drill_set(lang: str) -> DrillSet:
+    return DrillSet(
+        name="Sin errores detectados",
+        description="¡Excelente! No se detectaron errores de pronunciación.",
+        lang=lang,
+    )
+
+
+def _process_confusion(confusion: dict, items: list[DrillItem], mps: list[MinimalPair], targets: list[str], mp_db: dict, max_pairs: int):
+    ref, hyp = confusion["ref"], confusion["hyp"]
+    if ref != "_":
+        targets.append(ref)
+
+    _add_confusion_drill_item(confusion, items, ref, hyp)
+    _add_confusion_minimal_pairs(ref, mp_db, mps, max_pairs)
+
+
+def _add_confusion_drill_item(confusion: dict, items: list[DrillItem], ref: str, hyp: str):
+    desc = _describe_confusion(ref, hyp)
+    phone = ref if ref != "_" else hyp
+    items.append(DrillItem(
+        text=desc,
+        ipa=phone,
+        target_phones=[ref] if ref != "_" else [hyp],
+        difficulty=_confusion_difficulty(confusion["distance"]),
+        hints=_build_hints(phone),
+    ))
+
+
+def _add_confusion_minimal_pairs(ref: str, mp_db: dict, mps: list[MinimalPair], max_pairs: int):
+    if ref not in mp_db:
+        return
+    for entry in mp_db[ref][:max_pairs]:
+        word_a, word_b, contrast, pos = entry
+        mps.append(MinimalPair(
+            word_a=word_a, word_b=word_b, ipa_a="", ipa_b="",
+            target_phone=ref, contrast_phone=contrast, position=pos,
+        ))
+
+
+def _describe_confusion(ref: str, hyp: str) -> str:
+    if ref == "_":
+        return f"Evita insertar [{hyp}] donde no corresponde."
+    if hyp == "_":
+        return f"Pronuncia [{ref}] — no lo omitas."
+    return f"Diferencia [{ref}] de [{hyp}]."
 
 
 def _confusion_difficulty(distance: float) -> int:
@@ -286,96 +279,81 @@ def generate_drills_by_proximity(
     threshold: float = 0.35,
     max_drills_per_group: int = 3,
 ) -> list[DrillSet]:
-    """Generar DrillSets agrupados por proximidad articulatoria.
-
-    A diferencia de ``generate_drills_from_errors``, esta función toma
-    una lista de fonemas objetivo (p.ej. del perfil del alumno) y genera
-    conjuntos de ejercicios organizados por grupo articulatorio.
-
-    Parámetros
-    ----------
-    phones : list[str]
-        Fonemas a practicar.
-    lang : str
-        Idioma base.
-    threshold : float
-        Umbral de distancia para agrupar.
-    max_drills_per_group : int
-        Máximo de DrillItems por grupo.
-
-    Retorna
-    -------
-    list[DrillSet]
-        Un DrillSet por grupo articulatorio encontrado.
-    """
+    """Generar DrillSets agrupados por proximidad articulatoria."""
     groups = group_phones_by_articulatory_proximity(phones, threshold=threshold)
     drill_sets: list[DrillSet] = []
 
     for group in groups:
         if not group:
             continue
-
-        seed = group[0]
-        items: list[DrillItem] = []
-        minimal_pairs: list[MinimalPair] = []
-
-        lang_base = lang.split("-")[0]
-        mp_db = _MINIMAL_PAIRS.get(lang_base, {})
-
-        for i, phone_a in enumerate(group[:max_drills_per_group]):
-            hints = _build_hints(phone_a)
-            items.append(DrillItem(
-                text=f"Practica el sonido [{phone_a}]",
-                ipa=phone_a,
-                target_phones=[phone_a],
-                difficulty=1 + (i % 5),
-                hints=hints,
-            ))
-
-            # Pares mínimos intragrupo (contraste entre sonidos del mismo grupo)
-            for phone_b in group[i + 1 : i + 3]:
-                dist = calculate_articulatory_distance(phone_a, phone_b)
-                difficulty_pair = _confusion_difficulty(dist)
-                items.append(DrillItem(
-                    text=f"Distingue [{phone_a}] de [{phone_b}]",
-                    ipa=f"{phone_a} ~ {phone_b}",
-                    target_phones=[phone_a, phone_b],
-                    difficulty=difficulty_pair,
-                    hints=hints,
-                ))
-
-            # Buscar pares mínimos en la BD
-            if phone_a in mp_db:
-                for entry in mp_db[phone_a][:2]:
-                    word_a, word_b, contrast, position = entry
-                    minimal_pairs.append(MinimalPair(
-                        word_a=word_a,
-                        word_b=word_b,
-                        ipa_a="",
-                        ipa_b="",
-                        target_phone=phone_a,
-                        contrast_phone=contrast,
-                        position=position,
-                    ))
-
-        feats = get_phone_features(seed)
-        group_name = (
-            f"{feats.get('place', '')} {feats.get('manner', '')}".strip()
-            or f"Grupo '{seed}'"
-        )
-        drill_sets.append(DrillSet(
-            name=f"Fonemas {group_name}: {', '.join(f'[{p}]' for p in group[:5])}",
-            description=(
-                f"Ejercicios para el grupo articulatorio de [{seed}]. "
-                f"{len(group)} fonema(s) similares."
-            ),
-            lang=lang,
-            target_phones=group,
-            items=items,
-            minimal_pairs=minimal_pairs,
-        ))
+        drill_sets.append(_process_articulator_group(group, lang, max_drills_per_group))
 
     return drill_sets
+
+
+def _process_articulator_group(group: list[str], lang: str, max_drills: int) -> DrillSet:
+    seed = group[0]
+    items: list[DrillItem] = []
+    minimal_pairs: list[MinimalPair] = []
+    mp_db = _MINIMAL_PAIRS.get(lang.split("-")[0], {})
+
+    for i, phone_a in enumerate(group[:max_drills]):
+        # Single phone drill
+        items.append(_build_single_phone_drill(phone_a, i))
+        # Contrasts
+        _add_intragroup_contrasts(group, phone_a, i, items)
+        # DB minimal pairs
+        _add_db_minimal_pairs(phone_a, mp_db, minimal_pairs)
+
+    return _build_group_drill_set(group, seed, items, minimal_pairs, lang)
+
+
+def _build_single_phone_drill(phone: str, idx: int) -> DrillItem:
+    return DrillItem(
+        text=f"Practica el sonido [{phone}]",
+        ipa=phone,
+        target_phones=[phone],
+        difficulty=1 + (idx % 5),
+        hints=_build_hints(phone),
+    )
+
+
+def _add_intragroup_contrasts(group: list[str], phone_a: str, idx: int, items: list[DrillItem]):
+    for phone_b in group[idx + 1 : idx + 3]:
+        dist = calculate_articulatory_distance(phone_a, phone_b)
+        items.append(DrillItem(
+            text=f"Distingue [{phone_a}] de [{phone_b}]",
+            ipa=f"{phone_a} ~ {phone_b}",
+            target_phones=[phone_a, phone_b],
+            difficulty=_confusion_difficulty(dist),
+            hints=_build_hints(phone_a),
+        ))
+
+
+def _add_db_minimal_pairs(phone: str, mp_db: dict, mps: list[MinimalPair]):
+    if phone in mp_db:
+        for entry in mp_db[phone][:2]:
+            word_a, word_b, contrast, pos = entry
+            mps.append(MinimalPair(
+                word_a=word_a, word_b=word_b, ipa_a="", ipa_b="",
+                target_phone=phone, contrast_phone=contrast, position=pos,
+            ))
+
+
+def _build_group_drill_set(group: list[str], seed: str, items: list[DrillItem], mps: list[MinimalPair], lang: str) -> DrillSet:
+    feats = get_phone_features(seed)
+    place = feats.get('place', '')
+    manner = feats.get('manner', '')
+    group_name = f"{place} {manner}".strip() or f"Grupo '{seed}'"
+    
+    return DrillSet(
+        name=f"Fonemas {group_name}: {', '.join(f'[{p}]' for p in group[:5])}",
+        description=f"Ejercicios para el grupo de [{seed}]. {len(group)} fonema(s) similares.",
+        lang=lang,
+        target_phones=group,
+        items=items,
+        minimal_pairs=mps,
+    )
 
 
 __all__ = [

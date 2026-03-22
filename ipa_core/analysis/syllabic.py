@@ -96,51 +96,67 @@ _SONORITY_OVERRIDES: dict[str, int] = {
 
 
 def _derive_sonority_panphon(phone: str) -> int | None:
-    """Derivar sonoridad a partir de los rasgos SPE de panphon.
-
-    Retorna ``None`` si panphon no reconoce el fonema.
-    """
+    """Derivar sonoridad a partir de los rasgos SPE de panphon."""
     if not _PANPHON_OK or _FT is None:
         return None
     fts = _FT.word_fts(phone)
     if not fts:
         return None
+    
     seg = fts[0]
-    syl = seg["syl"]
-    son = seg["son"]
-    cont = seg["cont"]
-    nas = seg["nas"]
-    cons = seg["cons"]
+    return _map_features_to_sonority(seg)
 
-    # 6: vocales [+syllabic]
-    if syl == 1:
+
+def _map_features_to_sonority(seg: dict[str, int]) -> int | None:
+    """Mapea rasgos de panphon a la escala de sonoridad SSP."""
+    if seg["syl"] == 1:
         return 6
-    # 5: glides [+sonorant, +continuant, −consonantal]
-    if son == 1 and cont == 1 and cons == -1:
-        return 5
-    # 4: líquidas [+sonorant, +consonantal, −nasal]
-    if son == 1 and cons == 1 and nas != 1:
-        return 4
-    # 3: nasales [+sonorant, +nasal]
-    if son == 1 and nas == 1:
+    if seg["son"] == 1:
+        return _sonorant_sonority(seg)
+    return 2 if seg["cont"] == 1 else 1
+
+
+def _sonorant_sonority(seg: dict[str, int]) -> int | None:
+    """SSP para sonorantes: glides (5), líquidas (4), nasales (3)."""
+    if seg["nas"] == 1:
         return 3
-    # 2: fricativas [−sonorant, +continuant]
-    if son != 1 and cont == 1:
-        return 2
-    # 1: oclusivas [−sonorant, −continuant]
-    if son != 1 and cont != 1:
-        return 1
+    if seg["cons"] == -1:
+        return 5
+    if seg["cons"] == 1:
+        return 4
     return None
 
 
 @lru_cache(maxsize=512)
 def _sonority(token: Token) -> int:
-    """Obtener nivel de sonoridad: overrides → panphon → 0."""
+    """Obtener nivel de sonoridad: overrides → panphon → fallbacks → 0."""
     if token in _SONORITY_OVERRIDES:
         return _SONORITY_OVERRIDES[token]
+    
     derived = _derive_sonority_panphon(token)
     if derived is not None:
         return derived
+        
+    return _manual_sonority_fallback(token)
+
+
+def _manual_sonority_fallback(phone: str) -> int:
+    """Heurística manual para símbolos comunes si panphon no está disponible."""
+    p = phone.lower()
+    if p in ("a", "e", "i", "o", "u", "y", "w", "ɑ", "ɛ", "ɪ", "ɔ", "ʊ", "ʌ", "ə"):
+        return 6
+    if p in ("l", "r", "ɾ", "ʀ", "ɹ", "ɭ", "ʎ", "ʟ"):
+        return 4
+    return _manual_low_sonority_fallback(p)
+
+
+def _manual_low_sonority_fallback(p: str) -> int:
+    if p in ("m", "n", "ŋ", "ɲ", "ɳ", "ɱ"):
+        return 3
+    if p in ("s", "z", "ʃ", "ʒ", "f", "v", "x", "θ", "ð", "χ", "ʁ", "ç", "ʝ"):
+        return 2
+    if p in ("p", "b", "t", "d", "k", "ɡ", "g", "q", "ʔ"):
+        return 1
     return 0
 
 
@@ -192,86 +208,74 @@ def syllabify(
     *,
     timestamps: Optional[Sequence[tuple[float, float]]] = None,
 ) -> list[Syllable]:
-    """Segmentar una secuencia de tokens IPA en sílabas.
-
-    Aplica el Principio de Sonoridad Secuencial (SSP) con Maximal Onset
-    para distribuir consonantes entre coda del sílaba previa y onset de
-    la siguiente.
-
-    Parámetros
-    ----------
-    tokens : Sequence[Token]
-        Lista de símbolos IPA a segmentar.
-    timestamps : Sequence[(float, float)], optional
-        Lista de (t_start, t_end) por token, del mismo largo que tokens.
-        Si se proporciona, cada sílaba incluirá sus tiempos.
-
-    Retorna
-    -------
-    list[Syllable]
-        Sílabas en orden.  Si no hay vocales, retorna una sílaba con
-        todos los tokens en onset (consonante-sílaba).
-    """
+    """Segmentar una secuencia de tokens IPA en sílabas."""
     tokens_list = list(tokens)
-    ts = list(timestamps) if timestamps else None
-    if ts is not None and len(ts) != len(tokens_list):
-        ts = None  # timestamps desalineados → ignorar
-
-    # Encontrar posiciones de vocales (núcleos)
+    ts = _validate_timestamps(tokens_list, timestamps)
+    
     nuclei_positions = [i for i, t in enumerate(tokens_list) if _is_vowel(t)]
 
     if not nuclei_positions:
-        # Sin vocales: toda la secuencia es un onset (p.ej. "str" en inglés)
-        syll = Syllable(onset=tokens_list, nucleus="")
-        if ts:
-            syll.t_start = ts[0][0]
-            syll.t_end = ts[-1][1]
-        return [syll] if tokens_list else []
+        return _handle_no_nuclei(tokens_list, ts)
 
+    return _build_syllables(tokens_list, nuclei_positions, ts)
+
+
+def _validate_timestamps(tokens: list[Token], ts: Optional[Sequence[tuple[float, float]]]) -> Optional[list[tuple[float, float]]]:
+    if ts is None:
+        return None
+    if len(ts) != len(tokens):
+        return None
+    return list(ts)
+
+
+def _handle_no_nuclei(tokens: list[Token], ts: Optional[list[tuple[float, float]]]) -> list[Syllable]:
+    if not tokens:
+        return []
+    syll = Syllable(onset=tokens, nucleus="")
+    if ts:
+        syll.t_start = ts[0][0]
+        syll.t_end = ts[-1][1]
+    return [syll]
+
+
+def _build_syllables(tokens: list[Token], nuclei: list[int], ts: Optional[list[tuple[float, float]]]) -> list[Syllable]:
     syllables: list[Syllable] = []
     prev_nucleus_end = 0
 
-    for idx, nucleus_pos in enumerate(nuclei_positions):
-        # Límite derecho de la sílaba actual:
-        # la siguiente vocal o el final del token stream
-        next_nucleus_pos = (
-            nuclei_positions[idx + 1] if idx + 1 < len(nuclei_positions) else len(tokens_list)
-        )
-
-        # Tokens disponibles entre el núcleo actual y el siguiente núcleo
-        inter = tokens_list[nucleus_pos + 1 : next_nucleus_pos]
-
-        # Maximal Onset: cuántas consonantes del inter pueden ir como onset
-        # del siguiente sílaba (sin romper SSP)?
-        maximal_onset = 0
-        if idx + 1 < len(nuclei_positions):
-            for j in range(len(inter)):
-                candidate_onset = inter[j:]
-                # El onset debe tener sonoridad creciente hacia el núcleo
-                if _valid_onset(candidate_onset):
-                    maximal_onset = len(candidate_onset)
-                    break
-
+    for idx, nucleus_pos in enumerate(nuclei):
+        next_pos = nuclei[idx + 1] if idx + 1 < len(nuclei) else len(tokens)
+        inter = tokens[nucleus_pos + 1 : next_pos]
+        
+        maximal_onset = _calculate_maximal_onset(idx, nuclei, inter)
+        
         coda = inter[: len(inter) - maximal_onset]
-        onset = tokens_list[prev_nucleus_end : nucleus_pos]
+        onset = tokens[prev_nucleus_end : nucleus_pos]
 
-        syll = Syllable(
-            onset=list(onset),
-            nucleus=tokens_list[nucleus_pos],
-            coda=list(coda),
-        )
-
-        # Calcular timestamps de la sílaba
-        if ts is not None:
-            syll_indices = list(range(prev_nucleus_end, nucleus_pos + 1 + len(coda)))
-            if syll_indices:
-                syll.t_start = ts[syll_indices[0]][0]
-                syll.t_end = ts[syll_indices[-1]][1]
-
+        syll = Syllable(onset=list(onset), nucleus=tokens[nucleus_pos], coda=list(coda))
+        _attach_timestamps(syll, prev_nucleus_end, nucleus_pos, coda, ts)
+        
         syllables.append(syll)
         prev_nucleus_end = nucleus_pos + 1 + len(coda)
 
     return syllables
+
+
+def _calculate_maximal_onset(idx: int, nuclei: list[int], inter: list[Token]) -> int:
+    if idx + 1 >= len(nuclei):
+        return 0
+    for j in range(len(inter)):
+        if _valid_onset(inter[j:]):
+            return len(inter) - j
+    return 0
+
+
+def _attach_timestamps(syll: Syllable, start: int, nucleus_pos: int, coda: list[Token], ts: Optional[list[tuple[float, float]]]) -> None:
+    if ts is None:
+        return
+    syll_indices = list(range(start, nucleus_pos + 1 + len(coda)))
+    if syll_indices:
+        syll.t_start = ts[syll_indices[0]][0]
+        syll.t_end = ts[syll_indices[-1]][1]
 
 
 def _valid_onset(tokens: list[Token]) -> bool:
@@ -294,42 +298,41 @@ def get_syllabic_position(
     tokens: Sequence[Token],
     token_index: int,
 ) -> dict[str, object]:
-    """Determinar la posición silábica de un token dentro de la secuencia.
-
-    Retorna un diccionario con:
-    - ``syllable_index`` : int — índice de la sílaba (0-based)
-    - ``position`` : str — "onset", "nucleus", o "coda"
-    - ``syllable_position`` : str — "initial", "medial", o "final" en la palabra
-    """
+    """Determinar la posición silábica de un token dentro de la secuencia."""
     syllables = syllabify(tokens)
     offset = 0
     for syll_idx, syll in enumerate(syllables):
-        syll_tokens = syll.tokens
-        end = offset + len(syll_tokens)
+        end = offset + len(syll.tokens)
         if offset <= token_index < end:
-            local_idx = token_index - offset
-            if local_idx < len(syll.onset):
-                role = "onset"
-            elif local_idx == len(syll.onset):
-                role = "nucleus"
-            else:
-                role = "coda"
-            n_sylls = len(syllables)
-            if n_sylls == 1:
-                word_pos = "monosyllabic"
-            elif syll_idx == 0:
-                word_pos = "initial"
-            elif syll_idx == n_sylls - 1:
-                word_pos = "final"
-            else:
-                word_pos = "medial"
-            return {
-                "syllable_index": syll_idx,
-                "position": role,
-                "syllable_position": word_pos,
-            }
+            return _build_syllabic_position_res(syll, syll_idx, len(syllables), token_index - offset)
         offset = end
     return {"syllable_index": -1, "position": "unknown", "syllable_position": "unknown"}
+
+
+def _build_syllabic_position_res(syll: Syllable, idx: int, total: int, local_idx: int) -> dict[str, object]:
+    return {
+        "syllable_index": idx,
+        "position": _determine_role(syll, local_idx),
+        "syllable_position": _determine_word_position(idx, total),
+    }
+
+
+def _determine_role(syll: Syllable, local_idx: int) -> str:
+    if local_idx < len(syll.onset):
+        return "onset"
+    if local_idx == len(syll.onset):
+        return "nucleus"
+    return "coda"
+
+
+def _determine_word_position(idx: int, total: int) -> str:
+    if total == 1:
+        return "monosyllabic"
+    if idx == 0:
+        return "initial"
+    if idx == total - 1:
+        return "final"
+    return "medial"
 
 
 __all__ = [
