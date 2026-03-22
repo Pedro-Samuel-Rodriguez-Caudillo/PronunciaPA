@@ -46,20 +46,7 @@ class Kernel:
     async def setup(self) -> None:
         """Inicializar todos los componentes."""
         await self.pre.setup()
-        try:
-            await self.asr.setup()
-        except (TypeError, ImportError) as exc:
-            if self.strict_mode:
-                raise
-            # Graceful degradation: panphon/allosaurus may fail on Python <3.10
-            logger.warning(
-                "ASR backend setup failed (%s), falling back to StubASR. "
-                "Set PRONUNCIAPA_ASR=stub to silence this warning.",
-                exc,
-            )
-            from ipa_core.backends.asr_stub import StubASR
-            self.asr = cast(ASRBackend, StubASR())
-            await self.asr.setup()
+        await self._setup_asr()
         await self.textref.setup()
         await self.comp.setup()
         if self.tts:
@@ -68,6 +55,21 @@ class Kernel:
             await self.llm.setup()
         if self.history:
             await self.history.setup()
+
+    async def _setup_asr(self) -> None:
+        try:
+            await self.asr.setup()
+        except (TypeError, ImportError) as exc:
+            if self.strict_mode:
+                raise
+            logger.warning(
+                "ASR backend setup failed (%s), falling back to StubASR. "
+                "Set PRONUNCIAPA_ASR=stub to silence this warning.",
+                exc,
+            )
+            from ipa_core.backends.asr_stub import StubASR
+            self.asr = cast(ASRBackend, StubASR())
+            await self.asr.setup()
 
     async def teardown(self) -> None:
         """Limpiar todos los componentes."""
@@ -274,13 +276,15 @@ def _resolve_tts(cfg: AppConfig, language_pack: Optional[LanguagePack], *, stric
 def _build_tts_resolution(cfg: AppConfig, language_pack: Optional[LanguagePack]) -> Optional[ResolvedPlugin]:
     if cfg.tts is None:
         return None
+        
+    return _apply_pack_to_tts(cfg, language_pack)
 
+def _apply_pack_to_tts(cfg: AppConfig, language_pack: Optional[LanguagePack]) -> ResolvedPlugin:
     name = (cfg.tts.name or "default").lower()
     params = dict(cfg.tts.params or {})
     if language_pack and language_pack.tts:
         name, params = _merge_pack_tts(name, params, language_pack.tts)
     return ResolvedPlugin(name=name, params=params)
-
 
 def _resolve_llm(
     cfg: AppConfig,
@@ -294,28 +298,21 @@ def _resolve_llm(
         return None
     return registry.resolve_llm(resolved.name, resolved.params, strict_mode=strict_mode)
 
+def _get_llm_name(cfg: AppConfig) -> str:
+    return _normalize_llm_name((cfg.llm.name or "auto").lower())
 
 def _build_llm_resolution(
     cfg: AppConfig,
     model_pack: Optional[ModelPack],
     model_pack_dir: Optional[Path],
 ) -> Optional[ResolvedPlugin]:
-    name = _normalize_llm_name((cfg.llm.name or "auto").lower())
+    name = _get_llm_name(cfg)
 
-    # RuleBasedFeedbackAdapter no requiere model_pack: se puede activar con
-    # PRONUNCIAPA_LLM=rule_based sin necesidad de descargar ningún modelo.
     if name == "rule_based":
         return ResolvedPlugin(name="rule_based", params={})
 
     if not model_pack:
-        if name == "auto":
-            # Sin model_pack y sin LLM explícito → usar rule_based para que
-            # /v1/feedback genere consejos offline sin necesidad de un modelo
-            # descargado. El usuario puede sobreescribir con PRONUNCIAPA_LLM=ollama
-            # (o llama_cpp/onnx) cuando tenga un model_pack configurado.
-            logger.info("LLM 'auto' sin model_pack → usando rule_based como fallback")
-            return ResolvedPlugin(name="rule_based", params={})
-        return None
+        return _fallback_llm_resolution(name)
 
     runtime_kind = (model_pack.runtime.kind or "").lower()
     resolved_name = _normalize_llm_name(runtime_kind if name == "auto" else name)
@@ -324,49 +321,70 @@ def _build_llm_resolution(
         params=_build_llm_params(cfg, model_pack, model_pack_dir),
     )
 
+def _fallback_llm_resolution(name: str) -> Optional[ResolvedPlugin]:
+    if name == "auto":
+        logger.info("LLM 'auto' sin model_pack → usando rule_based como fallback")
+        return ResolvedPlugin(name="rule_based", params={})
+    return None
 
 def _build_llm_params(
     cfg: AppConfig,
     model_pack: ModelPack,
     model_pack_dir: Optional[Path],
 ) -> dict:
+    params = _gather_llm_base_params(cfg, model_pack)
+
+    if model_pack_dir:
+        params["model_pack_dir"] = str(model_pack_dir)
+    
+    _inject_pack_paths(params, model_pack, model_pack_dir or Path("."))
+    return params
+
+def _gather_llm_base_params(cfg: AppConfig, model_pack: ModelPack) -> dict:
     params = dict(model_pack.runtime.params or {})
     params.update(model_pack.params or {})
     params.update(cfg.llm.params or {})
+    return params
 
-    base_dir = model_pack_dir or Path(".")
-    if model_pack_dir:
-        params["model_pack_dir"] = str(model_pack_dir)
+def _inject_pack_paths(params: dict, model_pack: ModelPack, base_dir: Path) -> None:
     if "prompt_path" not in params and model_pack.prompt:
         params["prompt_path"] = str(model_pack.prompt.resolve_path(base_dir))
     if "output_schema_path" not in params and model_pack.output_schema:
         params["output_schema_path"] = str(model_pack.output_schema.resolve_path(base_dir))
-    return params
-
 
 def _merge_pack_tts(name: str, params: dict, pack_tts: TTSConfig) -> Tuple[str, dict]:
     provider = (pack_tts.provider or "").lower()
     pack_params = dict(pack_tts.params or {})
-    if pack_tts.voice and "voice" not in pack_params:
-        pack_params["voice"] = pack_tts.voice
-    if pack_tts.sample_rate and "sample_rate" not in pack_params:
-        pack_params["sample_rate"] = pack_tts.sample_rate
+    
+    _inject_tts_pack_defaults(pack_params, pack_tts)
 
     if name in ("default", "adapter"):
-        if provider in ("piper", "system"):
-            params.setdefault("prefer", provider)
-            nested = dict(params.get(provider, {}))
-            for key, value in pack_params.items():
-                nested.setdefault(key, value)
-            params[provider] = nested
-        return "default", params
+        return _merge_into_adapter(params, provider, pack_params)
+    
+    return _merge_into_specific_provider(name, params, provider, pack_params)
 
+def _merge_into_specific_provider(name: str, params: dict, provider: str, pack_params: dict) -> Tuple[str, dict]:
     if provider and provider != name:
         return name, params
 
     for key, value in pack_params.items():
         params.setdefault(key, value)
     return name, params
+
+def _inject_tts_pack_defaults(pack_params: dict, pack_tts: TTSConfig) -> None:
+    if pack_tts.voice and "voice" not in pack_params:
+        pack_params["voice"] = pack_tts.voice
+    if pack_tts.sample_rate and "sample_rate" not in pack_params:
+        pack_params["sample_rate"] = pack_tts.sample_rate
+
+def _merge_into_adapter(params: dict, provider: str, pack_params: dict) -> Tuple[str, dict]:
+    if provider in ("piper", "system"):
+        params.setdefault("prefer", provider)
+        nested = dict(params.get(provider, {}))
+        for key, value in pack_params.items():
+            nested.setdefault(key, value)
+        params[provider] = nested
+    return "default", params
 
 
 def _normalize_llm_name(name: str) -> str:

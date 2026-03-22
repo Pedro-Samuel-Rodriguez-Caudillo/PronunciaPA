@@ -145,34 +145,38 @@ class CMUDictTextRef:
 
     async def setup(self) -> None:
         """Cargar CMU Dict y preparar fallback."""
+        await self._setup_cmudict()
+        await self._setup_oov_fallback()
+        self._ready = True
+
+    async def _setup_cmudict(self) -> None:
         try:
             import nltk
-            try:
-                from nltk.corpus import cmudict as _cmu
-                self._cmudict = _cmu.dict()
-            except LookupError:
-                logger.info("CMU Dict no encontrado, descargando...")
-                nltk.download("cmudict", quiet=True)
-                from nltk.corpus import cmudict as _cmu
-                self._cmudict = _cmu.dict()
-                logger.info("CMU Dict cargado: %d entradas", len(self._cmudict))
+            self._cmudict = self._try_load_nltk_cmudict(nltk)
         except ImportError:
-            logger.warning(
-                "nltk no instalado. CMUDictTextRef sin diccionario. "
-                "Instala con: pip install nltk && python -c \"import nltk; nltk.download('cmudict')\""
-            )
+            logger.warning("nltk no instalado. CMUDictTextRef sin diccionario.")
             self._cmudict = {}
 
-        if self._oov_fallback == "espeak":
-            try:
-                from ipa_core.textref.espeak import EspeakTextRef
-                self._espeak = EspeakTextRef(default_lang="en")
-                await self._espeak.setup()
-            except Exception as exc:
-                logger.warning("eSpeak fallback no disponible: %s", exc)
-                self._espeak = None
+    def _try_load_nltk_cmudict(self, nltk) -> Dict[str, List[List[str]]]:
+        try:
+            from nltk.corpus import cmudict as _cmu
+            return _cmu.dict()
+        except LookupError:
+            logger.info("CMU Dict no encontrado, descargando...")
+            nltk.download("cmudict", quiet=True)
+            from nltk.corpus import cmudict as _cmu
+            return _cmu.dict()
 
-        self._ready = True
+    async def _setup_oov_fallback(self) -> None:
+        if self._oov_fallback != "espeak":
+            return
+        try:
+            from ipa_core.textref.espeak import EspeakTextRef
+            self._espeak = EspeakTextRef(default_lang="en")
+            await self._espeak.setup()
+        except Exception as exc:
+            logger.warning("eSpeak fallback no disponible: %s", exc)
+            self._espeak = None
 
     async def teardown(self) -> None:
         if self._espeak is not None:
@@ -185,26 +189,13 @@ class CMUDictTextRef:
         *,
         lang: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Convertir texto en inglés a tokens IPA (con cache LRU).
-
-        Parámetros
-        ----------
-        text : str
-            Texto en inglés (puede ser varias palabras).
-        lang : str, optional
-            Si no es inglés (``"en"``), registra advertencia y delega al fallback.
-
-        Retorna
-        -------
-        dict con ``{"tokens": [...], "meta": {...}}``
-        """
+        """Convertir texto en inglés a tokens IPA (con cache LRU)."""
         if not self._ready:
             from ipa_core.errors import NotReadyError
-            raise NotReadyError("CMUDictTextRef no inicializado. Llama setup() primero.")
+            raise NotReadyError("CMUDictTextRef no inicializado.")
 
         effective_lang = (lang or self._default_lang).lower()
 
-        # Buscar en cache antes de computar
         return await self._cache.get_or_compute(
             text,
             effective_lang,
@@ -218,58 +209,58 @@ class CMUDictTextRef:
         effective_lang: str,
     ) -> Dict[str, Any]:
         """Computar la transcripción IPA (llamada solo cuando no está en cache)."""
-        # CMU Dict es solo para inglés (cualquier variante)
-        if effective_lang not in ("en", "en-us", "en-gb", "en-au", "en-ca", "en-nz", "en-in"):
-            logger.warning(
-                "CMUDictTextRef solo soporta inglés; lang='%s' recibido.", effective_lang
-            )
-            if self._espeak is not None:
-                return await self._espeak.to_ipa(text, lang=effective_lang)
-            return {"tokens": list(text), "meta": {"method": "grapheme_fallback"}}
+        if not self._is_english(effective_lang):
+            return await self._handle_non_english(text, effective_lang)
 
-        words = text.strip().split()
         all_tokens: List[Token] = []
         oov_words: List[str] = []
         meta_words: List[Dict[str, Any]] = []
 
-        for raw_word in words:
-            normalized = _normalize_word(raw_word)
-            if not normalized:
-                continue
-
-            if self._cmudict and normalized in self._cmudict:
-                # Usar primera pronunciación del diccionario
-                phones = self._cmudict[normalized][0]
-                tokens = [_arpabet_to_ipa_token(p) for p in phones]
+        for raw_word in text.strip().split():
+            tokens, source = await self._process_word(raw_word, effective_lang, oov_words)
+            if tokens is not None:
                 all_tokens.extend(tokens)
-                meta_words.append({"word": raw_word, "source": "cmudict", "tokens": tokens})
-            else:
-                oov_words.append(raw_word)
-                fallback_tokens = await self._resolve_oov(raw_word, lang=effective_lang)
-                all_tokens.extend(fallback_tokens)
-                meta_words.append({"word": raw_word, "source": self._oov_fallback, "tokens": fallback_tokens})
+                meta_words.append({"word": raw_word, "source": source, "tokens": tokens})
 
-        # Nota dialectal: CMU Dict usa pronunciaciones del inglés americano general (GA).
-        # Para en-GB/en-AU las palabras conocidas usan pronunciación GA; solo las OOV
-        # usan eSpeak con la voz del dialecto correcto (pasada en effective_lang).
-        dialect_note = None
-        if effective_lang in ("en-gb", "en-au", "en-ca", "en-nz", "en-in"):
-            dialect_note = (
-                f"Pronunciaciones de palabras conocidas en GA (inglés americano). "
-                f"Palabras OOV usan eSpeak voz '{effective_lang}'."
-            )
+        return self._build_compute_response(all_tokens, oov_words, meta_words, effective_lang)
 
-        return {
-            "tokens": all_tokens,
+    def _is_english(self, lang: str) -> bool:
+        return lang in ("en", "en-us", "en-gb", "en-au", "en-ca", "en-nz", "en-in")
+
+    async def _handle_non_english(self, text: str, lang: str) -> Dict[str, Any]:
+        logger.warning("CMUDictTextRef solo soporta inglés; lang='%s'", lang)
+        if self._espeak is not None:
+            return await self._espeak.to_ipa(text, lang=lang)
+        return {"tokens": list(text), "meta": {"method": "grapheme_fallback"}}
+
+    async def _process_word(self, raw_word: str, lang: str, oov_list: List[str]) -> tuple[Optional[List[Token]], str]:
+        normalized = _normalize_word(raw_word)
+        if not normalized:
+            return None, "empty"
+
+        if self._cmudict and normalized in self._cmudict:
+            phones = self._cmudict[normalized][0]
+            return [_arpabet_to_ipa_token(p) for p in phones], "cmudict"
+        
+        oov_list.append(raw_word)
+        tokens = await self._resolve_oov(raw_word, lang=lang)
+        return tokens, self._oov_fallback
+
+    def _build_compute_response(self, tokens: List[Token], oov: List[str], meta: List[dict], lang: str) -> Dict[str, Any]:
+        res = {
+            "tokens": tokens,
             "meta": {
-                "method": "cmudict",
-                "dialect": effective_lang,
-                "oov_words": oov_words,
-                "oov_count": len(oov_words),
-                "words": meta_words,
-                **({"dialect_note": dialect_note} if dialect_note else {}),
+                "method": "cmudict", "dialect": lang,
+                "oov_words": oov, "oov_count": len(oov),
+                "words": meta,
             },
         }
+        if lang in ("en-gb", "en-au", "en-ca", "en-nz", "en-in"):
+            res["meta"]["dialect_note"] = (
+                f"Pronunciaciones de palabras conocidas en GA. "
+                f"Palabras OOV usan eSpeak voz '{lang}'."
+            )
+        return res
 
     async def _resolve_oov(self, word: str, *, lang: str) -> List[Token]:
         """Resolver palabra fuera de vocabulario según la estrategia configurada."""
