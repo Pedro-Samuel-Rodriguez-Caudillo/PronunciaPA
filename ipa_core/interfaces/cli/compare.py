@@ -21,7 +21,7 @@ from .helpers import (
     console, _COMPARE_MODES, _EVAL_LEVELS, _FEEDBACK_LEVELS,
     _get_kernel, _exit_code_for_error, _emit_json, _print_feedback_payload,
     _print_compare_table, _print_accent_ranking, _print_accent_features,
-    _print_feedback, _print_compare_aligned, _normalize_sound
+    _print_feedback, _normalize_sound
 )
 
 def transcribe(

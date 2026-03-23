@@ -113,6 +113,19 @@ def _register_defaults() -> None:
         register("asr", "onnx", lambda p: ONNXASRPlugin(p))
         register("asr", "whisper_onnx", lambda p: ONNXASRPlugin(p))
         register("asr", "whisper", lambda p: ONNXASRPlugin(p))
+
+def list_plugins() -> list[dict[str, str]]:
+    """List all registered plugins."""
+    if not _DISCOVERY_DONE:
+        register_discovered_plugins()
+    if not any(_REGISTRY.values()):
+        _register_defaults()
+        
+    plugins = []
+    for category, plugins_in_category in _REGISTRY.items():
+        for name in plugins_in_category.keys():
+            plugins.append({"type": category, "name": name})
+    return plugins
     
     # ASR - Allosaurus (IPA directo)
     try:
@@ -144,6 +157,21 @@ def _register_defaults() -> None:
                 model_name=p.get("model_name", "facebook/wav2vec2-large-xlsr-53"),
                 device=p.get("device", "cpu"),
                 force_ipa=bool(p.get("force_ipa", False)),
+            ),
+        )
+
+    # ASR - Vosk
+    try:
+        from ipa_core.backends.vosk_backend import VoskBackend
+    except Exception as exc:
+        logger.warning("Vosk ASR plugin unavailable: %s", exc)
+    else:
+        register(
+            "asr",
+            "vosk",
+            lambda p: VoskBackend(
+                model_path=p.get("model_path", "models/vosk-model"),
+                sample_rate=p.get("sample_rate", 16000),
             ),
         )
 

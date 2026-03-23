@@ -4,6 +4,8 @@ import json
 import random
 import re
 import unicodedata
+from datetime import datetime
+from enum import Enum
 from typing import Any, List, Optional, Tuple
 from pathlib import Path
 import typer
@@ -12,10 +14,14 @@ from rich.table import Table
 
 from ipa_core.audio.files import ensure_wav
 from ipa_core.backends.audio_io import to_audio_input
-from ipa_core.kernel.core import create_kernel, Kernel
+from ipa_core.kernel.core import create_kernel
 from ipa_core.ipa_catalog import normalize_lang
 
 console = Console()
+
+class CatalogOutput(str, Enum):
+    human = "human"
+    json = "json"
 
 _IPA_SCHEMA_VERSION = "1.0.0"
 _COMPARE_MODES = ["casual", "objective", "phonetic"]
@@ -189,6 +195,17 @@ def _print_feedback_payload(payload: dict) -> None:
         for tip in fb["tips"]:
             _safe_print(f"• {tip}")
 
+def _print_feedback(feedback: Any) -> None:
+    if not feedback:
+        return
+    if isinstance(feedback, list):
+        for f in feedback:
+            _safe_print(f"• {f}")
+    elif isinstance(feedback, dict):
+        _print_feedback_payload({"feedback": feedback})
+    else:
+        _safe_print(str(feedback))
+
 def _print_compare_table(res: dict) -> None:
     table = Table(title="Comparación")
     table.add_column("Ref")
@@ -204,4 +221,13 @@ def _print_accent_features(features: dict) -> None:
     table.add_column("Valor")
     for k, v in features.items():
         table.add_row(k, str(v))
+    console.print(table)
+
+def _print_accent_ranking(ranking: list) -> None:
+    table = Table(title="Ranking de Acentos/Regiones")
+    table.add_column("Posición", justify="right")
+    table.add_column("Región")
+    table.add_column("Distancia", justify="right")
+    for i, r in enumerate(ranking, start=1):
+        table.add_row(str(i), r.get("region", "unknown"), f"{r.get('distance', 0.0):.4f}")
     console.print(table)

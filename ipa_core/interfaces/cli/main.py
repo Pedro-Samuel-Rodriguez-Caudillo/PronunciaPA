@@ -17,7 +17,7 @@ app = typer.Typer(help="PronunciaPA: Reconocimiento y evaluación fonética")
 config_app = typer.Typer(help="Gestión de configuración")
 
 app.add_typer(config_app, name="config")
-app.add_typer(plugin_app, name="plugin")
+app.add_typer(plugin_app, name="plugins")
 app.add_typer(model_app, name="models")
 
 ipa_app = typer.Typer(help="Explorador y práctica de sonidos IPA")
