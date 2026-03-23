@@ -142,94 +142,73 @@ def _convert_with_ffmpeg(
         return False
 
 
-def ensure_wav(
-    path: str,
-    *,
-    target_sample_rate: int = 16000,
-    target_channels: int = 1,
-) -> Tuple[str, bool]:
-    """Garantiza que ``path`` apunte a un WAV PCM 16-bit compatible con Allosaurus.
-
-    Siempre convierte con ffmpeg (igual que pruebaASR) para evitar el bug de
-    Flutter/record que escribe el data chunk size incorrecto en el header WAV:
-    si se devolviera el archivo original, Allosaurus leería solo los frames
-    indicados en el header, cortando el inicio del audio.
-
-    Estrategia:
-    1. **ffmpeg** (primera opción): convierte con ``-sample_fmt s16``.
-       Lee hasta EOF real ignorando el tamaño del header.
-    2. pydub (fallback si ffmpeg no está en PATH).
-
-    Retorna ``(ruta_final, es_temporal)``.
-    """
-    p = Path(path)
-    if not p.exists():
-        raise FileNotFound(f"Audio no encontrado: {path}")
-
-    ext = p.suffix.lower()
-
-    # No hay fast-path para WAV: Flutter/record frecuentemente escribe el campo
-    # data chunk size incorrecto (0 o valor obsoleto). Si devolviéramos el archivo
-    # tal cual, Allosaurus leería internamente con wave.open() y solo procesaría
-    # los frames indicados en el header — causando que se recorte el inicio del audio.
-    # ffmpeg también respeta el tamaño del chunk; corregir el header antes asegura
-    # que lee todo el audio real hasta EOF.
-    if ext not in {".wav", ".mp3", ".ogg", ".m4a", ".webm", ".opus", ".flac"}:
-        raise UnsupportedFormat(f"Formato de audio no soportado: {ext}")
-
-    # Para WAV: corregir header in-place antes de pasar a ffmpeg.
-    # Flutter/record escribe ChunkSize/Subchunk2Size stale cuando la grabación
-    # finaliza de forma abrupta o sin flush explícito.
-    if ext == ".wav":
-        _fix_wav_data_chunk(str(p))
-
-    # ── ffmpeg (camino principal, igual que pruebaASR) ──────────────────────
-    ffmpeg_available = find_ffmpeg_binary() is not None
-    tmp = tempfile.NamedTemporaryFile(
-        prefix="pronunciapa_", suffix=".wav", delete=False
-    )
-    tmp.close()
-
-    if _convert_with_ffmpeg(path, tmp.name, target_sample_rate, target_channels):
-        logger.debug("ensure_wav: convertido con ffmpeg → %s", tmp.name)
-        return tmp.name, True
-
-    # Limpiar temporal fallido
+def _run_ffmpeg_conversion(path: str, tmp_name: str, target_sr: int, target_ch: int) -> bool:
+    if _convert_with_ffmpeg(path, tmp_name, target_sr, target_ch):
+        logger.debug("ensure_wav: convertido con ffmpeg → %s", tmp_name)
+        return True
     try:
-        os.unlink(tmp.name)
+        os.unlink(tmp_name)
     except OSError:
         pass
+    return False
 
-    if ffmpeg_available:
-        raise UnsupportedFormat(
-            f"Formato de audio no decodificable con ffmpeg: {path}"
-        )
-
-    # ── pydub (fallback si ffmpeg no disponible) ────────────────────────────
+def _run_pydub_conversion(path: str, target_sr: int, target_ch: int) -> str:
     audio_segment_cls = _get_audio_segment_class()
     if audio_segment_cls is None:
         raise UnsupportedFormat(
             "ffmpeg no encontrado y pydub no instalado. "
             "Instala ffmpeg (recomendado) o pydub: pip install pydub"
         )
-
     try:
         audio = audio_segment_cls.from_file(path)
     except Exception as pydub_exc:
-        raise UnsupportedFormat(
-            f"Formato de audio no decodificable: {path}"
-        ) from pydub_exc
+        raise UnsupportedFormat(f"Formato de audio no decodificable: {path}") from pydub_exc
 
     audio = (
-        audio.set_frame_rate(target_sample_rate)
-        .set_channels(target_channels)
+        audio.set_frame_rate(target_sr)
+        .set_channels(target_ch)
         .set_sample_width(2)
     )
     tmp2 = tempfile.NamedTemporaryFile(prefix="pronunciapa_", suffix=".wav", delete=False)
     tmp2.close()
     audio.export(tmp2.name, format="wav")
     logger.debug("ensure_wav: convertido con pydub → %s", tmp2.name)
-    return tmp2.name, True
+    return tmp2.name
+
+def _validate_audio_file(path: str) -> str:
+    p = Path(path)
+    if not p.exists():
+        raise FileNotFound(f"Audio no encontrado: {path}")
+
+    ext = p.suffix.lower()
+    if ext not in {".wav", ".mp3", ".ogg", ".m4a", ".webm", ".opus", ".flac"}:
+        raise UnsupportedFormat(f"Formato de audio no soportado: {ext}")
+
+    if ext == ".wav":
+        _fix_wav_data_chunk(str(p))
+    return str(p)
+
+def ensure_wav(
+    path: str,
+    *,
+    target_sample_rate: int = 16000,
+    target_channels: int = 1,
+) -> Tuple[str, bool]:
+    """Garantiza que ``path`` apunte a un WAV PCM 16-bit compatible con Allosaurus."""
+    _validate_audio_file(path)
+
+    ffmpeg_available = find_ffmpeg_binary() is not None
+    tmp = tempfile.NamedTemporaryFile(prefix="pronunciapa_", suffix=".wav", delete=False)
+    tmp.close()
+
+    if _run_ffmpeg_conversion(path, tmp.name, target_sample_rate, target_channels):
+        return tmp.name, True
+
+    if ffmpeg_available:
+        raise UnsupportedFormat(f"Formato de audio no decodificable con ffmpeg: {path}")
+
+    out_path = _run_pydub_conversion(path, target_sample_rate, target_channels)
+    return out_path, True
 
 
 def persist_bytes(data: bytes, *, suffix: str) -> str:

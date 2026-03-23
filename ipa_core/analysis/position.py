@@ -51,35 +51,37 @@ def _word_position(index: int, total: int) -> str:
     return "medial"
 
 
+def _calculate_ref_pos(op: dict[str, Any], ref_cursor: int) -> tuple[int, int]:
+    op_type = op.get("op", "")
+    ref_pos = op.get("ref_pos")
+    if ref_pos is None:
+        if op_type in ("eq", "sub", "del"):
+            ref_pos = ref_cursor
+            ref_cursor += 1
+        else:  # ins
+            ref_pos = ref_cursor
+    return ref_pos, ref_cursor
+
+def _get_syllabic_info(syllabic_fn: Any, ref_tokens: Sequence[Token], ref_pos: int) -> dict[str, Any]:
+    if syllabic_fn is None:
+        return {"syllabic_role": "unknown", "syllable_index": -1, "syllable_position": "unknown"}
+    try:
+        syll_info = syllabic_fn(list(ref_tokens), ref_pos)
+        return {
+            "syllabic_role": syll_info.get("position", "unknown"),
+            "syllable_index": syll_info.get("syllable_index", -1),
+            "syllable_position": syll_info.get("syllable_position", "unknown")
+        }
+    except Exception:
+        return {"syllabic_role": "unknown", "syllable_index": -1, "syllable_position": "unknown"}
+
 def classify_errors_by_position(
     ops: list[dict[str, Any]],
     *,
     ref_tokens: Sequence[Token],
     use_syllabic: bool = True,
 ) -> list[dict[str, Any]]:
-    """Enriquecer operaciones de edición con información de posición.
-
-    Parámetros
-    ----------
-    ops : list[dict]
-        Lista de operaciones de edición (salida de LevenshteinComparator).
-        Cada op debe tener: {``op``, ``ref``, ``hyp``, opcionalmente ``ref_pos``},
-        donde ``ref_pos`` es el índice del token en la referencia.
-    ref_tokens : Sequence[Token]
-        Secuencia de tokens de referencia (para calcular posiciones).
-    use_syllabic : bool
-        Si True, intentar calcular también el rol silábico (onset/nucleus/coda).
-        Requiere ``ipa_core.analysis.syllabic``.
-
-    Retorna
-    -------
-    list[dict]
-        Mismas ops con campos adicionales:
-        - ``word_position`` : str
-        - ``syllabic_role`` : str  (si use_syllabic=True)
-        - ``syllable_index`` : int (si use_syllabic=True)
-        - ``is_error`` : bool
-    """
+    """Enriquecer operaciones de edición con información de posición."""
     total = len(ref_tokens)
     syllabic_fn = None
     if use_syllabic:
@@ -89,41 +91,19 @@ def classify_errors_by_position(
         except ImportError:
             pass
 
-    # Construir índice ref_pos si no está en las ops
-    # Las ops del comparador Levenshtein no siempre incluyen ref_pos explícito;
-    # lo reconstruimos siguiendo el cursor de referencia secuencialmente.
     enriched: list[dict[str, Any]] = []
     ref_cursor = 0
 
     for op in ops:
         new_op = dict(op)
-        op_type = op.get("op", "")
-        new_op["is_error"] = op_type != "eq"
+        new_op["is_error"] = op.get("op", "") != "eq"
 
-        # Índice en la referencia
-        ref_pos = op.get("ref_pos")
-        if ref_pos is None:
-            if op_type in ("eq", "sub", "del"):
-                ref_pos = ref_cursor
-                ref_cursor += 1
-            else:  # ins
-                ref_pos = ref_cursor  # inserción ocurre en este punto
-
+        ref_pos, ref_cursor = _calculate_ref_pos(op, ref_cursor)
         new_op["ref_pos"] = ref_pos
         new_op["word_position"] = _word_position(ref_pos, total) if total > 0 else "unknown"
 
-        if syllabic_fn is not None:
-            try:
-                syll_info = syllabic_fn(list(ref_tokens), ref_pos)
-                new_op["syllabic_role"] = syll_info.get("position", "unknown")
-                new_op["syllable_index"] = syll_info.get("syllable_index", -1)
-                new_op["syllable_position"] = syll_info.get("syllable_position", "unknown")
-            except Exception:
-                new_op["syllabic_role"] = "unknown"
-                new_op["syllable_index"] = -1
-                new_op["syllable_position"] = "unknown"
-        else:
-            new_op["syllabic_role"] = "unknown"
+        syll_info = _get_syllabic_info(syllabic_fn, ref_tokens, ref_pos)
+        new_op.update(syll_info)
 
         enriched.append(new_op)
 

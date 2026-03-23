@@ -114,19 +114,6 @@ def _register_defaults() -> None:
         register("asr", "whisper_onnx", lambda p: ONNXASRPlugin(p))
         register("asr", "whisper", lambda p: ONNXASRPlugin(p))
 
-def list_plugins() -> list[dict[str, str]]:
-    """List all registered plugins."""
-    if not _DISCOVERY_DONE:
-        register_discovered_plugins()
-    if not any(_REGISTRY.values()):
-        _register_defaults()
-        
-    plugins = []
-    for category, plugins_in_category in _REGISTRY.items():
-        for name in plugins_in_category.keys():
-            plugins.append({"type": category, "name": name})
-    return plugins
-    
     # ASR - Allosaurus (IPA directo)
     try:
         from ipa_core.backends.allosaurus_backend import AllosaurusBackend
@@ -294,6 +281,20 @@ def list_plugins() -> list[dict[str, str]]:
 
     # También ejecutar descubrimiento inicial
     register_discovered_plugins()
+
+
+def list_plugins() -> list[dict[str, str]]:
+    """List all registered plugins."""
+    if not _DISCOVERY_DONE:
+        register_discovered_plugins()
+    if not any(_REGISTRY.values()):
+        _register_defaults()
+        
+    plugins = []
+    for category, plugins_in_category in _REGISTRY.items():
+        for name in plugins_in_category.keys():
+            plugins.append({"type": category, "name": name})
+    return plugins
 
 
 def _get_fallback(category: str) -> Optional[str]:

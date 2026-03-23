@@ -229,6 +229,34 @@ async def textref_endpoint(
         await kernel.teardown()
 
 
+def _apply_plugins(kernel: Kernel, backend: Optional[str], textref: Optional[str], comparator: Optional[str], lang_source_resolved: str, lang_target_resolved: str) -> None:
+    if backend:
+        kernel.asr = registry.resolve_asr(backend.lower(), {"lang": lang_source_resolved}, strict_mode=True)
+    if textref:
+        kernel.textref = registry.resolve_textref(textref.lower(), {"default_lang": lang_target_resolved}, strict_mode=True)
+    if comparator:
+        kernel.comp = registry.resolve_comparator(comparator.lower(), {}, strict_mode=True)
+
+def _build_display_payload(ops: list, evaluation_level: str, score: float, display_mode: str) -> Optional[dict]:
+    dm: DisplayMode = "casual" if display_mode == "casual" else "technical"
+    try:
+        disp_result = build_display(ops, mode=dm, level=evaluation_level, score=score)
+        d = disp_result.as_dict()
+        return IPADisplay(
+            mode=d["mode"],
+            level=d["level"],
+            ref_technical=d["ref_technical"],
+            ref_casual=d["ref_casual"],
+            hyp_technical=d["hyp_technical"],
+            hyp_casual=d["hyp_casual"],
+            score_color=d["score_color"],
+            legend=d["legend"],
+            tokens=[IPADisplayToken(**t) for t in d["tokens"]],
+        ).model_dump()
+    except Exception as _disp_exc:
+        logger.warning("build_display falló: %s", _disp_exc)
+        return None
+
 @router.post("/compare", response_model=CompareResponse)
 async def compare(
     audio: UploadFile = File(..., description="Archivo de audio a comparar"),
@@ -239,23 +267,13 @@ async def compare(
     lang_target: Optional[str] = Form(None, description="Idioma destino (texto/TextRef)"),
     mode: str = Form("objective", description="Modo: casual, objective, phonetic, auto"),
     evaluation_level: str = Form("phonemic", description="Nivel: phonemic, phonetic, auto"),
-    force_phonetic: Optional[bool] = Form(
-        None,
-        description="Forzar modo y nivel fonético, sin degradación automática",
-    ),
-    allow_quality_downgrade: Optional[bool] = Form(
-        None,
-        description="Permitir degradación automática por calidad de audio",
-    ),
+    force_phonetic: Optional[bool] = Form(None, description="Forzar modo y nivel fonético, sin degradación automática"),
+    allow_quality_downgrade: Optional[bool] = Form(None, description="Permitir degradación automática por calidad de audio"),
     backend: Optional[str] = Form(None, description="Nombre del backend ASR"),
     textref: Optional[str] = Form(None, description="Nombre del proveedor texto→IPA"),
     comparator: Optional[str] = Form(None, description="Nombre del comparador"),
     pack: Optional[str] = Form(None, description="Language pack (dialecto) a usar"),
-    display_mode: Optional[str] = Form(
-        None,
-        description="Modo de display IPA: 'technical' (IPA puro) o 'casual' (transliteración). "
-                    "Si se proporciona, la respuesta incluye el campo 'display' con tokens coloreados.",
-    ),
+    display_mode: Optional[str] = Form(None, description="Modo de display IPA"),
     persist: Optional[bool] = Form(False, description="Si True, guarda el audio procesado"),
     user_id: Optional[str] = Form(None, description="ID de usuario (opcional)"),
     kernel: Kernel = Depends(_get_kernel),
@@ -263,84 +281,35 @@ async def compare(
     """Comparación de audio contra texto de referencia."""
     lang_source_resolved = resolve_request_lang(lang_source or lang)
     lang_target_resolved = resolve_request_lang(lang_target or lang)
-    logger.info("=== /v1/compare REQUEST ===")
-    logger.info(
-        "text: %s, lang_source: %s, lang_target: %s, mode: %s, evaluation_level: %s",
-        text,
-        lang_source_resolved,
-        lang_target_resolved,
-        mode,
-        evaluation_level,
-    )
-
+    
     tmp_path = await _process_upload(audio)
     try:
-        if backend:
-            kernel.asr = registry.resolve_asr(
-                backend.lower(), {"lang": lang_source_resolved}, strict_mode=True
-            )
-        if textref:
-            kernel.textref = registry.resolve_textref(
-                textref.lower(), {"default_lang": lang_target_resolved}, strict_mode=True
-            )
-        if comparator:
-            kernel.comp = registry.resolve_comparator(
-                comparator.lower(), {}, strict_mode=True
-            )
+        _apply_plugins(kernel, backend, textref, comparator, lang_source_resolved, lang_target_resolved)
 
-        # Validate output_type BEFORE setup() — see note in /v1/transcribe.
         asr_guard = _assert_real_ipa_asr(kernel.asr)
         if asr_guard:
             return asr_guard
         await kernel.setup()
 
-        service = ComparisonService(
-            preprocessor=kernel.pre,
-            asr=kernel.asr,
-            textref=kernel.textref,
-            comparator=kernel.comp,
-            default_lang=lang_target_resolved,
-        )
+        service = ComparisonService(preprocessor=kernel.pre, asr=kernel.asr, textref=kernel.textref, comparator=kernel.comp, default_lang=lang_target_resolved)
         compare_payload = await service.compare_file_detail(
-            str(tmp_path),
-            text,
-            target_ipa=target_ipa,
-            lang=lang,
-            lang_source=lang_source_resolved,
-            lang_target=lang_target_resolved,
-            evaluation_level=evaluation_level,
-            force_phonetic=force_phonetic,
-            allow_quality_downgrade=allow_quality_downgrade,
-            pack=pack,
-            mode=mode,
-            user_id=user_id,
+            str(tmp_path), text, target_ipa=target_ipa, lang=lang,
+            lang_source=lang_source_resolved, lang_target=lang_target_resolved,
+            evaluation_level=evaluation_level, force_phonetic=force_phonetic,
+            allow_quality_downgrade=allow_quality_downgrade, pack=pack,
+            mode=mode, user_id=user_id,
         )
         payload = compare_payload.to_response()
 
-        # Poblar campo display si el cliente lo solicita
         if display_mode is not None:
-            dm: DisplayMode = "casual" if display_mode == "casual" else "technical"
-            try:
-                disp_result = build_display(
-                    payload.get("ops", []),
-                    mode=dm,
-                    level=payload["evaluation_level"],  # type: ignore[arg-type]
-                    score=float(payload.get("score") or 0.0),
-                )
-                d = disp_result.as_dict()
-                payload["display"] = IPADisplay(
-                    mode=d["mode"],
-                    level=d["level"],
-                    ref_technical=d["ref_technical"],
-                    ref_casual=d["ref_casual"],
-                    hyp_technical=d["hyp_technical"],
-                    hyp_casual=d["hyp_casual"],
-                    score_color=d["score_color"],
-                    legend=d["legend"],
-                    tokens=[IPADisplayToken(**t) for t in d["tokens"]],
-                ).model_dump()
-            except Exception as _disp_exc:
-                logger.warning("build_display falló: %s", _disp_exc)
+            disp_data = _build_display_payload(
+                payload.get("ops", []),
+                payload["evaluation_level"],  # type: ignore[arg-type]
+                float(payload.get("score") or 0.0),
+                display_mode
+            )
+            if disp_data:
+                payload["display"] = disp_data
 
         return payload
     finally:
@@ -348,7 +317,29 @@ async def compare(
         _cleanup_uploaded_file(tmp_path)
 
 
-# ── Quick-compare: fast path using cached kernel, no quality gates ───
+def _get_cleaned_asr_tokens(asr_result: dict, lang: str) -> list[str]:
+    hyp_tokens = asr_result.get("tokens", [])
+    if not hyp_tokens:
+        raw_text = asr_result.get("raw_text", "")
+        no_speech_hint = "ASR no devolvió tokens IPA."
+        if raw_text:
+            no_speech_hint += (f" Texto detectado: '{raw_text}'. Verifique language pack/configuración del backend.")
+        else:
+            no_speech_hint += " El audio podría estar vacío, ser demasiado corto o no tener voz."
+        logger.warning("quick_compare: ASR sin tokens")
+        raise ValidationError(no_speech_hint)
+
+    cleaned = clean_asr_tokens(hyp_tokens, lang=lang)
+    if not cleaned:
+        raise ValidationError("ASR no devolvió tokens IPA válidos tras limpieza. El audio podría ser muy corto o contener sólo ruido.")
+    return cleaned
+
+async def _get_cleaned_ref_tokens(kernel: Kernel, text: str, target_ipa: Optional[str], lang: str) -> list[str]:
+    if target_ipa and target_ipa.strip():
+        return clean_textref_tokens(target_ipa.strip().split(), lang=lang)
+    tr_result = await kernel.textref.to_ipa(text, lang=lang)
+    return clean_textref_tokens(tr_result.get("tokens", []), lang=lang)
+
 @router.post("/quick-compare", response_model=CompareResponse)
 async def quick_compare(
     audio: UploadFile = File(..., description="Archivo de audio a comparar"),
@@ -360,60 +351,27 @@ async def quick_compare(
     mode: str = Form("objective", description="Modo: casual, objective, phonetic, auto"),
     evaluation_level: str = Form("phonemic", description="Nivel: phonemic, phonetic, auto"),
 ) -> Union[dict[str, Any], JSONResponse]:
-    """Comparación rápida: ASR + textref + compare sin quality-gates.
-
-    Usa el kernel singleton (ya inicializado) para evitar overhead de
-    setup/teardown.  No ejecuta quality assessment ni adaptation.
-    Ideal para revisiones rápidas durante la práctica.
-    """
+    """Comparación rápida: ASR + textref + compare sin quality-gates."""
     kernel = await get_or_create_kernel()
     lang_source_resolved = resolve_request_lang(lang_source or lang)
     lang_target_resolved = resolve_request_lang(lang_target or lang)
     asr_guard = _assert_real_ipa_asr(kernel.asr)
-    if asr_guard:
-        return asr_guard
+    if asr_guard: return asr_guard
+    
     tmp_path = await _process_upload(audio)
     wav_tmp = False
     wav_path = str(tmp_path)
     try:
         wav_path, wav_tmp = ensure_wav(str(tmp_path))
 
-        # Direct ASR → textref → compare pipeline
         audio_in: AudioInput = to_audio_input(wav_path)
         audio_pre = mark_audio_preprocessed(audio_in)
         pre_result = await kernel.pre.process_audio(cast(AudioInput, audio_pre))
         processed = pre_result.get("audio", audio_in)
 
         asr_result = await kernel.asr.transcribe(processed, lang=lang_source_resolved)
-        hyp_tokens = asr_result.get("tokens", [])
-        if not hyp_tokens:
-            raw_text = asr_result.get("raw_text", "")
-            no_speech_hint = "ASR no devolvió tokens IPA."
-            if raw_text:
-                no_speech_hint += (
-                    f" Texto detectado: '{raw_text}'. "
-                    "Verifique language pack/configuración del backend."
-                )
-            else:
-                no_speech_hint += (
-                    " El audio podría estar vacío, ser demasiado corto o no tener voz."
-                )
-            logger.warning("quick_compare: ASR sin tokens")
-            raise ValidationError(no_speech_hint)
-
-        # Limpieza IPA unificada para quick-compare
-        hyp_tokens = clean_asr_tokens(hyp_tokens, lang=lang_source_resolved)
-        if not hyp_tokens:
-            raise ValidationError(
-                "ASR no devolvió tokens IPA válidos tras limpieza. "
-                "El audio podría ser muy corto o contener sólo ruido."
-            )
-
-        if target_ipa and target_ipa.strip():
-            ref_tokens = clean_textref_tokens(target_ipa.strip().split(), lang=lang_target_resolved)
-        else:
-            tr_result = await kernel.textref.to_ipa(text, lang=lang_target_resolved)
-            ref_tokens = clean_textref_tokens(tr_result.get("tokens", []), lang=lang_target_resolved)
+        hyp_tokens = _get_cleaned_asr_tokens(asr_result, lang_source_resolved)
+        ref_tokens = await _get_cleaned_ref_tokens(kernel, text, target_ipa, lang_target_resolved)
 
         result = await kernel.comp.compare(ref_tokens, hyp_tokens)
 
@@ -440,8 +398,7 @@ async def quick_compare(
             },
         }
     finally:
-        if wav_tmp:
-            cleanup_temp(wav_path)
+        if wav_tmp: cleanup_temp(wav_path)
         _cleanup_uploaded_file(tmp_path)
 
 
