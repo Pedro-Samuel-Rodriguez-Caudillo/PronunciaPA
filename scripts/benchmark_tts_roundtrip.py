@@ -126,14 +126,14 @@ _ESPEAK_VOICES: Dict[str, str] = {
 # Generación de audio con eSpeak TTS
 # ---------------------------------------------------------------------------
 
+import shutil
+
 def _find_espeak() -> Optional[str]:
     """Buscar binario eSpeak-NG en PATH."""
     for name in ("espeak-ng", "espeak"):
-        result = subprocess.run(
-            ["which", name], capture_output=True, text=True
-        )
-        if result.returncode == 0:
-            return result.stdout.strip()
+        path = shutil.which(name)
+        if path:
+            return path
     return None
 
 
