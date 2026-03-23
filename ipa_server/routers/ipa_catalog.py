@@ -38,21 +38,21 @@ async def get_ipa_sounds(lang: Optional[str] = None, category: Optional[str] = N
     if lang:
         res = catalog_service.get_sounds_for_language(lang, category)
         if not res:
-            return error_response(404, f"Idioma no encontrado: {lang}", "language_not_found", {"available": ["es", "en"]})
+            return error_response(status_code=404, detail=f"Idioma no encontrado: {lang}", error_type="language_not_found", extra={"available": ["es", "en"]})
         return res
     return catalog_service.get_all_languages_sounds(category)
 
 
 def _handle_audio_info_error(e: Exception):
     if isinstance(e, FileNotFoundError):
-        return error_response(404, str(e), "language_not_found")
+        return error_response(status_code=404, detail=str(e), error_type="language_not_found")
     if isinstance(e, KeyError):
-        return error_response(404, str(e), "sound_not_found")
+        return error_response(status_code=404, detail=str(e), error_type="sound_not_found")
     if isinstance(e, ValueError):
         if "Invalid sound_id" in str(e):
-            return error_response(400, str(e), "validation_error")
-        return error_response(404, str(e), "example_not_found")
-    return error_response(500, str(e), "internal_error")
+            return error_response(status_code=400, detail=str(e), error_type="validation_error")
+        return error_response(status_code=404, detail=str(e), error_type="example_not_found")
+    return error_response(status_code=500, detail=str(e), error_type="internal_error")
 
 @router.get("/ipa-sounds/audio")
 async def get_ipa_sound_audio(sound_id: str, example: Optional[str] = None):
@@ -71,7 +71,7 @@ async def get_ipa_sound_audio(sound_id: str, example: Optional[str] = None):
             headers={"X-Example-Text": _ascii_header_value(info["example"]), "X-Sound-IPA": _ascii_header_value(info["ipa"])}
         )
     except Exception as e:
-        return error_response(500, "Failed to generate audio", "audio_generation_failed", {"backend_error": str(e), "text": info["example"]})
+        return error_response(status_code=500, detail="Failed to generate audio", error_type="audio_generation_failed", extra={"backend_error": str(e), "text": info["example"]})
 
 
 @router.get("/ipa-learn/{lang}", response_model=None)
@@ -79,9 +79,9 @@ async def get_ipa_learning_content(lang: str, sound_id: Optional[str] = None):
     try:
         return catalog_service.get_learning_content(lang, sound_id)
     except FileNotFoundError as e:
-        return error_response(404, str(e), "learning_content_not_found")
+        return error_response(status_code=404, detail=str(e), error_type="learning_content_not_found")
     except KeyError as e:
-        return error_response(404, str(e), "sound_not_found")
+        return error_response(status_code=404, detail=str(e), error_type="sound_not_found")
 
 
 @router.get("/ipa-drills/{lang}/{sound_id:path}", response_model=None)
@@ -89,7 +89,7 @@ async def get_sound_drills(lang: str, sound_id: str, drill_type: Optional[str] =
     try:
         return catalog_service.get_drills(lang, sound_id, drill_type)
     except KeyError as e:
-        return error_response(404, str(e), "sound_not_found")
+        return error_response(status_code=404, detail=str(e), error_type="sound_not_found")
 
 
 @router.get("/ipa-lesson/{lang}/{sound_id:path}", response_model=SoundLesson)
@@ -97,6 +97,6 @@ async def get_sound_lesson(lang: str, sound_id: str, include_audio: Optional[boo
     try:
         return await catalog_service.get_sound_lesson(lang, sound_id, include_audio, max_drills, generate)
     except FileNotFoundError as e:
-        return error_response(404, str(e), "language_not_found")
+        return error_response(status_code=404, detail=str(e), error_type="language_not_found")
     except KeyError as e:
-        return error_response(404, str(e), "sound_not_found")
+        return error_response(status_code=404, detail=str(e), error_type="sound_not_found")

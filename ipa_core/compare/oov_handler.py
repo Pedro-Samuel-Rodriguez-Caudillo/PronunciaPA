@@ -154,21 +154,21 @@ class OOVHandler:
     # Interfaz pública
     # ------------------------------------------------------------------
 
-    def resolve(self, token: Token) -> OOVResult:
+    def resolve(self, token: Token, *, inventory: Optional[Sequence[Token]] = None) -> Token:
         """Resolver un token: determinar si es OOV y qué hacer con él.
 
-        Parámetros
-        ----------
-        token:
-            Fonema a evaluar.
-
-        Retorna
-        -------
-        OOVResult
-            Resultado con la decisión tomada.
+        Retorna el token original si está en inventario, el más cercano
+        si puede colapsarse, o ``"?"`` si es demasiado distante.
         """
+        return self.resolve_detailed(token, inventory=inventory).resolved
+
+    def resolve_detailed(self, token: Token, *, inventory: Optional[Sequence[Token]] = None) -> OOVResult:
+        """Resolver un token y retornar el OOVResult completo con la decisión y distancia."""
+        inv_set = frozenset(inventory) if inventory is not None else self._inventory
+        inv_list = list(inventory) if inventory is not None else self._inventory_list
+
         # Caso 1: Token ya en inventario → sin cambios
-        if token in self._inventory:
+        if token in inv_set:
             result = OOVResult(
                 original=token,
                 resolved=token,
@@ -180,7 +180,7 @@ class OOVHandler:
             return result
 
         # Caso 2: Inventario vacío → marcar como desconocido
-        if not self._inventory_list:
+        if not inv_list:
             result = OOVResult(
                 original=token,
                 resolved=UNKNOWN_TOKEN,
@@ -192,7 +192,7 @@ class OOVHandler:
             return result
 
         # Caso 3: Buscar el fonema más cercano en el inventario
-        nearest, min_dist = self._find_nearest(token)
+        nearest, min_dist = self._find_nearest(token, inv_list)
 
         if min_dist < self.collapse_threshold:
             result = OOVResult(
@@ -214,14 +214,15 @@ class OOVHandler:
         self._stats.record(result)
         return result
 
-    def resolve_sequence(self, tokens: Sequence[Token]) -> list[OOVResult]:
+    def resolve_sequence(self, tokens: Sequence[Token], *, inventory: Optional[Sequence[Token]] = None) -> list[OOVResult]:
         """Resolver una secuencia completa de tokens."""
-        return [self.resolve(t) for t in tokens]
+        return [self.resolve_detailed(t, inventory=inventory) for t in tokens]
 
     def filter_sequence(
         self,
         tokens: Sequence[Token],
         *,
+        inventory: Optional[Sequence[Token]] = None,
         exclude_unknown: bool = True,
     ) -> list[Token]:
         """Resolver tokens y devolver la secuencia filtrada.
@@ -233,6 +234,9 @@ class OOVHandler:
         ----------
         tokens:
             Secuencia original de tokens IPA.
+        inventory:
+            Inventario canónico de símbolos válidos.  Si es None, el
+            handler usa el inventario configurado en su constructor.
         exclude_unknown:
             Si ``True``, excluir tokens ``UNKNOWN_TOKEN`` del resultado.
 
@@ -241,7 +245,7 @@ class OOVHandler:
         list[Token]
             Secuencia con OOV colapsados y desconocidos filtrados (o marcados).
         """
-        results = self.resolve_sequence(tokens)
+        results = self.resolve_sequence(tokens, inventory=inventory)
         if exclude_unknown:
             return [r.resolved for r in results if r.resolved != UNKNOWN_TOKEN]
         return [r.resolved for r in results]
@@ -302,12 +306,15 @@ class OOVHandler:
     # Helpers internos
     # ------------------------------------------------------------------
 
-    def _find_nearest(self, token: Token) -> tuple[Token, float]:
+    def _find_nearest(self, token: Token, inv_list: list[Token]) -> tuple[Token, float]:
         """Encontrar el fonema del inventario con menor distancia articulatoria."""
-        best_token = self._inventory_list[0]
+        if not inv_list:
+            return token, 1.0
+
+        best_token = inv_list[0]
         best_dist = articulatory_distance(token, best_token)
 
-        for candidate in self._inventory_list[1:]:
+        for candidate in inv_list[1:]:
             dist = articulatory_distance(token, candidate)
             if dist < best_dist:
                 best_dist = dist

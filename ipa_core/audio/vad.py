@@ -301,6 +301,13 @@ def analyze_vad_silero(
     return _build_vad_result(segments, duration_ms, silence_trim_ms)
 
 
+_SILERO_KWARGS = frozenset({
+    "sampling_rate", "threshold", "min_speech_duration_ms",
+    "min_silence_duration_ms", "silence_trim_ms",
+})
+_ENERGY_KWARGS = frozenset({"frame_ms", "energy_threshold", "min_speech_ms", "silence_trim_ms"})
+
+
 def analyze_vad_best(
     audio_path: str,
     *,
