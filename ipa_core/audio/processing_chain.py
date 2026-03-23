@@ -72,43 +72,34 @@ class EnsureWavStep:
         if ctx.was_step_applied(self.name):
             return ctx
         if is_audio_preprocessed(ctx.audio):
-            ctx.meta["ensure_wav"] = {"skipped": True, "path": ctx.audio.get("path")}
-            ctx.mark_step(self.name)
-            return ctx
+            return self._mark_skipped(ctx)
+        
+        return self._run_conversion(ctx)
+
+    def _mark_skipped(self, ctx: AudioContext) -> AudioContext:
+        ctx.meta["ensure_wav"] = {"skipped": True, "path": ctx.audio.get("path")}
+        ctx.mark_step(self.name)
+        return ctx
+
+    def _run_conversion(self, ctx: AudioContext) -> AudioContext:
         try:
             from ipa_core.audio.files import ensure_wav
-            new_path, is_temp = ensure_wav(
-                ctx.audio["path"],
-                target_sample_rate=16000,
-                target_channels=1,
-            )
+            new_path, is_temp = ensure_wav(ctx.audio["path"], target_sample_rate=16000, target_channels=1)
             if is_temp:
                 ctx.add_temp_file(new_path)
-            new_audio = dict(ctx.audio)
-            new_audio["path"] = new_path
-            new_audio["sample_rate"] = 16000
-            new_audio["channels"] = 1
-            ctx.audio = new_audio  # type: ignore[assignment]
+            
+            ctx.audio = {**ctx.audio, "path": new_path, "sample_rate": 16000, "channels": 1} # type: ignore
             ctx.meta["ensure_wav"] = {"converted": is_temp, "path": new_path}
         except Exception as exc:
-            logger.warning("EnsureWavStep falló, continuando con audio original: %s", exc)
+            logger.warning("EnsureWavStep falló: %s", exc)
             ctx.meta["ensure_wav"] = {"error": str(exc), "error_type": type(exc).__name__}
+        
         ctx.mark_step(self.name)
         return ctx
 
 
 class VADTrimStep:
-    """Paso 2: recortar silencios inicio/final con VAD.
-
-    Parameters
-    ----------
-    enabled : bool
-        Si False, actúa como no-op (idempotencia garantizada).
-    backend : str
-        Backend VAD a usar: ``"auto"`` (Silero si disponible, sino energía),
-        ``"silero"`` (forzar Silero VAD neural), ``"energy"`` (VAD de energía
-        clásico, sin dependencias externas).
-    """
+    """Paso 2: recortar silencios inicio/final con VAD."""
 
     name = "vad_trim"
 
@@ -120,81 +111,68 @@ class VADTrimStep:
         if ctx.was_step_applied(self.name) or not self.enabled:
             ctx.mark_step(self.name)
             return ctx
-        try:
-            import wave
-            import tempfile
-            from ipa_core.audio.vad import analyze_vad_best
+        
+        return self._run_vad(ctx)
 
+    def _run_vad(self, ctx: AudioContext) -> AudioContext:
+        try:
+            from ipa_core.audio.vad import analyze_vad_best
             vad = analyze_vad_best(ctx.audio["path"], backend=self.backend)
             ctx.vad_result = vad
-            ctx.meta["vad"] = {
-                "speech_ratio": vad.speech_ratio,
-                "duration_ms": vad.duration_ms,
-                "speech_segments": len(vad.speech_segments),
-                "trim_suggestion": vad.trim_suggestion,
-            }
+            ctx.meta["vad"] = _build_vad_meta(vad)
 
             if vad.trim_suggestion:
-                # SOLO recortar el final del audio (nunca el inicio).
-                #
-                # Razones para NO recortar el inicio:
-                # 1. El VAD de energía puede no detectar plosivas sordas iniciales
-                #    (/p/, /t/, /k/) porque tienen poca energía; Allosaurus también
-                #    necesita algunos frames de contexto previo para inicializar su
-                #    estado oculto (sin ellos "prueba" → "rueba").
-                # 2. Conservar el silencio original al principio es inocuo y
-                #    garantiza que nunca se pierda el onset de la primera consonante.
-                _start_ms, end_ms = vad.trim_suggestion
-                trimmed_path = self._trim_wav(ctx.audio["path"], 0, end_ms)
-                if trimmed_path:
-                    ctx.add_temp_file(trimmed_path)
-                    new_audio = dict(ctx.audio)
-                    new_audio["path"] = trimmed_path
-                    ctx.audio = new_audio  # type: ignore[assignment]
-                    ctx.meta["vad"]["trimmed"] = True
-                    ctx.meta["vad"]["path"] = trimmed_path  # exposed for cleanup
+                self._apply_trim(ctx, vad.trim_suggestion[1])
         except Exception as exc:
-            logger.warning("VADTrimStep falló, continuando sin recorte: %s", exc)
+            logger.warning("VADTrimStep falló: %s", exc)
             ctx.meta.setdefault("vad", {})["error"] = str(exc)
+        
         ctx.mark_step(self.name)
         return ctx
+
+    def _apply_trim(self, ctx: AudioContext, end_ms: int):
+        trimmed_path = self._trim_wav(ctx.audio["path"], 0, end_ms)
+        if trimmed_path:
+            ctx.add_temp_file(trimmed_path)
+            ctx.audio = {**ctx.audio, "path": trimmed_path} # type: ignore
+            ctx.meta["vad"].update({"trimmed": True, "path": trimmed_path})
 
     @staticmethod
     def _trim_wav(path: str, start_ms: int, end_ms: int) -> Optional[str]:
         """Recortar WAV entre start_ms y end_ms, retorna ruta temporal o None."""
-        import struct
         import tempfile
         import wave
 
         try:
             with wave.open(path, "rb") as wf:
-                sr = wf.getframerate()
-                sw = wf.getsampwidth()
-                nc = wf.getnchannels()
+                sr, sw, nc = wf.getframerate(), wf.getsampwidth(), wf.getnchannels()
                 frames = wf.readframes(wf.getnframes())
 
-            start_frame = int(start_ms * sr / 1000)
-            end_frame = int(end_ms * sr / 1000)
-            bytes_per_frame = sw * nc
-            start_byte = start_frame * bytes_per_frame
-            end_byte = end_frame * bytes_per_frame
+            start_byte = int(start_ms * sr / 1000) * sw * nc
+            end_byte = int(end_ms * sr / 1000) * sw * nc
             trimmed = frames[start_byte:end_byte]
 
             if not trimmed:
                 return None
 
-            tmp = tempfile.NamedTemporaryFile(
-                prefix="pronunciapa_vad_", suffix=".wav", delete=False
-            )
-            with wave.open(tmp.name, "wb") as out_wf:
-                out_wf.setnchannels(nc)
-                out_wf.setsampwidth(sw)
-                out_wf.setframerate(sr)
+            with tempfile.NamedTemporaryFile(prefix="pronunciapa_vad_", suffix=".wav", delete=False) as tmp:
+                tmp_name = tmp.name
+            with wave.open(tmp_name, "wb") as out_wf:
+                out_wf.setnchannels(nc); out_wf.setsampwidth(sw); out_wf.setframerate(sr)
                 out_wf.writeframes(trimmed)
-            return tmp.name
+            return tmp_name
         except Exception as exc:
             logger.warning("_trim_wav falló: %s", exc)
             return None
+
+
+def _build_vad_meta(vad: Any) -> dict:
+    return {
+        "speech_ratio": vad.speech_ratio,
+        "duration_ms": vad.duration_ms,
+        "speech_segments": len(vad.speech_segments),
+        "trim_suggestion": vad.trim_suggestion,
+    }
 
 
 class AGCStep:
@@ -247,51 +225,52 @@ class AGCStep:
         return ctx
 
     def _apply_agc(self, path: str) -> Optional[str]:
-        """Aplicar ganancia al WAV y retornar ruta temporal, o None si no se aplica."""
+        """Aplicar ganancia al WAV y retornar ruta temporal."""
+        samples, sr, sw, nc = self._read_samples(path)
+        if not samples or sw != 2:
+            return None
+
+        gain_linear = self._calculate_linear_gain(samples)
+        if gain_linear is None:
+            return None
+
+        scaled = [max(-32767, min(32767, int(s * gain_linear))) for s in samples]
+        return self._write_agc_wav(scaled, sr, sw, nc)
+
+    def _read_samples(self, path: str) -> tuple[list[int], int, int, int]:
+        import struct
+        import wave
+        with wave.open(path, "rb") as wf:
+            sr, sw, nc = wf.getframerate(), wf.getsampwidth(), wf.getnchannels()
+            frames = wf.readframes(wf.getnframes())
+        
+        if sw != 2:
+            return [], sr, sw, nc
+        fmt = f"<{len(frames) // 2}h"
+        return list(struct.unpack(fmt, frames)), sr, sw, nc
+
+    def _calculate_linear_gain(self, samples: list[int]) -> Optional[float]:
         import math
+        sum_sq = sum(s * s for s in samples)
+        rms = (sum_sq / len(samples)) ** 0.5
+        if rms < 1.0:
+            return None
+
+        gain_db = self.target_dbfs - (20.0 * math.log10(rms / 32767))
+        if abs(gain_db) < 0.5:
+            return None
+
+        gain_db = max(-self.max_gain_db, min(self.max_gain_db, gain_db))
+        return 10.0 ** (gain_db / 20.0)
+
+    def _write_agc_wav(self, samples: list[int], sr: int, sw: int, nc: int) -> str:
         import struct
         import tempfile
         import wave
-
-        with wave.open(path, "rb") as wf:
-            sr = wf.getframerate()
-            sw = wf.getsampwidth()
-            nc = wf.getnchannels()
-            frames = wf.readframes(wf.getnframes())
-
-        if sw != 2:
-            return None  # Solo soporta 16-bit PCM
-
-        fmt = f"<{len(frames) // 2}h"
-        samples = list(struct.unpack(fmt, frames))
-
-        if not samples:
-            return None
-
-        max_val = 32767
-        sum_sq = sum(s * s for s in samples)
-        rms = (sum_sq / len(samples)) ** 0.5
-
-        if rms < 1.0:
-            return None  # Audio silencioso, no amplificar
-
-        current_dbfs = 20.0 * math.log10(rms / max_val)
-        gain_db = self.target_dbfs - current_dbfs
-
-        if abs(gain_db) < 0.5:
-            return None  # Ya en rango aceptable
-
-        gain_db = max(-self.max_gain_db, min(self.max_gain_db, gain_db))
-        gain_linear = 10.0 ** (gain_db / 20.0)
-
-        scaled = [max(-max_val, min(max_val, int(s * gain_linear))) for s in samples]
-
-        # Cerrar el archivo temporal antes de abrirlo con wave.open (requerido en Windows)
-        with tempfile.NamedTemporaryFile(
-            prefix="pronunciapa_agc_", suffix=".wav", delete=False
-        ) as tmp:
+        with tempfile.NamedTemporaryFile(prefix="pronunciapa_agc_", suffix=".wav", delete=False) as tmp:
             tmp_name = tmp.name
-        packed = struct.pack(f"<{len(scaled)}h", *scaled)
+        
+        packed = struct.pack(f"<{len(samples)}h", *samples)
         with wave.open(tmp_name, "wb") as out_wf:
             out_wf.setnchannels(nc)
             out_wf.setsampwidth(sw)
@@ -308,27 +287,24 @@ class QualityCheckStep:
     async def process(self, ctx: AudioContext) -> AudioContext:
         if ctx.was_step_applied(self.name):
             return ctx
+        
+        return self._run_quality_check(ctx)
+
+    def _run_quality_check(self, ctx: AudioContext) -> AudioContext:
         try:
             from ipa_core.services.audio_quality import assess_audio_quality
-
-            speech_segments = None
-            if ctx.vad_result is not None:
-                speech_segments = ctx.vad_result.speech_segments
-
-            quality_res, warnings, _ = assess_audio_quality(
-                ctx.audio["path"],
-                speech_segments=speech_segments,
-            )
+            
+            segments = ctx.vad_result.speech_segments if ctx.vad_result else None
+            quality_res, warns, _ = assess_audio_quality(ctx.audio["path"], speech_segments=segments)
+            
             ctx.quality_result = quality_res
-            ctx.meta["quality"] = {
-                "passed": quality_res.passed if quality_res else None,
-                "warnings": warnings,
-            }
+            ctx.meta["quality"] = {"passed": quality_res.passed if quality_res else None, "warnings": warns}
             if quality_res:
                 ctx.meta["audio_quality"] = quality_res.to_dict()
         except Exception as exc:
             logger.warning("QualityCheckStep falló: %s", exc)
             ctx.meta.setdefault("quality", {})["error"] = str(exc)
+            
         ctx.mark_step(self.name)
         return ctx
 

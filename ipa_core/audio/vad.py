@@ -59,111 +59,87 @@ def analyze_vad(
     min_speech_ms: int = DEFAULT_MIN_SPEECH_MS,
     silence_trim_ms: int = DEFAULT_SILENCE_TRIM_MS,
 ) -> VADResult:
-    """Analizar audio para detectar segmentos de voz.
-    
-    Args:
-        audio_path: Ruta al archivo WAV (16-bit PCM)
-        frame_ms: Tamaño de frame en milisegundos
-        energy_threshold: Umbral de energía relativa (0.0-1.0)
-        min_speech_ms: Duración mínima de speech válido en ms
-        silence_trim_ms: Silencio mínimo para sugerir recorte
-        
-    Returns:
-        VADResult con segmentos de voz y métricas
-    """
-    p = Path(audio_path)
-    if not p.exists():
+    """Analizar audio para detectar segmentos de voz."""
+    path = Path(audio_path)
+    if not path.exists():
         raise FileNotFoundError(f"Audio no encontrado: {audio_path}")
     
-    # Leer audio WAV
-    with wave.open(str(p), "rb") as w:
-        sample_rate = w.getframerate()
-        n_channels = w.getnchannels()
-        sample_width = w.getsampwidth()
-        n_frames = w.getnframes()
-        raw_data = w.readframes(n_frames)
+    raw_data, sr, sw, nc, n_frames = _read_wav_raw(path)
+    duration_ms = int(n_frames * 1000 / sr)
     
-    if sample_width != 2:
-        raise ValueError(f"Solo soporta WAV 16-bit, recibido: {sample_width * 8}-bit")
+    frame_energies = _calculate_frame_energies(raw_data, sr, sw, nc, frame_ms)
+    if not frame_energies or max(frame_energies) < 100.0:
+        return VADResult(speech_segments=[], speech_ratio=0.0, duration_ms=duration_ms)
     
-    # Calcular energía por frame
-    samples_per_frame = int(sample_rate * frame_ms / 1000)
-    bytes_per_frame = samples_per_frame * sample_width * n_channels
+    segments = _detect_speech_segments(frame_energies, frame_ms, energy_threshold, min_speech_ms)
+    return _build_vad_result(segments, duration_ms, silence_trim_ms)
+
+
+def _read_wav_raw(path: Path) -> tuple[bytes, int, int, int, int]:
+    with wave.open(str(path), "rb") as w:
+        sr = w.getframerate()
+        sw = w.getsampwidth()
+        nc = w.getnchannels()
+        nf = w.getnframes()
+        data = w.readframes(nf)
     
-    frame_energies = []
+    if sw != 2:
+        raise ValueError(f"Solo soporta WAV 16-bit, recibido: {sw * 8}-bit")
+    return data, sr, sw, nc, nf
+
+
+def _detect_speech_segments(energies: list[float], frame_ms: int, threshold: float, min_ms: int) -> list[tuple[int, int]]:
+    max_e = max(energies)
+    is_speech = [e / max_e > threshold for e in energies]
+    segments = _extract_segments(is_speech, frame_ms)
+    return [s for s in segments if s[1] - s[0] >= min_ms]
+
+
+def _calculate_frame_energies(raw_data: bytes, sr: int, sw: int, nc: int, frame_ms: int) -> list[float]:
+    samples_per_frame = int(sr * frame_ms / 1000)
+    bytes_per_frame = samples_per_frame * sw * nc
+    
+    energies = []
     for i in range(0, len(raw_data) - bytes_per_frame, bytes_per_frame):
         frame = raw_data[i:i + bytes_per_frame]
-        energy = _compute_frame_energy(frame, sample_width)
-        frame_energies.append(energy)
-    
-    if not frame_energies:
-        return VADResult(
-            speech_segments=[],
-            speech_ratio=0.0,
-            duration_ms=int(n_frames * 1000 / sample_rate),
-        )
-    
-    # Umbral absoluto de energía mínima (evita que silencio sea detectado como voz)
-    # Para audio de 16-bit, RMS < 100 es efectivamente silencio
-    ABSOLUTE_ENERGY_THRESHOLD = 100.0
-    max_energy = max(frame_energies)
-    
-    # Si la energía máxima es muy baja, todo es silencio
-    if max_energy < ABSOLUTE_ENERGY_THRESHOLD:
-        return VADResult(
-            speech_segments=[],
-            speech_ratio=0.0,
-            duration_ms=int(n_frames * 1000 / sample_rate),
-        )
-    
-    # Normalizar energías y aplicar threshold
-    normalized = [e / max_energy for e in frame_energies]
-    is_speech = [e > energy_threshold for e in normalized]
-    
-    # Extraer segmentos de speech
-    speech_segments = _extract_segments(is_speech, frame_ms)
-    
-    # Filtrar segmentos muy cortos
-    speech_segments = [
-        (start, end) for start, end in speech_segments
-        if end - start >= min_speech_ms
-    ]
-    
-    # Calcular métricas
-    duration_ms = int(n_frames * 1000 / sample_rate)
-    total_speech_ms = sum(end - start for start, end in speech_segments)
+        energies.append(_compute_frame_energy(frame, sw))
+    return energies
+
+
+def _build_vad_result(segments: list[tuple[int, int]], duration_ms: int, trim_ms: int) -> VADResult:
+    total_speech_ms = sum(end - start for start, end in segments)
     speech_ratio = total_speech_ms / duration_ms if duration_ms > 0 else 0.0
     
-    # Calcular sugerencia de recorte
-    trim_suggestion = None
-    if speech_segments:
-        first_speech_start = speech_segments[0][0]
-        last_speech_end = speech_segments[-1][1]
-        
-        # Sugerir recorte si hay silencio significativo al inicio o al final
-        if first_speech_start > silence_trim_ms or (duration_ms - last_speech_end) > silence_trim_ms:
-            # Margen generoso para no cortar consonantes iniciales sordas (/p/, /t/, /k/)
-            # que tienen poca energía y pueden no ser detectadas como voz
-            trim_start = max(0, first_speech_start - _PRE_SPEECH_MARGIN_MS)
-            trim_end = min(duration_ms, last_speech_end + _POST_SPEECH_MARGIN_MS)
-            trim_suggestion = (trim_start, trim_end)
-    
-    # Detectar pausas internas
-    internal_pauses = []
-    for i in range(1, len(speech_segments)):
-        prev_end = speech_segments[i - 1][1]
-        curr_start = speech_segments[i][0]
-        pause_duration = curr_start - prev_end
-        if pause_duration > 200:  # Pausa > 200ms
-            internal_pauses.append((prev_end, curr_start))
-    
     return VADResult(
-        speech_segments=speech_segments,
+        speech_segments=segments,
         speech_ratio=speech_ratio,
         duration_ms=duration_ms,
-        trim_suggestion=trim_suggestion,
-        internal_pauses=internal_pauses,
+        trim_suggestion=_calculate_trim_suggestion(segments, duration_ms, trim_ms),
+        internal_pauses=_detect_internal_pauses(segments),
     )
+
+
+def _calculate_trim_suggestion(segments: list[tuple[int, int]], duration: int, trim_ms: int) -> Optional[tuple[int, int]]:
+    if not segments:
+        return None
+    
+    first_start, last_end = segments[0][0], segments[-1][1]
+    if first_start <= trim_ms and (duration - last_end) <= trim_ms:
+        return None
+        
+    return (
+        max(0, first_start - _PRE_SPEECH_MARGIN_MS),
+        min(duration, last_end + _POST_SPEECH_MARGIN_MS)
+    )
+
+
+def _detect_internal_pauses(segments: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    pauses = []
+    for i in range(1, len(segments)):
+        prev_end, curr_start = segments[i - 1][1], segments[i][0]
+        if curr_start - prev_end > 200:
+            pauses.append((prev_end, curr_start))
+    return pauses
 
 
 def _compute_frame_energy(frame: bytes, sample_width: int) -> float:
@@ -190,65 +166,66 @@ def _extract_segments(
     start_frame = 0
     
     for i, speech in enumerate(is_speech):
-        if speech and not in_segment:
-            in_segment = True
-            start_frame = i
-        elif not speech and in_segment:
-            in_segment = False
-            segments.append((start_frame * frame_ms, i * frame_ms))
+        in_segment, start_frame = _process_segment_frame(
+            i, speech, in_segment, start_frame, frame_ms, segments
+        )
     
-    # Cerrar último segmento si quedó abierto
     if in_segment:
         segments.append((start_frame * frame_ms, len(is_speech) * frame_ms))
     
     return segments
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Silero VAD backend (opcional, requiere `pip install silero-vad`)
-# ──────────────────────────────────────────────────────────────────────────────
+def _process_segment_frame(i: int, speech: bool, in_seg: bool, start: int, ms: int, res: list) -> tuple[bool, int]:
+    if speech and not in_seg:
+        return True, i
+    if not speech and in_seg:
+        res.append((start * ms, i * ms))
+        return False, start
+    return in_seg, start
+
 
 def _read_audio_wav(audio_path: str, sampling_rate: int = 16000) -> Any:
-    """Leer WAV como tensor float32 sin depender de torchaudio.backend.
-
-    Reemplaza ``silero_vad.read_audio`` para evitar la dependencia de
-    torchaudio >= 2.9 en ``torchcodec``.  Usa ``wave`` + ``numpy`` para
-    la lectura y ``scipy.signal.resample_poly`` (opcional) si la tasa de
-    muestreo difiere del objetivo.
-    """
+    """Leer WAV como tensor float32 sin depender de torchaudio."""
     import numpy as np
     import torch
 
-    with wave.open(audio_path, "rb") as wf:
-        sr = wf.getframerate()
-        sw = wf.getsampwidth()
-        nc = wf.getnchannels()
-        raw = wf.readframes(wf.getnframes())
-
-    if sw == 2:
-        samples = np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
-    elif sw == 4:
-        samples = np.frombuffer(raw, dtype=np.int32).astype(np.float32) / 2_147_483_648.0
-    else:
-        raise ValueError(f"Sample width {sw * 8}-bit no soportado por _read_audio_wav")
+    raw, sr, sw, nc = _read_wav_metadata(audio_path)
+    samples = _raw_to_float32(raw, sw)
 
     if nc > 1:
         samples = samples.reshape(-1, nc).mean(axis=1).astype(np.float32)
 
     if sr != sampling_rate:
-        try:
-            from math import gcd
-            from scipy.signal import resample_poly
-            g = gcd(sampling_rate, sr)
-            samples = resample_poly(samples, sampling_rate // g, sr // g).astype(np.float32)
-        except ImportError:
-            logger.warning(
-                "_read_audio_wav: scipy no disponible para resamplear %d→%d Hz; "
-                "el audio puede tener tasa incorrecta",
-                sr, sampling_rate,
-            )
+        samples = _resample_audio(samples, sr, sampling_rate)
 
     return torch.from_numpy(samples)
+
+
+def _read_wav_metadata(path: str) -> tuple[bytes, int, int, int]:
+    with wave.open(path, "rb") as wf:
+        return wf.readframes(wf.getnframes()), wf.getframerate(), wf.getsampwidth(), wf.getnchannels()
+
+
+def _raw_to_float32(raw: bytes, sw: int) -> Any:
+    import numpy as np
+    if sw == 2:
+        return np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
+    if sw == 4:
+        return np.frombuffer(raw, dtype=np.int32).astype(np.float32) / 2_147_483_648.0
+    raise ValueError(f"Sample width {sw * 8}-bit no soportado")
+
+
+def _resample_audio(samples: Any, sr: int, target_sr: int) -> Any:
+    import numpy as np
+    try:
+        from math import gcd
+        from scipy.signal import resample_poly
+        g = gcd(target_sr, sr)
+        return resample_poly(samples, target_sr // g, sr // g).astype(np.float32)
+    except ImportError:
+        logger.warning("scipy no disponible para resamplear %d→%d Hz", sr, target_sr)
+        return samples
 
 _SILERO_MODEL_LOCK = threading.Lock()
 _SILERO_MODEL: Optional[Any] = None
@@ -297,46 +274,19 @@ def analyze_vad_silero(
     min_silence_duration_ms: int = 100,
     silence_trim_ms: int = DEFAULT_SILENCE_TRIM_MS,
 ) -> VADResult:
-    """Analizar audio usando Silero VAD (modelo neural).
-
-    Más robusto que el VAD basado en energía: no le afectan variaciones de
-    amplitud, ruido de fondo ni consonantes sordas iniciales (/p/, /t/, /k/).
-    El modelo es determinista para la misma entrada de audio, lo que garantiza
-    **salidas consistentes** en evaluaciones repetidas.
-
-    Requiere ``pip install 'pronunciapa[vad]'`` (instala silero-vad y torch).
-
-    Args:
-        audio_path: Ruta al archivo WAV (cualquier SR; se muestrea a 16 kHz).
-        sampling_rate: Rate interno de Silero (debe ser 16000).
-        threshold: Probabilidad mínima para considerar voz (0.0–1.0).
-        min_speech_duration_ms: Duración mínima de segmento de voz en ms.
-        min_silence_duration_ms: Silencio mínimo entre segmentos en ms.
-        silence_trim_ms: Silencio mínimo al inicio/final para sugerir recorte.
-
-    Returns:
-        :class:`VADResult` compatible con :func:`analyze_vad`.
-
-    Raises:
-        ImportError: Si silero-vad/torch no están instalados.
-        FileNotFoundError: Si audio_path no existe.
-    """
-    p = Path(audio_path)
-    if not p.exists():
+    """Analizar audio usando Silero VAD (modelo neural)."""
+    path = Path(audio_path)
+    if not path.exists():
         raise FileNotFoundError(f"Audio no encontrado: {audio_path}")
 
     from silero_vad import get_speech_timestamps
 
     model = _get_silero_model()
-    wav = _read_audio_wav(str(p), sampling_rate=sampling_rate)
-    duration_samples = len(wav)
-    duration_ms = int(duration_samples * 1000 / sampling_rate)
+    wav = _read_audio_wav(str(path), sampling_rate=sampling_rate)
+    duration_ms = int(len(wav) * 1000 / sampling_rate)
 
     timestamps = get_speech_timestamps(
-        wav,
-        model,
-        sampling_rate=sampling_rate,
-        threshold=threshold,
+        wav, model, sampling_rate=sampling_rate, threshold=threshold,
         min_speech_duration_ms=min_speech_duration_ms,
         min_silence_duration_ms=min_silence_duration_ms,
         return_seconds=False,
@@ -345,46 +295,10 @@ def analyze_vad_silero(
     def _to_ms(samples: int) -> int:
         return int(samples * 1000 / sampling_rate)
 
-    speech_segments: List[Tuple[int, int]] = [
-        (_to_ms(ts["start"]), _to_ms(ts["end"])) for ts in timestamps
-    ]
-    total_speech_ms = sum(e - s for s, e in speech_segments)
-    speech_ratio = total_speech_ms / duration_ms if duration_ms > 0 else 0.0
-
-    trim_suggestion: Optional[Tuple[int, int]] = None
-    if speech_segments:
-        first_start = speech_segments[0][0]
-        last_end = speech_segments[-1][1]
-        if first_start > silence_trim_ms or (duration_ms - last_end) > silence_trim_ms:
-            trim_start = max(0, first_start - _PRE_SPEECH_MARGIN_MS)
-            trim_end = min(duration_ms, last_end + _POST_SPEECH_MARGIN_MS)
-            trim_suggestion = (trim_start, trim_end)
-
-    internal_pauses: List[Tuple[int, int]] = []
-    for i in range(1, len(speech_segments)):
-        prev_end = speech_segments[i - 1][1]
-        curr_start = speech_segments[i][0]
-        if curr_start - prev_end > 200:
-            internal_pauses.append((prev_end, curr_start))
-
-            logger.debug(
-        "Silero VAD: %d segmentos, ratio=%.2f, threshold=%.2f",
-        len(speech_segments), speech_ratio, threshold,
-    )
-    return VADResult(
-        speech_segments=speech_segments,
-        speech_ratio=speech_ratio,
-        duration_ms=duration_ms,
-        trim_suggestion=trim_suggestion,
-        internal_pauses=internal_pauses,
-    )
-
-
-_SILERO_KWARGS = frozenset({
-    "sampling_rate", "threshold", "min_speech_duration_ms",
-    "min_silence_duration_ms", "silence_trim_ms",
-})
-_ENERGY_KWARGS = frozenset({"frame_ms", "energy_threshold", "min_speech_ms", "silence_trim_ms"})
+    segments = [(_to_ms(ts["start"]), _to_ms(ts["end"])) for ts in timestamps]
+    
+    logger.debug("Silero VAD: %d segmentos, threshold=%.2f", len(segments), threshold)
+    return _build_vad_result(segments, duration_ms, silence_trim_ms)
 
 
 def analyze_vad_best(
@@ -393,36 +307,27 @@ def analyze_vad_best(
     backend: str = "auto",
     **kwargs: Any,
 ) -> VADResult:
-    """Seleccionar automáticamente el mejor backend VAD disponible.
-
-    Args:
-        audio_path: Ruta al archivo WAV.
-        backend: ``"auto"`` — Silero si disponible, si no energía;
-                 ``"silero"`` — forzar Silero (error si no instalado);
-                 ``"energy"`` — forzar VAD basado en energía.
-        **kwargs: Parámetros del backend seleccionado.
-
-    Returns:
-        :class:`VADResult`.
-    """
+    """Seleccionar automáticamente el mejor backend VAD disponible."""
     if backend == "energy":
-        return analyze_vad(audio_path, **{k: v for k, v in kwargs.items() if k in _ENERGY_KWARGS})
+        return analyze_vad(audio_path, **_filter_kwargs(kwargs, _ENERGY_KWARGS))
     if backend == "silero":
-        return analyze_vad_silero(audio_path, **{k: v for k, v in kwargs.items() if k in _SILERO_KWARGS})
-    # "auto"
+        return analyze_vad_silero(audio_path, **_filter_kwargs(kwargs, _SILERO_KWARGS))
+    
+    return _dispatch_auto_vad(audio_path, **kwargs)
+
+
+def _filter_kwargs(kwargs: dict, allowed: frozenset) -> dict:
+    return {k: v for k, v in kwargs.items() if k in allowed}
+
+
+def _dispatch_auto_vad(audio_path: str, **kwargs) -> VADResult:
     try:
-        result = analyze_vad_silero(
-            audio_path,
-            **{k: v for k, v in kwargs.items() if k in _SILERO_KWARGS},
-        )
+        res = analyze_vad_silero(audio_path, **_filter_kwargs(kwargs, _SILERO_KWARGS))
         logger.debug("analyze_vad_best: usando Silero VAD")
-        return result
+        return res
     except ImportError:
         logger.debug("analyze_vad_best: Silero no disponible, usando VAD de energía")
-        return analyze_vad(
-            audio_path,
-            **{k: v for k, v in kwargs.items() if k in _ENERGY_KWARGS},
-        )
+        return analyze_vad(audio_path, **_filter_kwargs(kwargs, _ENERGY_KWARGS))
 
 
 __all__ = ["VADResult", "analyze_vad", "analyze_vad_silero", "analyze_vad_best"]

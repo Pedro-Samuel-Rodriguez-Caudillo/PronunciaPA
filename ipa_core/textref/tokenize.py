@@ -57,106 +57,109 @@ def tokenize_ipa(
     multigraphs: Optional[Sequence[str]] = None,
     strip_suprasegmentals: bool = False,
 ) -> list[str]:
-    """Convierte una cadena IPA en tokens conservando diacríticos.
-
-    Parámetros
-    ----------
-    text : str
-        Cadena IPA a tokenizar.
-    multigraphs : Sequence[str] | None
-        Secuencias de caracteres que deben tratarse como un solo token
-        (ej: africadas ``tʃ``, ``dʒ``). Si None, usa solo las africadas
-        estándar ``DEFAULT_MULTIGRAPHS``.
-    strip_suprasegmentals : bool
-        Si True, elimina acentos y separadores silábicos del resultado.
-    """
-    if multigraphs is None:
-        multigraphs = DEFAULT_MULTIGRAPHS
-
-    # Pre-compute sorted by length descending for greedy matching
-    sorted_mg = sorted(multigraphs, key=len, reverse=True) if multigraphs else []
-    max_mg_len = max((len(m) for m in sorted_mg), default=0)
-
-    normalized = unicodedata.normalize("NFC", text)
-    # Optionally strip suprasegmentals before tokenizing
-    if strip_suprasegmentals:
-        normalized = "".join(
-            ch for ch in normalized
-            if ch not in _SUPRASEGMENTALS
-        )
-
+    """Convierte una cadena IPA en tokens conservando diacríticos."""
+    sorted_mg = sorted(multigraphs or DEFAULT_MULTIGRAPHS, key=len, reverse=True)
+    normalized = _prepare_text(text, strip_suprasegmentals)
+    
     tokens: list[str] = []
     current: list[str] = []
-    attach_next = False
-    i = 0
-    chars = list(normalized)
-    n = len(chars)
+    state = {"i": 0, "attach_next": False, "chars": list(normalized), "n": len(normalized)}
 
-    def flush() -> None:
-        if current:
-            tokens.append("".join(current))
-            current.clear()
+    while state["i"] < state["n"]:
+        if _try_match_multigraph(state, sorted_mg, tokens, current):
+            continue
+        
+        ch = state["chars"][state["i"]]
+        if _process_special_char(ch, state, tokens, current):
+            continue
+            
+        _process_base_char(ch, state, tokens, current)
 
-    while i < n:
-        ch = chars[i]
-
-        # Try multigraph match from current position (only at segment boundary)
-        if not current or (current and not attach_next):
-            matched_mg = False
-            for mg in sorted_mg:
-                mg_len = len(mg)
-                if i + mg_len <= n:
-                    candidate = "".join(chars[i:i + mg_len])
-                    if candidate == mg:
-                        flush()
-                        current.extend(chars[i:i + mg_len])
-                        i += mg_len
-                        matched_mg = True
-                        break
-            if matched_mg:
-                continue
-
-        if ch.isspace():
-            flush()
-            attach_next = False
-            i += 1
-            continue
-        if ch in _SUPRASEGMENTALS:
-            flush()
-            tokens.append(ch)
-            attach_next = False
-            i += 1
-            continue
-        if unicodedata.combining(ch):
-            current.append(ch)
-            i += 1
-            continue
-        if ch in _LENGTH_MARKS or ch in _ATTACHABLE_MODIFIERS:
-            current.append(ch)
-            i += 1
-            continue
-        if ch in _TIE_BARS:
-            current.append(ch)
-            attach_next = True
-            i += 1
-            continue
-
-        if not current:
-            current.append(ch)
-            i += 1
-            continue
-        if attach_next:
-            current.append(ch)
-            attach_next = False
-            i += 1
-            continue
-
-        flush()
-        current.append(ch)
-        i += 1
-
-    flush()
+    _flush(tokens, current)
     return [tok for tok in tokens if tok]
+
+
+def _prepare_text(text: str, strip: bool) -> str:
+    norm = unicodedata.normalize("NFC", text)
+    if not strip:
+        return norm
+    return "".join(ch for ch in norm if ch not in _SUPRASEGMENTALS)
+
+
+def _flush(tokens: list, current: list) -> None:
+    if current:
+        tokens.append("".join(current))
+        current.clear()
+
+
+def _try_match_multigraph(state: dict, multigraphs: list, tokens: list, current: list) -> bool:
+    if current and state["attach_next"]:
+        return False
+        
+    for mg in multigraphs:
+        if _is_mg_at_pos(state, mg):
+            _flush(tokens, current)
+            return _apply_mg_match(state, mg, current)
+    return False
+
+
+def _is_mg_at_pos(state: dict, mg: str) -> bool:
+    mg_len = len(mg)
+    if state["i"] + mg_len > state["n"]:
+        return False
+    return "".join(state["chars"][state["i"] : state["i"] + mg_len]) == mg
+
+
+def _apply_mg_match(state: dict, mg: str, current: list) -> bool:
+    current.extend(state["chars"][state["i"] : state["i"] + len(mg)])
+    state["i"] += len(mg)
+    return True
+
+
+def _process_special_char(ch: str, state: dict, tokens: list, current: list) -> bool:
+    if ch.isspace():
+        return _handle_space(state, tokens, current)
+    if ch in _SUPRASEGMENTALS:
+        return _handle_suprasegmental(ch, state, tokens, current)
+    if _is_modifier(ch):
+        current.append(ch)
+        state["i"] += 1
+        return True
+    if ch in _TIE_BARS:
+        current.append(ch)
+        state["attach_next"] = True
+        state["i"] += 1
+        return True
+    return False
+
+
+def _handle_space(state: dict, tokens: list, current: list) -> bool:
+    _flush(tokens, current)
+    state["attach_next"] = False
+    state["i"] += 1
+    return True
+
+
+def _handle_suprasegmental(ch: str, state: dict, tokens: list, current: list) -> bool:
+    _flush(tokens, current)
+    tokens.append(ch)
+    state["attach_next"] = False
+    state["i"] += 1
+    return True
+
+
+def _is_modifier(ch: str) -> bool:
+    return unicodedata.combining(ch) or ch in _LENGTH_MARKS or ch in _ATTACHABLE_MODIFIERS
+
+
+def _process_base_char(ch: str, state: dict, tokens: list, current: list) -> None:
+    if not current or state["attach_next"]:
+        current.append(ch)
+        state["attach_next"] = False
+    else:
+        _flush(tokens, current)
+        current.append(ch)
+    state["i"] += 1
 
 
 __all__ = [

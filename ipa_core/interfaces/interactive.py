@@ -76,45 +76,53 @@ class GameStats:
     def add_practice(self, score: float) -> list[str]:
         """Registra una práctica y devuelve nuevos logros."""
         new_achievements = []
+        self._update_avg_score(score)
         self.total_practices += 1
         
-        # Actualizar promedio
-        if self.avg_score == 0:
-            self.avg_score = score
-        else:
-            self.avg_score = (self.avg_score * (self.total_practices - 1) + score) / self.total_practices
-        
-        # XP basado en score
         xp_earned = int(score * 100)
         self.xp += xp_earned
         
-        # Subir de nivel
+        new_achievements.extend(self._check_level_up())
+        new_achievements.extend(self._check_milestones())
+        new_achievements.extend(self._check_score_achievements(score))
+            
+        return new_achievements
+
+    def _update_avg_score(self, score: float) -> None:
+        if self.total_practices == 0:
+            self.avg_score = score
+        else:
+            self.avg_score = (self.avg_score * self.total_practices + score) / (self.total_practices + 1)
+
+    def _check_level_up(self) -> list[str]:
+        new_ach = []
         while self.xp >= self.xp_to_next_level:
             self.xp -= self.xp_to_next_level
             self.level += 1
             self.xp_to_next_level = int(self.xp_to_next_level * 1.5)
-            new_achievements.append(f"🎉 ¡Nivel {self.level} alcanzado!")
+            new_ach.append(f"🎉 ¡Nivel {self.level} alcanzado!")
+        return new_ach
+
+    def _check_milestones(self) -> list[str]:
+        milestones = {1: ("first_practice", "🏆 ¡Primera práctica completada!"),
+                      10: ("ten_practices", "🏆 ¡10 prácticas! Estás en racha"),
+                      100: ("hundred_practices", "🏆 ¡100 prácticas! Eres un experto")}
         
-        # Logros por cantidad de prácticas
-        if self.total_practices == 1 and "first_practice" not in self.achievements:
-            self.achievements.append("first_practice")
-            new_achievements.append("🏆 ¡Primera práctica completada!")
-        elif self.total_practices == 10 and "ten_practices" not in self.achievements:
-            self.achievements.append("ten_practices")
-            new_achievements.append("🏆 ¡10 prácticas! Estás en racha")
-        elif self.total_practices == 100 and "hundred_practices" not in self.achievements:
-            self.achievements.append("hundred_practices")
-            new_achievements.append("🏆 ¡100 prácticas! Eres un experto")
-            
-        # Logros por score
+        if self.total_practices in milestones:
+            key, msg = milestones[self.total_practices]
+            if key not in self.achievements:
+                self.achievements.append(key)
+                return [msg]
+        return []
+
+    def _check_score_achievements(self, score: float) -> list[str]:
         if score >= 0.95 and "perfect_score" not in self.achievements:
             self.achievements.append("perfect_score")
-            new_achievements.append("⭐ ¡Pronunciación perfecta!")
-        elif score >= 0.90 and "excellent_score" not in self.achievements:
+            return ["⭐ ¡Pronunciación perfecta!"]
+        if score >= 0.90 and "excellent_score" not in self.achievements:
             self.achievements.append("excellent_score")
-            new_achievements.append("⭐ ¡Excelente pronunciación!")
-            
-        return new_achievements
+            return ["⭐ ¡Excelente pronunciación!"]
+        return []
 
 
 def _get_level_name(level: int) -> str:
@@ -222,112 +230,73 @@ def _build_reference_panel(state: SessionState) -> Panel:
 def _build_results_panel(state: SessionState) -> Panel:
     """Panel de resultados."""
     if not state.last_result:
-        return Panel(
-            Align.center(Text("Aún no hay resultados", style="dim")),
-            title="📊 Resultados",
-            border_style="dim",
-        )
+        return Panel(Align.center(Text("Aún no hay resultados", style="dim")), title="📊 Resultados", border_style="dim")
     
     res = state.last_result
-    per = res.get("per", 0)
-    score = 1 - per  # Invertir PER para mostrar como score positivo
+    score = 1 - res.get("per", 0)
+    color, msg = _get_score_display_params(score)
     
-    content = Table.grid(padding=1)
-    content.add_column()
+    content = Table.grid(padding=1); content.add_column()
+    content.add_row(_build_score_bar(score, color))
+    content.add_row(Text(msg, style="italic"))
     
-    # Barra de score
-    score_pct = int(score * 100)
-    bar_filled = int(score * 20)
-    bar_empty = 20 - bar_filled
+    _add_alignment_to_content(content, res.get("alignment", []))
     
-    if score >= 0.9:
-        bar_color = "green"
-        message = "¡Excelente! 🎉"
-    elif score >= 0.7:
-        bar_color = "yellow"
-        message = "¡Buen trabajo! 👍"
-    elif score >= 0.5:
-        bar_color = "orange1"
-        message = "Sigue practicando 💪"
-    else:
-        bar_color = "red"
-        message = "Necesitas más práctica 📚"
-    
-    score_text = Text()
-    score_text.append(f"Precisión: {score_pct}% ", style=f"{bar_color} bold")
-    score_text.append("█" * bar_filled, style=bar_color)
-    score_text.append("░" * bar_empty, style="dim")
-    content.add_row(score_text)
-    content.add_row(Text(message, style="italic"))
-    
-    # Alineación IPA
-    alignment = res.get("alignment", [])
-    if alignment:
-        content.add_row(Text(""))
-        
-        ref_line = Text()
-        ref_line.append("REF: ", style="bold")
-        
-        hyp_line = Text()
-        hyp_line.append("TÚ:  ", style="bold")
-        
-        for ref_tok, hyp_tok in alignment:
-            ref_str = ref_tok or "-"
-            hyp_str = hyp_tok or "-"
-            width = max(len(ref_str), len(hyp_str))
-            
-            if ref_tok == hyp_tok:
-                style = "green"
-            elif ref_tok is None:
-                style = "blue"  # Inserción
-            elif hyp_tok is None:
-                style = "red"  # Omisión
-            else:
-                style = "yellow"  # Sustitución
-            
-            ref_line.append(ref_str.ljust(width) + " ", style=style)
-            hyp_line.append(hyp_str.ljust(width) + " ", style=style)
-        
-        content.add_row(ref_line)
-        content.add_row(hyp_line)
-    
-    return Panel(
-        content,
-        title="📊 Resultados",
-        border_style=bar_color,
-    )
+    return Panel(content, title="📊 Resultados", border_style=color)
 
+def _get_score_display_params(score: float) -> tuple[str, str]:
+    if score >= 0.9: return "green", "¡Excelente! 🎉"
+    if score >= 0.7: return "yellow", "¡Buen trabajo! 👍"
+    if score >= 0.5: return "orange1", "Sigue practicando 💪"
+    return "red", "Necesitas más práctica 📚"
+
+def _build_score_bar(score: float, color: str) -> Text:
+    score_pct = int(score * 100)
+    filled = int(score * 20)
+    txt = Text()
+    txt.append(f"Precisión: {score_pct}% ", style=f"{color} bold")
+    txt.append("█" * filled, style=color)
+    txt.append("░" * (20 - filled), style="dim")
+    return txt
+
+def _add_alignment_to_content(content: Table, alignment: list):
+    if not alignment: return
+    content.add_row(Text(""))
+    ref_l, hyp_l = Text("REF: ", style="bold"), Text("TÚ:  ", style="bold")
+    
+    for r_tok, h_tok in alignment:
+        r_s, h_s = r_tok or "-", h_tok or "-"
+        w = max(len(r_s), len(h_s))
+        style = _get_token_style(r_tok, h_tok)
+        ref_l.append(r_s.ljust(w) + " ", style=style)
+        hyp_l.append(h_s.ljust(w) + " ", style=style)
+    
+    content.add_row(ref_l); content.add_row(hyp_l)
+
+def _get_token_style(ref, hyp) -> str:
+    if ref == hyp: return "green"
+    if ref is None: return "blue"
+    if hyp is None: return "red"
+    return "yellow"
 
 def _build_feedback_panel(state: SessionState) -> Panel:
     """Panel de feedback LLM."""
     if not state.last_result:
-        return Panel(
-            Text(""),
-            title="💡 Consejos",
-            border_style="dim",
-            height=5,
-        )
+        return Panel(Text(""), title="💡 Consejos", border_style="dim", height=5)
     
-    feedback = state.last_result.get("feedback", {})
-    if not feedback:
-        return Panel(
-            Text("Procesa una grabación para obtener consejos", style="dim"),
-            title="💡 Consejos",
-            border_style="dim",
-            height=5,
-        )
+    fb = state.last_result.get("feedback")
+    if not fb:
+        return Panel(Text("Procesa una grabación para obtener consejos", style="dim"), title="💡 Consejos", border_style="dim", height=5)
     
-    fb_data = feedback if isinstance(feedback, dict) else {}
-    advice = fb_data.get("advice_short", fb_data.get("summary", ""))
-    
-    if state.feedback_level == FeedbackLevel.PRECISE:
-        advice = fb_data.get("advice_long", advice)
-    
-    return Panel(
-        Text(advice or "Sin consejos disponibles", style="cyan"),
-        title="💡 Consejos",
-        border_style="cyan",
-    )
+    advice = _extract_advice(fb, state.feedback_level)
+    return Panel(Text(advice or "Sin consejos disponibles", style="cyan"), title="💡 Consejos", border_style="cyan")
+
+def _extract_advice(fb: Any, level: FeedbackLevel) -> str:
+    data = fb if isinstance(fb, dict) else {}
+    advice = data.get("advice_short", data.get("summary", ""))
+    if level == FeedbackLevel.PRECISE:
+        return data.get("advice_long", advice)
+    return advice
 
 
 def _build_help_bar() -> Text:
@@ -404,173 +373,128 @@ def _show_stats_popup(stats: GameStats) -> None:
     input()
 
 
+class SessionManager:
+    """Gestiona el bucle principal y comandos de la sesión interactiva."""
+    
+    def __init__(self, state: SessionState, stats: GameStats, kernel: Optional[Kernel] = None):
+        self.state = state
+        self.stats = stats
+        self.kernel = kernel
+        self.running = True
+
+    async def run(self):
+        while self.running:
+            console.clear()
+            console.print(_build_main_layout(self.state, self.stats))
+            try:
+                cmd = console.input("\n[bold cyan]>[/bold cyan] ").strip().lower()
+                await self.handle_command(cmd)
+            except (KeyboardInterrupt, EOFError):
+                break
+
+    async def handle_command(self, cmd: str):
+        handlers = {
+            "q": self._cmd_quit, "quit": self._cmd_quit, "exit": self._cmd_quit,
+            "r": self._cmd_record, "record": self._cmd_record, "": self._cmd_record,
+            "t": self._cmd_text, "text": self._cmd_text,
+            "m": self._cmd_mode, "mode": self._cmd_mode,
+            "l": self._cmd_lang, "lang": self._cmd_lang,
+            "f": self._cmd_feedback, "feedback": self._cmd_feedback,
+            "s": self._cmd_stats, "stats": self._cmd_stats,
+            "help": self._cmd_help
+        }
+        if cmd in handlers:
+            await handlers[cmd]()
+
+    async def _cmd_quit(self):
+        self.running = False
+
+    async def _cmd_record(self):
+        if not self.state.reference_text:
+            console.print("[yellow]Escribe un texto con 't' primero[/yellow]")
+            time.sleep(1.2); return
+        
+        await self._perform_recording()
+
+    async def _perform_recording(self):
+        from ipa_core.audio.microphone import record
+        from ipa_core.audio.files import cleanup_temp
+        
+        console.print("[bold green]🎤 Grabando...[/bold green]")
+        self.state.is_recording = True
+        try:
+            path, meta = record(seconds=3.0)
+            self.state.is_recording = False
+            self.state.recording_seconds = meta.get("duration", 3.0)
+            await self._process_audio(path)
+            cleanup_temp(path)
+        except Exception as e:
+            self.state.is_recording = False
+            console.print(f"[red]Error: {e}[/red]"); time.sleep(2)
+
+    async def _process_audio(self, path: str):
+        from ipa_core.backends.audio_io import to_audio_input
+        console.print("[bold blue]⏳ Procesando...[/bold blue]")
+        if self.kernel:
+            res = await self.kernel.run(audio=to_audio_input(path), text=self.state.reference_text, lang=self.state.lang)
+            self.state.last_result = res
+            self.state.session_practices += 1
+            for ach in self.stats.add_practice(1 - res.get("per", 0)):
+                console.print(f"[bold yellow]{ach}[/bold yellow]"); time.sleep(0.6)
+        else:
+            self._mock_process()
+
+    def _mock_process(self):
+        self.state.last_result = {"per": 0.1, "alignment": [("a", "a")]}
+        self.stats.add_practice(0.9)
+        self.state.session_practices += 1
+
+    async def _cmd_text(self):
+        txt = console.input("[cyan]Texto de referencia:[/cyan] ").strip()
+        if txt: self.state.reference_text = txt
+
+    async def _cmd_mode(self):
+        self.state.mode = TranscriptionMode.PHONETIC if self.state.mode == TranscriptionMode.PHONEMIC else TranscriptionMode.PHONEMIC
+        console.print(f"[yellow]Modo: {self.state.mode}[/yellow]"); time.sleep(0.6)
+
+    async def _cmd_lang(self):
+        lang = console.input("[cyan]Idioma:[/cyan] ").strip().lower()
+        if lang: self.state.lang = lang
+
+    async def _cmd_feedback(self):
+        self.state.feedback_level = FeedbackLevel.PRECISE if self.state.feedback_level == FeedbackLevel.CASUAL else FeedbackLevel.CASUAL
+        console.print(f"[yellow]Feedback: {self.state.feedback_level}[/yellow]"); time.sleep(0.6)
+
+    async def _cmd_stats(self):
+        _show_stats_popup(self.stats)
+
+    async def _cmd_help(self):
+        console.print(Panel("r - Grabar\nt - Texto\nm - Modo\nl - Idioma\nf - Feedback\ns - Stats\nq - Salir", title="Ayuda"))
+        input("Presiona ENTER...")
+
+
 async def run_interactive_session(
     initial_lang: str = "es",
     initial_mode: TranscriptionMode = TranscriptionMode.PHONEMIC,
     feedback_level: FeedbackLevel = FeedbackLevel.CASUAL,
     kernel_factory: Optional[Callable] = None,
 ) -> None:
-    """Ejecuta la sesión interactiva del CLI.
-    
-    Args:
-        initial_lang: Idioma inicial para la transcripción
-        initial_mode: Modo de transcripción (fonémico/fonético)
-        feedback_level: Nivel de detalle del feedback
-        kernel_factory: Factory opcional para crear el kernel
-    """
-    from ipa_core.audio.microphone import record
-    from ipa_core.audio.files import cleanup_temp
-    from ipa_core.backends.audio_io import to_audio_input
-    
-    state = SessionState(
-        lang=initial_lang,
-        mode=initial_mode,
-        feedback_level=feedback_level,
-    )
+    """Ejecuta la sesión interactiva del CLI."""
+    state = SessionState(lang=initial_lang, mode=initial_mode, feedback_level=feedback_level)
     stats = GameStats()
+    kernel = kernel_factory() if kernel_factory else None
     
-    # Kernel para procesamiento
-    kernel = None
-    if kernel_factory:
-        kernel = kernel_factory()
-        await kernel.setup()
+    if kernel: await kernel.setup()
     
+    _show_welcome()
+    mgr = SessionManager(state, stats, kernel)
+    await mgr.run()
+    
+    if kernel: await kernel.teardown()
+    console.print(f"\n[bold magenta]¡Hasta pronto! 👋[/bold magenta] ({state.session_practices} prácticas)")
+
+def _show_welcome():
     console.clear()
-    console.print(Panel.fit(
-        "[bold magenta]¡Bienvenido a PronunciaPA![/bold magenta]\n\n"
-        "Practica tu pronunciación con feedback en tiempo real.\n"
-        "Escribe un texto de referencia y graba tu voz.\n\n"
-        "[dim]Presiona cualquier tecla para comenzar...[/dim]",
-        border_style="magenta",
-    ))
-    
-    try:
-        input()
-    except (KeyboardInterrupt, EOFError):
-        return
-    
-    running = True
-    
-    while running:
-        console.clear()
-        console.print(_build_main_layout(state, stats))
-        
-        try:
-            cmd = console.input("\n[bold cyan]>[/bold cyan] ").strip().lower()
-        except (KeyboardInterrupt, EOFError):
-            break
-        
-        if cmd in ("q", "quit", "exit"):
-            running = False
-            
-        elif cmd in ("r", "record", ""):
-            if not state.reference_text:
-                console.print("[yellow]Primero escribe un texto de referencia con 't'[/yellow]")
-                time.sleep(1.5)
-                continue
-                
-            # Grabar audio
-            console.print("[bold green]🎤 Grabando... (3 segundos)[/bold green]")
-            state.is_recording = True
-            
-            try:
-                wav_path, meta = record(seconds=3.0)
-                state.is_recording = False
-                state.recording_seconds = meta.get("duration", 3.0)
-                
-                console.print("[bold blue]⏳ Procesando...[/bold blue]")
-                
-                if kernel:
-                    audio_in = to_audio_input(wav_path)
-                    result = await kernel.run(
-                        audio=audio_in,
-                        text=state.reference_text,
-                        lang=state.lang,
-                    )
-                    state.last_result = result
-                    
-                    # Actualizar stats
-                    score = 1 - result.get("per", 0)
-                    new_achievements = stats.add_practice(score)
-                    state.session_practices += 1
-                    
-                    for achievement in new_achievements:
-                        console.print(f"[bold yellow]{achievement}[/bold yellow]")
-                        time.sleep(0.8)
-                else:
-                    # Mock result para testing sin kernel
-                    state.last_result = {
-                        "per": 0.15,
-                        "alignment": [
-                            ("h", "h"),
-                            ("o", "o"),
-                            ("l", "l"),
-                            ("a", "a"),
-                        ],
-                    }
-                    stats.add_practice(0.85)
-                    state.session_practices += 1
-                
-                cleanup_temp(wav_path)
-                
-            except Exception as e:
-                state.is_recording = False
-                console.print(f"[red]Error: {e}[/red]")
-                time.sleep(2)
-                
-        elif cmd in ("t", "text"):
-            try:
-                new_text = console.input("[cyan]Texto de referencia:[/cyan] ").strip()
-                if new_text:
-                    state.reference_text = new_text
-            except (KeyboardInterrupt, EOFError):
-                pass
-                
-        elif cmd in ("m", "mode"):
-            if state.mode == TranscriptionMode.PHONEMIC:
-                state.mode = TranscriptionMode.PHONETIC
-                console.print("[yellow]Modo: [fonético][/yellow]")
-            else:
-                state.mode = TranscriptionMode.PHONEMIC
-                console.print("[yellow]Modo: /fonémico/[/yellow]")
-            time.sleep(0.8)
-            
-        elif cmd in ("l", "lang"):
-            try:
-                new_lang = console.input("[cyan]Idioma (es, en, etc.):[/cyan] ").strip().lower()
-                if new_lang:
-                    state.lang = new_lang
-            except (KeyboardInterrupt, EOFError):
-                pass
-                
-        elif cmd in ("f", "feedback"):
-            if state.feedback_level == FeedbackLevel.CASUAL:
-                state.feedback_level = FeedbackLevel.PRECISE
-                console.print("[yellow]Feedback: Preciso (detallado)[/yellow]")
-            else:
-                state.feedback_level = FeedbackLevel.CASUAL
-                console.print("[yellow]Feedback: Casual (sencillo)[/yellow]")
-            time.sleep(0.8)
-            
-        elif cmd in ("s", "stats"):
-            _show_stats_popup(stats)
-        
-        elif cmd == "help":
-            console.print(Panel(
-                "[cyan]r[/cyan] - Grabar audio\n"
-                "[cyan]t[/cyan] - Cambiar texto de referencia\n"
-                "[cyan]m[/cyan] - Alternar modo fonémico/fonético\n"
-                "[cyan]l[/cyan] - Cambiar idioma\n"
-                "[cyan]f[/cyan] - Cambiar nivel de feedback\n"
-                "[cyan]s[/cyan] - Ver estadísticas\n"
-                "[cyan]q[/cyan] - Salir",
-                title="Ayuda",
-            ))
-            input("Presiona ENTER para continuar...")
-    
-    # Cleanup
-    if kernel:
-        await kernel.teardown()
-    
-    console.print("\n[bold magenta]¡Hasta pronto! 👋[/bold magenta]")
-    console.print(f"Sesión: {state.session_practices} prácticas")
+    console.print(Panel.fit("[bold magenta]¡Bienvenido a PronunciaPA![/bold magenta]\n\nPractica con feedback en tiempo real.\n[dim]Presiona ENTER para comenzar...[/dim]"))
+    try: input()
+    except (KeyboardInterrupt, EOFError): pass

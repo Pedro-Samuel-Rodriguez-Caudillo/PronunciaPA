@@ -160,51 +160,52 @@ def _compute_snr(
     rms: float,
     max_val: int,
 ) -> tuple[float, str]:
-    """Calcular SNR en dB.
-
-    Si speech_segments están disponibles, separa muestras de voz y silencio
-    para un SNR real. Requiere al menos 5% de muestras de silencio; si no,
-    cae al proxy del percentil 10.
-
-    Returns
-    -------
-    (snr_db, method) donde method es "real_vad" o "proxy".
-    """
+    """Calcular SNR en dB (VAD o proxy)."""
     if speech_segments:
-        speech_sq_sum = 0.0
-        silence_sq_sum = 0.0
-        speech_count = 0
-        silence_count = 0
+        res = _compute_real_vad_snr(samples, sample_rate, speech_segments, max_val)
+        if res is not None:
+            return res[0], "real_vad"
 
-        for i, s in enumerate(samples):
-            sample_ms = i * 1000.0 / sample_rate
-            in_speech = any(start <= sample_ms < end for start, end in speech_segments)
-            sq = s * s
-            if in_speech:
-                speech_sq_sum += sq
-                speech_count += 1
-            else:
-                silence_sq_sum += sq
-                silence_count += 1
+    return _compute_proxy_snr(samples, rms, max_val), "proxy"
 
-        # Necesitamos suficiente silencio para que el cálculo sea significativo
-        if silence_count >= int(0.05 * len(samples)) and silence_count > 0:
-            noise_rms = (silence_sq_sum / silence_count) ** 0.5 / max_val
-            signal_rms = (speech_sq_sum / max(speech_count, 1)) ** 0.5 / max_val
-            if noise_rms > 0.0001:
-                snr_db = 20.0 * math.log10(max(signal_rms, 1e-9) / noise_rms)
-            else:
-                snr_db = 60.0  # Ruido despreciable
-            return snr_db, "real_vad"
 
-    # Fallback: proxy percentil 10
+def _compute_real_vad_snr(samples: tuple, sr: int, segments: list[tuple], max_val: int) -> Optional[tuple[float, str]]:
+    speech_sq, silence_sq, speech_c, silence_c = _sum_squares_by_vad(samples, sr, segments)
+
+    if silence_c < int(0.05 * len(samples)) or silence_c == 0:
+        return None
+
+    noise_rms = (silence_sq / silence_c) ** 0.5 / max_val
+    signal_rms = (speech_sq / max(speech_c, 1)) ** 0.5 / max_val
+    
+    if noise_rms <= 0.0001:
+        return 60.0, "real_vad"
+        
+    snr_db = 20.0 * math.log10(max(signal_rms, 1e-9) / noise_rms)
+    return snr_db, "real_vad"
+
+
+def _sum_squares_by_vad(samples: tuple, sr: int, segments: list[tuple]) -> tuple[float, float, int, int]:
+    speech_sq, silence_sq, speech_c, silence_c = 0.0, 0.0, 0, 0
+    for i, s in enumerate(samples):
+        ms = i * 1000.0 / sr
+        in_speech = any(start <= ms < end for start, end in segments)
+        sq = s * s
+        if in_speech:
+            speech_sq += sq
+            speech_c += 1
+        else:
+            silence_sq += sq
+            silence_c += 1
+    return speech_sq, silence_sq, speech_c, silence_c
+
+
+def _compute_proxy_snr(samples: tuple, rms: float, max_val: int) -> float:
     sorted_abs = sorted(abs(s) for s in samples)
     noise_floor = sorted_abs[len(sorted_abs) // 10] / max_val
     if noise_floor > 0.001:
-        snr_db = 20.0 * math.log10(rms / noise_floor)
-    else:
-        snr_db = 60.0
-    return snr_db, "proxy"
+        return 20.0 * math.log10(rms / noise_floor)
+    return 60.0
 
 
 def check_quality(
@@ -215,108 +216,114 @@ def check_quality(
     min_snr_db: float = DEFAULT_MIN_SNR_DB,
     max_clipping_ratio: float = DEFAULT_MAX_CLIPPING_RATIO,
     min_rms: float = DEFAULT_MIN_RMS,
-    speech_ratio: Optional[float] = None,  # De VAD, si disponible
-    speech_segments: Optional[List[tuple]] = None,  # Segmentos de voz de VAD
+    speech_ratio: Optional[float] = None,
+    speech_segments: Optional[List[tuple]] = None,
 ) -> QualityGateResult:
-    """Validar calidad del audio.
-
-    Args:
-        audio_path: Ruta al archivo WAV (16-bit PCM)
-        min_duration_ms: Duración mínima requerida
-        max_duration_ms: Duración máxima permitida
-        min_snr_db: SNR mínimo requerido en dB
-        max_clipping_ratio: Ratio máximo de muestras clipeadas
-        min_rms: RMS mínimo (audio muy silencioso)
-        speech_ratio: Ratio de voz (de VAD), para detectar "no speech"
-        speech_segments: Lista de (start_ms, end_ms) de segmentos de voz del VAD.
-            Si se provee, el SNR se calcula real (voz vs silencio).
-
-    Returns:
-        QualityGateResult con métricas y feedback
-    """
-    p = Path(audio_path)
-    if not p.exists():
-        raise FileNotFoundError(f"Audio no encontrado: {audio_path}")
-    
-    # Leer audio
-    with wave.open(str(p), "rb") as w:
-        sample_rate = w.getframerate()
-        sample_width = w.getsampwidth()
-        n_frames = w.getnframes()
-        raw_data = w.readframes(n_frames)
-    
-    duration_ms = int(n_frames * 1000 / sample_rate)
-    issues = []
-    
-    # Validar duración
-    if duration_ms < min_duration_ms:
-        issues.append(QualityIssue.TOO_SHORT)
-    if duration_ms > max_duration_ms:
-        issues.append(QualityIssue.TOO_LONG)
-    
-    # Analizar samples
-    import struct
-    if sample_width == 2:
-        fmt = f"<{len(raw_data) // 2}h"
-        samples = struct.unpack(fmt, raw_data)
-    else:
-        samples = []
-    
+    """Validar calidad del audio."""
+    samples, sr, duration_ms = _read_audio_data(audio_path)
     if not samples:
-        return QualityGateResult(
-            passed=False,
-            issues=[QualityIssue.TOO_SHORT],
-            duration_ms=duration_ms,
-            user_feedback=_FEEDBACK_MESSAGES[QualityIssue.TOO_SHORT],
-        )
+        return _empty_audio_result(duration_ms)
     
-    # Calcular métricas de amplitud
-    max_val = 32767  # Max para 16-bit signed
-    peak = max(abs(s) for s in samples)
-    peak_normalized = peak / max_val
+    issues = _collect_quality_issues(
+        samples, sr, duration_ms, min_duration_ms, max_duration_ms,
+        max_clipping_ratio, min_rms, speech_ratio
+    )
     
-    sum_sq = sum(s * s for s in samples)
-    rms = (sum_sq / len(samples)) ** 0.5 / max_val
-    
-    # Detectar clipping
-    clipping_threshold = int(max_val * 0.99)
-    clipped_samples = sum(1 for s in samples if abs(s) >= clipping_threshold)
-    clipping_ratio = clipped_samples / len(samples)
-    
-    if clipping_ratio > max_clipping_ratio:
-        issues.append(QualityIssue.CLIPPING)
-    
-    # Validar RMS mínimo
-    if rms < min_rms:
-        issues.append(QualityIssue.TOO_QUIET)
-    
-    # Calcular SNR: real si hay segmentos de voz, proxy en caso contrario
-    snr_db, snr_method = _compute_snr(samples, sample_rate, speech_segments, rms, max_val)
-
-    if snr_db < min_snr_db:
+    metrics = _calculate_audio_metrics(samples, sr, speech_segments)
+    if metrics["snr_db"] < min_snr_db:
         issues.append(QualityIssue.LOW_SNR)
+        
+    return _build_quality_gate_result(issues, duration_ms, metrics)
+
+
+def _read_audio_data(path: str) -> tuple[tuple, int, int]:
+    import struct
+    p = Path(path)
+    if not p.exists():
+        raise FileNotFoundError(f"Audio no encontrado: {path}")
     
-    # Validar speech ratio (si viene de VAD)
+    with wave.open(str(p), "rb") as w:
+        sr = w.getframerate()
+        sw = w.getsampwidth()
+        nf = w.getnframes()
+        raw = w.readframes(nf)
+    
+    duration_ms = int(nf * 1000 / sr)
+    if sw != 2:
+        return (), sr, duration_ms
+        
+    fmt = f"<{len(raw) // 2}h"
+    return struct.unpack(fmt, raw), sr, duration_ms
+
+
+def _empty_audio_result(duration: int) -> QualityGateResult:
+    return QualityGateResult(
+        passed=False, issues=[QualityIssue.TOO_SHORT],
+        duration_ms=duration, user_feedback=_FEEDBACK_MESSAGES[QualityIssue.TOO_SHORT]
+    )
+
+
+def _collect_quality_issues(samples, sr, duration, min_d, max_d, max_clip, min_rms, speech_ratio) -> list[QualityIssue]:
+    issues = []
+    _check_duration_issues(issues, duration, min_d, max_d)
+    _check_amplitude_issues(issues, samples, min_rms, max_clip)
+    
     if speech_ratio is not None and speech_ratio < 0.1:
         issues.append(QualityIssue.NO_SPEECH)
+    return issues
+
+
+def _check_duration_issues(issues: list, duration: int, min_d: int, max_d: int):
+    if duration < min_d:
+        issues.append(QualityIssue.TOO_SHORT)
+    if duration > max_d:
+        issues.append(QualityIssue.TOO_LONG)
+
+
+def _check_amplitude_issues(issues: list, samples: tuple, min_rms: float, max_clip: float):
+    if _calculate_rms(samples) < min_rms:
+        issues.append(QualityIssue.TOO_QUIET)
+    if _calculate_clipping_ratio(samples) > max_clip:
+        issues.append(QualityIssue.CLIPPING)
+
+
+def _calculate_rms(samples: tuple) -> float:
+    max_val = 32767
+    sum_sq = sum(s * s for s in samples)
+    return (sum_sq / len(samples)) ** 0.5 / max_val
+
+
+def _calculate_clipping_ratio(samples: tuple) -> float:
+    threshold = int(32767 * 0.99)
+    clipped = sum(1 for s in samples if abs(s) >= threshold)
+    return clipped / len(samples)
+
+
+def _calculate_audio_metrics(samples: tuple, sr: int, segments: Optional[list]) -> dict:
+    max_val = 32767
+    peak = max(abs(s) for s in samples)
+    rms = _calculate_rms(samples)
+    snr_db, snr_method = _compute_snr(samples, sr, segments, rms, max_val)
     
-    # Generar feedback
+    return {
+        "snr_db": snr_db, "snr_method": snr_method,
+        "peak": peak / max_val, "rms": rms,
+        "clipping": _calculate_clipping_ratio(samples)
+    }
+
+
+def _build_quality_gate_result(issues: list[QualityIssue], duration: int, metrics: dict) -> QualityGateResult:
     user_feedback = None
     if issues:
-        priority_issue = primary_quality_issue(issues)
-        if priority_issue is not None:
-            user_feedback = _FEEDBACK_MESSAGES[priority_issue]
-    
+        priority = primary_quality_issue(issues)
+        if priority:
+            user_feedback = _FEEDBACK_MESSAGES[priority]
+            
     return QualityGateResult(
-        passed=len(issues) == 0,
-        issues=issues,
-        snr_db=snr_db,
-        snr_method=snr_method,
-        clipping_ratio=clipping_ratio,
-        duration_ms=duration_ms,
-        peak_amplitude=peak_normalized,
-        rms_amplitude=rms,
-        user_feedback=user_feedback,
+        passed=not issues, issues=issues, duration_ms=duration,
+        snr_db=metrics["snr_db"], snr_method=metrics["snr_method"],
+        clipping_ratio=metrics["clipping"], peak_amplitude=metrics["peak"],
+        rms_amplitude=metrics["rms"], user_feedback=user_feedback
     )
 
 
