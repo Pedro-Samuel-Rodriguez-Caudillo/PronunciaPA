@@ -264,32 +264,25 @@ class RealtimeSession:
             return
         await self.buffer.add_chunk(audio_data)
     
+    async def _handle_config_message(self, data: dict) -> None:
+        """Actualizar configuración desde mensaje JSON."""
+        if "lang" in data: self.ws_config.lang = data["lang"]
+        if "reference_text" in data: self.ws_config.reference_text = data["reference_text"]
+        if "mode" in data: self.ws_config.mode = data["mode"]
+        if "evaluation_level" in data: self.ws_config.evaluation_level = data["evaluation_level"]
+        logger.info(f"Config actualizada: {self.ws_config}")
+
     async def handle_message(self, message: dict) -> None:
         """Procesar mensaje de control."""
         msg_type = message.get("type", "")
         
         if msg_type == "config":
-            # Actualizar configuración
-            data = message.get("data", {})
-            if "lang" in data:
-                self.ws_config.lang = data["lang"]
-            if "reference_text" in data:
-                self.ws_config.reference_text = data["reference_text"]
-            if "mode" in data:
-                self.ws_config.mode = data["mode"]
-            if "evaluation_level" in data:
-                self.ws_config.evaluation_level = data["evaluation_level"]
-            logger.info(f"Config actualizada: {self.ws_config}")
-        
+            await self._handle_config_message(message.get("data", {}))
         elif msg_type == "flush":
-            # Forzar procesamiento del buffer actual
             await self.buffer.flush()
-        
         elif msg_type == "reset":
-            # Limpiar buffer sin procesar
             self.buffer.reset()
             await self._on_state_change(self.buffer.state)
-        
         elif msg_type == "ping":
             await self.websocket.send_json({"type": "pong"})
 
@@ -298,63 +291,40 @@ class RealtimeSession:
 # Endpoint WebSocket
 # ============================================================================
 
+async def _process_ws_text_message(session: RealtimeSession, text_msg: str) -> None:
+    try:
+        data = json.loads(text_msg)
+        await session.handle_message(data)
+    except json.JSONDecodeError:
+        await session._send_error("JSON inválido", "invalid_json")
+
+async def _run_ws_loop(websocket: WebSocket, session: RealtimeSession) -> None:
+    while True:
+        message = await websocket.receive()
+        if "text" in message:
+            await _process_ws_text_message(session, message["text"])
+        elif "bytes" in message:
+            await session.handle_audio(message["bytes"])
+
 @realtime_router.websocket("/practice")
 async def websocket_practice(websocket: WebSocket) -> None:
-    """WebSocket endpoint para práctica en tiempo real.
-    
-    Protocolo:
-    1. Cliente conecta y envía mensaje JSON de configuración
-    2. Cliente envía audio en chunks binarios (PCM 16-bit 16kHz mono)
-    3. Servidor envía actualizaciones de estado JSON (volumen, speaking)
-    4. Cuando se detecta pausa de 1s, servidor procesa y envía resultado
-    5. Cliente puede enviar mensajes de control (flush, reset, config)
-    
-    Mensajes del servidor:
-    - {"type": "ready", "message": str, "config": {...}}
-    - {"type": "state", "data": {"is_speaking": bool, "volume_level": float, ...}}
-    - {"type": "transcription", "data": {"ipa": str, "tokens": [...], "lang": str, "meta": {...}}}
-    - {"type": "comparison", "data": {"score": float, "ipa": str, "target_ipa": str, ...}}
-    - {"type": "error", "message": str, "data": {"message": str, "code": str}}
-    
-    Mensajes del cliente:
-    - {"type": "config", "data": {"lang": "es", "reference_text": "...", "mode": "objective", "evaluation_level": "phonemic"}}
-    - {"type": "flush"} - Forzar procesamiento inmediato
-    - {"type": "reset"} - Limpiar buffer
-    - {"type": "ping"} - Keepalive
-    """
+    """WebSocket endpoint para práctica en tiempo real."""
     await websocket.accept()
     logger.info("WebSocket conectado")
     
-    # Configuración inicial por defecto
     config = WSConfig()
     session = RealtimeSession(websocket, config)
     
     try:
         await session.setup()
-        
-        # Enviar estado inicial
         await websocket.send_json({
             "type": "ready",
             "message": "Sesión iniciada",
             "config": config.model_dump(),
         })
         
-        while True:
-            # Recibir mensaje (puede ser texto JSON o bytes de audio)
-            message = await websocket.receive()
-            
-            if "text" in message:
-                # Mensaje de control JSON
-                try:
-                    data = json.loads(message["text"])
-                    await session.handle_message(data)
-                except json.JSONDecodeError:
-                    await session._send_error("JSON inválido", "invalid_json")
-            
-            elif "bytes" in message:
-                # Chunk de audio binario
-                await session.handle_audio(message["bytes"])
-    
+        await _run_ws_loop(websocket, session)
+                
     except WebSocketDisconnect:
         logger.info("WebSocket desconectado")
     except Exception as e:
