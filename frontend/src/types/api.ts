@@ -191,6 +191,16 @@ export interface ErrorResponse {
   code: number;
 }
 
+export interface ComponentHealth {
+  status: 'ready' | 'not_ready' | 'error';
+  detail?: string;
+}
+
+export interface HealthResponse {
+  status: string;
+  components: Record<string, ComponentHealth>;
+}
+
 export interface AudioUploadMeta {
   /** Idioma del audio */
   lang: string;

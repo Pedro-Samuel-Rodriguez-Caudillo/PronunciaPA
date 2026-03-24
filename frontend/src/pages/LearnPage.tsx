@@ -662,14 +662,14 @@ export const LearnPage: React.FC = () => {
                   <div className="section-title">Ejercicios</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                     {lesson.drills.map((drill, idx) => {
-                      const targets =
+                      const targets: Array<{ text: string; audio?: string }> =
                         drill.targets_with_audio?.map((t) => ({
                           text: t.text,
                           audio: t.audio_url,
                         })) ??
                         drill.targets?.map((t) => ({ text: t })) ??
                         (drill.target ? [{ text: drill.target }] : []);
-                      const pairs =
+                      const pairs: Array<{ word1: string; word2: string; audio1?: string; audio2?: string }> =
                         drill.pairs_with_audio?.map((p) => ({
                           word1: p.word1,
                           word2: p.word2,

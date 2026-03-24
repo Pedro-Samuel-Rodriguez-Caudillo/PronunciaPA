@@ -9,7 +9,7 @@ import {
   QualityIndicator,
   TakeSelector,
 } from '@/components/recording';
-import { ScoreRing, AlignmentTable, InlineTokens, ErrorSummary } from '@/components/results';
+import { ScoreRing, AlignmentTable, InlineTokens, ErrorSummary, IPAColorDisplay } from '@/components/results';
 import { FeedbackPanel } from '@/components/feedback';
 import { useRecorder, useGameStats } from '@/hooks';
 import api from '@/services/api';
@@ -324,6 +324,14 @@ export const PracticePage: React.FC = () => {
                   </span>
                 </div>
               </div>
+            </Card>
+          )}
+
+          {/* IPA Color Display (dual mode) */}
+          {compareResult?.display && (
+            <Card className="fade-in">
+              <CardHeader>Visualización IPA</CardHeader>
+              <IPAColorDisplay display={compareResult.display} />
             </Card>
           )}
 
